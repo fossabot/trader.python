@@ -7,9 +7,10 @@ import time
 import json
 import json_ascii
 import copy
-from decimal import Decimal
 import decimal
+from decimal import Decimal
 import os
+import functions
 
 with open(os.path.join(os.path.dirname(__file__), '../config.json')) as f:
     config = json.load(f, object_hook=json_ascii.decode_dict)
@@ -66,17 +67,14 @@ class RAPI(object):
     def orders(self):
         return self._send_post('/orders')
 
+    def cancel_all(self):
+        orders = self.orders()
+        for order in orders:
+            x = self.order_cancel(order['order_id'])
+            print x;
+
     def accounts(self):
         return self._send_post('/accounts')
-
-    def floor_inc(self, n):
-        return (Decimal(str(n))/self._inc).quantize(Decimal('1'), rounding=decimal.ROUND_DOWN)*self._inc
-
-    def ceil_inc(self, n):
-        return (Decimal(str(n))/self._inc).quantize(Decimal('1'), rounding=decimal.ROUND_UP)*self._inc
-
-    def round_inc(self, n):
-        return (Decimal(str(n))/self._inc).quantize(Decimal('1'))*self._inc
 
     def _send_get(self, url, payload={}):
         body = urllib.urlencode(payload)
@@ -114,3 +112,11 @@ class RAPI(object):
         conn.close()
         return json.loads(s, object_hook=json_ascii.decode_dict)
 
+    def floor_inc(self, n):
+        return (Decimal(str(n))/self._inc).quantize(Decimal('1'), rounding=decimal.ROUND_DOWN)*self._inc
+
+    def ceil_inc(self, n):
+        return (Decimal(str(n))/self._inc).quantize(Decimal('1'), rounding=decimal.ROUND_UP)*self._inc
+
+    def round_inc(self, n):
+        return (Decimal(str(n))/self._inc).quantize(Decimal('1'))*self._inc    

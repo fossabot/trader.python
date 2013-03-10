@@ -8,6 +8,7 @@ import os
 import json
 import time
 import collections
+import decimal
 
 def floatify(l):
     if isinstance(l, (list, tuple)):
