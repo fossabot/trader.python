@@ -56,10 +56,9 @@ partialpath=os.path.join(os.path.dirname(__file__) + '../keys/' + site)
 f = open(os.path.join(partialpath + '_salt.txt'),'w')
 f.write(salt)
 f.close()
-
-
 print "\n"
 print "Generating the encrypted API KEY file..."
+print "Keys are located in: %r" % (partialpath)
 hash_pass = hashlib.sha256(password + salt).digest()
 encryptor = AES.new(hash_pass, AES.MODE_CBC)
 text = json.dumps({"key":key,"secret":secret})

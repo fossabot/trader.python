@@ -12,10 +12,7 @@ def trade(side, arg):
     except:
         print "Invalid arg {1}, expected size price".format(side, arg)
     print bitfloor.order_new(side=side, size=size, price=price)
-    orders = bitfloor.orders()
-    print orders['order_id']
 	
-
 class Shell(cmd.Cmd):
     def emptyline(self):
         pass

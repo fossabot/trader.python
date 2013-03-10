@@ -8,30 +8,11 @@ import base64
 import hmac
 import hashlib
 from bitfloor import RAPI
+import unlock_api_key
+
 
 def get_rapi():
-    print "MtGoxHMAC: Enter your API key file encryption password."
-    enc_password = getpass.getpass()#raw_input()
-    try:	
-        f = open('../keys/bitfloor_salt.txt','r')
-        salt = f.read()
-        f.close()
-        hash_pass = hashlib.sha256(enc_password + salt).digest()
-        f = open('../keys/bitfloor_key.txt')
-        ciphertext = f.read()
-        f.close()
-        decryptor = AES.new(hash_pass, AES.MODE_CBC)
-        plaintext = decryptor.decrypt(ciphertext)
-        d = json.loads(plaintext)
-        key = d['key']
-        secret = d['secret']
-        passphrase = enc_password
-    except:
-        print "\n\n\nError: you may have entered an invalid password or the encrypted api key file doesn't exist"
-        print "If you haven't yet generated the encrypted key file, run the encrypt_api_key.py script."
-        while 1:
-            pass
-
+    key,secret,passphrase = unlock_api_key.unlock("bitfloor")
     return RAPI(1,key,secret,passphrase)
 
 #old method of using bitfloor.json keyfile    

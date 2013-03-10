@@ -30,6 +30,7 @@ import json
 import urllib
 import urllib2
 import urlparse
+import unlock_api_key
 
 class ServerError(Exception):
 	def __init__(self, ret):
@@ -44,28 +45,7 @@ class UserError(Exception):
 
 class Client:
 	def __init__(self, enc_password=""):
-		if enc_password == "":
-			print "MtGoxHMAC: Enter your API key file encryption password."
-			enc_password = getpass.getpass()#raw_input()
-		try:	
-			f = open('../keys/mtgox_salt.txt','r')
-			salt = f.read()
-			f.close()
-			hash_pass = hashlib.sha256(enc_password + salt).digest()
-
-			f = open('../keys/mtgox_key.txt')
-			ciphertext = f.read()
-			f.close()
-			decryptor = AES.new(hash_pass, AES.MODE_CBC)
-			plaintext = decryptor.decrypt(ciphertext)
-			d = json.loads(plaintext)
-			self.key = d['key']
-			self.secret = d['secret']
-		except:
-			print "\n\n\nError: you may have entered an invalid password or the encrypted api key file doesn't exist"
-			print "If you haven't yet generated the encrypted key file, run the encrypt_api_key.py script."
-			while 1:
-				pass
+		self.key,self.secret,enc_password = unlock_api_key.unlock("mtgox")
 		
 		self.buff = ""
 		self.timeout = 15
