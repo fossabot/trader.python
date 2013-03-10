@@ -1,1 +1,4 @@
 *.pyc
+
+mtgox_api_key.txt
+salt.txt
