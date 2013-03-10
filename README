@@ -6,18 +6,19 @@ To use on windows some environment variables may be needed:
 echo PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
 echo PATH=%PATH%;C:\python27\
 
-Create a new API key on bitfloor. Remember the passphrase. It will be required to use your API key.
+Create a new API key on the bitfloor website. Remember the passphrase. It will be required to use your API key.
 
-You need to put your api and secret keys into a json file in the keys directory.
-example.json
-{
-    "key": "0d600b0b-3b51-4261-ab5f-55337547",
-    "secret": "xmW0mUxxaCVj+QNFJDGNSOy/zVd4za/kbZ+6OA9MQgusJadg2yh1gf9hgf2eg22JjvSjd8dgdBhLgU9g==",
-    "passphrase": "anAPIpasswordforsafety"
-}
+encrypt_apikey.py:  	You need to generate encrypted keys beforehand with the encrypt_apikey.py command
+
+	Use bitfloor as the site name for Bitfloor
+	Use mtgox as the site name for Mt. Gox	
+	Where it says "Enter an encryption password: (This is the password required to execute trades)"
+		-For Bitfloor this is your passphrase that you entered on the website.
+		-For mtgox You can create your own password, just make sure to remember it.
 
 All scripts located in bin/
 API Framework located in lib/
 
+INSTRUCTIONS:
 Call any script by opening a command window (cmd.exe) and typing:
 	python simple.py
