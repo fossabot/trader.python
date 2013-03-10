@@ -1,0 +1,5 @@
+<rikur> If you used machine learning to evaluate a situation that gives you a value between 0.0 and 1.0, where 0.0 - 0.33 is sell, 0.33 - 0.66 is hold and 0.66 - 1.00 is buy
+<rikur> then you could use the slider to skew those tresholds
+<rikur> so that it's more like to buy or sell. Or hold.
+
+#stop order  #trailing optional   #fixed or percentage

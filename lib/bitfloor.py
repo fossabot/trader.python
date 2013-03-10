@@ -14,6 +14,9 @@ import os
 with open(os.path.join(os.path.dirname(__file__), '../config.json')) as f:
     config = json.load(f, object_hook=json_ascii.decode_dict)
 
+with open(os.path.join(os.path.dirname(__file__), '../keys/bitfloor.json')) as f:
+    keysfile = json.load(f, object_hook=json_ascii.decode_dict)
+
 if config['data_port'] == 443 and config['order_port'] == 443:
     HTTPConn = httplib.HTTPSConnection
 else:
@@ -28,6 +31,10 @@ class RAPI(object):
 
     def book(self, level=1):
         url = '/book/L{1}/{0}'.format(self._product_id, level)
+        return self._send_get(url)
+
+    def entirebook(self, level=2):
+        url = '/book/L2/1'
         return self._send_get(url)
 
     def ticker(self):
@@ -96,7 +103,7 @@ class RAPI(object):
         headers = {
             'bitfloor-key': self._key,
             'bitfloor-sign': sig_b64,
-            'bitfloor-passphrase': config['passhprase'],
+            'bitfloor-passphrase': keysfile['passphrase'],
             'bitfloor-version': config['version'],
             'Content-Type': 'application/x-www-form-urlencoded',
             'Content-Length': len(body)

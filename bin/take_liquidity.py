@@ -30,8 +30,8 @@ while True:
 
     price = bitfloor.round_inc(price)
 
-    size = round(max(0.01, 10*random.random())*1e8)/1e8
 
+    size = round(max(0.01, 10*random.random())*1e8)/1e8
     order = bitfloor.order_new(side=side, size=size, price=price)
     id = order.get('order_id')
     if not id:
