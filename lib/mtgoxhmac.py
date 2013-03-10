@@ -53,7 +53,7 @@ class Client:
 			f.close()
 			hash_pass = hashlib.sha256(enc_password + salt).digest()
 
-			f = open('../mtgoxapi_key.txt')
+			f = open('../mtgox_api_key.txt')
 			ciphertext = f.read()
 			f.close()
 			decryptor = AES.new(hash_pass, AES.MODE_CBC)
