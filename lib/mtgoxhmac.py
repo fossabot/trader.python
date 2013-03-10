@@ -48,12 +48,12 @@ class Client:
 			print "MtGoxHMAC: Enter your API key file encryption password."
 			enc_password = getpass.getpass()#raw_input()
 		try:	
-			f = open('../salt.txt','r')
+			f = open('../keys/mtgox_salt.txt','r')
 			salt = f.read()
 			f.close()
 			hash_pass = hashlib.sha256(enc_password + salt).digest()
 
-			f = open('../mtgox_api_key.txt')
+			f = open('../keys/mtgox_key.txt')
 			ciphertext = f.read()
 			f.close()
 			decryptor = AES.new(hash_pass, AES.MODE_CBC)
@@ -263,12 +263,11 @@ class Client:
         
 	def cancel_buy_order(self, oid):
 		params = {"oid":str(oid), "type":str(2)}
-		return self.request("cancelOrder.php", params)    
+		return self.request("cancelOrder.php", params)
 
 	def cancel_sell_order(self, oid):
 		params = {"oid":str(oid), "type":str(1)}
-		return self.request("cancelOrder.php", params)  
-
+		return self.request("cancelOrder.php", params)
 
 if __name__ == "__main__":
 	def ppdict(d):

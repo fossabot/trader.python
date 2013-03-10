@@ -11,8 +11,8 @@ import hmac
 import time
  
 # Replace these with your own API key data
-BTC_api_key = "asdfg"
-BTC_api_secret = "8asdfg5"
+BTC_api_key = "QTF6HEV3-UH8KISGW-FN1QP14X-IA37CCR1-CMDR1OT2"
+BTC_api_secret = "8cc3cd5214c486e627d4bc81fe6215a8d9b7a6e9156cd47a54ec41da09a32455"
 # Come up with your own method for choosing an incrementing nonce
 nonce = int(time.time())
 print nonce, ' Nonce'

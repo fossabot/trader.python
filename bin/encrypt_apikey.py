@@ -28,6 +28,7 @@ import hashlib
 import json
 import time
 import random
+import os
 
 print "\n\nga-bitbot API Key Encryptor v0.2"
 print "-" * 30
@@ -39,6 +40,9 @@ key = raw_input()
 print "\nEnter the API SECRET KEY:"
 secret = raw_input()
 
+print "Enter the site: "
+site = raw_input()
+
 print "\n\nEnter an encryption password:"
 print "(This is the password required to execute trades)"
 password = raw_input()
@@ -48,7 +52,8 @@ print "\n"
 print "Generating the local password salt..."
 pre_salt = str(time.time() * random.random() * 1000000) + 'H7gfJ8756Jg7HBJGtbnm856gnnblkjiINBMBV734'
 salt = hashlib.sha512(pre_salt).digest()
-f = open('../salt.txt','w')
+partialpath=os.path.join(os.path.dirname(__file__) + '../keys/' + site)
+f = open(os.path.join(partialpath + '_salt.txt'),'w')
 f.write(salt)
 f.close()
 
@@ -62,24 +67,34 @@ text = json.dumps({"key":key,"secret":secret})
 pad_len = 16 - len(text)%16
 text += " " * pad_len
 ciphertext = encryptor.encrypt(text)
-f = open('../mtgoxapi_key.txt','w')
+f = open(os.path.join(partialpath + '_key.txt'),'w')
 f.write(ciphertext)
 f.close()
 
 print "Verifying encrypted file..."
-f = open('../mtgoxapi_key.txt','r')
+f = open(os.path.join(partialpath + '_key.txt'),'r')
 d = f.read()
 f.close()
-f = open('../salt.txt','r')
+f = open(os.path.join(partialpath + '_salt.txt'),'r')
 salt = f.read()
 f.close()
 hash_pass = hashlib.sha256(password + salt).digest()
 decryptor = AES.new(hash_pass, AES.MODE_CBC)
-text = decryptor.decrypt(d)
-d = json.loads(text)
-if d['key'] == key and d['secret'] == secret:
-	print "Passed verification"
-else:
-	print "Failed verification...try again."
 
-print "\nDon't forget your password:",password," This is what is required to enable trading."
+def failed ():
+    os.remove(os.path.join(partialpath + '_key.txt'))
+    os.remove(os.path.join(partialpath + '_salt.txt'))
+    print "Failed verification...try to re-run again. Make sure Length=160 or some multiple of 16"
+
+print 'Length = ',len(d)
+if len(d)%16 == 0:
+    try:
+        text = decryptor.decrypt(d)
+        d = json.loads(text)
+        if d['key'] == key and d['secret'] == secret:
+            print "Passed verification"
+            print "\nDon't forget your password:",password," This is what is REQUIRED to enable trading."
+    except: 
+        failed()
+else:
+    failed()

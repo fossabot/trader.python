@@ -7,6 +7,9 @@ import cmd
 
 mtgox = mtgoxhmac.Client()
 
+#get trade depth
+alltrades=mtgox.get_trades()
+print mtgox.get_info()
 def trade(side, arg):
     try:
         size, price = arg.split()
@@ -16,6 +19,7 @@ def trade(side, arg):
     orders = mtgox.orders()
     print orders['order_id']
 	
+
 
 class Shell(cmd.Cmd):
     def emptyline(self):
