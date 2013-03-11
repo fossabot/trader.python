@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # randomly adds/cancels orders
 # keeps track of average latency of ordering and cancelling
+# this file was named take_liquidity previously
 
 import random
 import math
