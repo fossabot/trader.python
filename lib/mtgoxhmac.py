@@ -256,6 +256,14 @@ class Client:
     def cancel_sell_order(self, oid):
         params = {"oid":str(oid), "type":str(1)}
         return self.request("cancelOrder.php", params)
+    def cancelall(self):
+        orders = self.get_orders()
+        for order in orders['orders']:
+            type = order['type']
+            oid = order['oid']
+            params = {"oid":str(oid), "type":str(type)}
+            self.request("cancelOrder.php", params)
+            print '%r Successfully Cancelled!' % (oid)
 
 if __name__ == "__main__":
     def ppdict(d):

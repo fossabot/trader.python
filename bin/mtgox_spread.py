@@ -3,14 +3,7 @@
 # adds a multitude of orders between price A and price B of sized chunks on Mtgox.
 
 import mtgoxhmac
-import readline
 import cmd
-import httplib
-import urllib
-import json
-import json_ascii
-import hashlib
-import hmac
 import time
 import unlock_api_key
 from book import Book, Order
@@ -18,10 +11,8 @@ from book import Book, Order
 mtgox = mtgoxhmac.Client()
 
 #get 24 hour trade history - cached
-alltrades=mtgox.get_trades()
-#get current trade depth book
-entirebook=Book.parse(mtgox.get_depth())
-entirebook.sort()
+#alltrades=mtgox.get_trades()
+
 #display info like account balance & funds
 #print mtgox.get_info()
 
@@ -42,6 +33,9 @@ def trade(side, price_lower, price_upper, size, chunks):
  
 #start printing part of the order book (first 10 asks and 10 bids)
 def printorderbook():
+    #get current trade depth book
+    entirebook=Book.parse(mtgox.get_depth())
+    entirebook.sort()
     for o in reversed(entirebook.asks[:15]):
         print '                              $',o.price,o.size, '--ASK-->'
     print '                    |||||||||||'
@@ -78,7 +72,7 @@ class Shell(cmd.Cmd):
             print "Invalid arg {1}, expected size price".format(size, price)        
         trade('sell', price_lower, price_upper, size, chunks)
         
-    def do_book(self, arg):
+    def do_book(self,arg):
         printorderbook()
         
     def do_orders(self,arg):
@@ -93,6 +87,9 @@ class Shell(cmd.Cmd):
                 print type,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['priority']),float(order['price']),float(order['amount']))
             else:
                 print type,'order %r Not enough Funds' % (str(order['priority']))
+    def do_cancelall(self,arg):
+        mtgox.cancelall()
+        print "All Orders have been Cancelled!!!!!"
 
 #exit out if Ctrl+Z is pressed
     def do_EOF(self, arg):
