@@ -17,14 +17,16 @@ class Book(object):
         def parse_side(arr):
             orders = []
             for a in arr:
-                size = Decimal(str(a[1]))
                 price = Decimal(str(a[0]))
+                size = Decimal(str(a[1]))
                 orders.append(Order(size, price))
             return orders
 
         bids = parse_side(d['bids'])
+        print 'Bids side Parsed'
         asks = parse_side(d['asks'])
-
+        print 'Asks side Parsed'
+        
         return cls(bids, asks)
 
     def __init__(self, bids, asks):

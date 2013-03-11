@@ -33,16 +33,8 @@ mtgox = mtgoxhmac.Client()
 class Shell(cmd.Cmd):
     def emptyline(self):
         pass
-
+    print 'Last Mt.Gox Open order: ', mtgox.last_order()
     prompt = '(buy|sell size price) '
-    orders = mtgox.get_orders()['orders']
-    max_date = 0
-    last_order = orders[0]
-    for o in orders:
-        if o['date'] > last_order['date']:
-            last_order = o
-        print last_order
-   
     def do_sell(self, arg):
         size, price = arg.split()
         mtgox.sell_btc(size,price)
