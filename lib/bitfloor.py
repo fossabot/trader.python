@@ -12,7 +12,7 @@ from decimal import Decimal
 import os
 import common
 
-with open(os.path.join(os.path.dirname(__file__), '../config.json')) as f:
+with open(os.path.join(os.path.dirname(__file__), 'config.json')) as f:
     config = json.load(f, object_hook=json_ascii.decode_dict)
     
 if config['data_port'] == 443 and config['order_port'] == 443:

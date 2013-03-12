@@ -78,3 +78,26 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                 print exchangename,' order going through'
                 exchangeobject.sell_btc(amount=chunk_size, price=loop_price)
         loop_price += float(price_chunk)
+        
+def ppdict(d):
+    #pretty print a dict
+    print "-"*40
+    try:
+        for key in d.keys():
+            print key,':',d[key]			
+    except:
+        print d
+    return d
+
+def pwdict(d,filename):
+    #pretty write a dict
+    f = open(filename,'w')
+    try:
+        for key in d.keys():
+            f.write(key + " : " + str(d[key]) + "\n")
+    except:
+        pass
+    f.write('\n' + '-'*80 + '\n')
+    f.write(str(d))
+    f.close()
+    return d

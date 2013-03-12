@@ -272,29 +272,6 @@ class Client:
             params = {"oid":str(oid), "type":str(type)}
             self.request("cancelOrder.php", params)
             print '%r Successfully Cancelled!' % (oid)
-
-    def ppdict(d):
-        #pretty print a dict
-        print "-"*40
-        try:
-            for key in d.keys():
-                print key,':',d[key]			
-        except:
-            print d
-        return d
-
-    def pwdict(d,filename):
-        #pretty write a dict
-        f = open(filename,'w')
-        try:
-            for key in d.keys():
-                f.write(key + " : " + str(d[key]) + "\n")
-        except:
-            pass
-        f.write('\n' + '-'*80 + '\n')
-        f.write(str(d))
-        f.close()
-        return d
         
 if __name__ == "__main__":
     print "\nMTGoxHMAC module test"
