@@ -13,11 +13,6 @@ from common import *
 #this variable goes into args.py and will pass any API calls defined in the bitfloor.py RAPI
 bitfloor = args.get_rapi()
 
-#get the entire Lvl 2 order book    entirebook() was not needed, for the entire book just call book(2)
-#whereas book (1) is the last bid/ask
-#entirebook = bitfloor.entirebook()
-#entirebook = floatify(bitfloor.book(2))
-
 def trade(entirebook,amount,lower,upper,waittime=0):
     totalBTC, totalprice, bidcounter, weightedavgprice, counter = (0,0,0,0,0)
     for price in entirebook:
