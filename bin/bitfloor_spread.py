@@ -5,66 +5,73 @@
 import args	#lib/args.py modified to use product 1 & bitfloor file
 import cmd
 import time
+from decimal import Decimal
+from common import *
 
 bitfloor = args.get_rapi()
-
-# trade function including Chunk Trade spread logic & Confirmation
-def trade(side, price_lower, price_upper, size, chunks):
-    loop_price = float(price_lower)
-    for x in range (0, int(chunks)):
-        price_range = float(price_upper) - float(price_lower)
-        price_chunk = float(price_range)/ float(chunks)
-        chunk_size = float(size) / float(chunks)
-        if side == 0:
-            print 'Buying...', "Chunk # ",x+1," = ",chunk_size," BTC @ $", loop_price
-            bitfloor.order_new(side=side, size=chunk_size, price=loop_price)
-        elif side == 1 :
-            print 'Selling...', "Chunk # ",x+1," = ",chunk_size," BTC @ $", loop_price
-            bitfloor.order_new(side=side, size=chunk_size, price=loop_price) 
-        loop_price += price_chunk
         
-#start printing part of the order book (first 10 asks and 10 bids)
-def printorderbook():
+#start printing part of the order book (first 15 asks and 15 bids)
+def printorderbook(size):
     #get the entire Lvl 2 order book    
-    entirebook = bitfloor.entirebook()
-    for askprice in reversed(entirebook['asks'][:15]):
-        print '                              $',askprice[0][:-6],askprice[1][:-3], '--ASK-->'
-    print '                    |||||||||||'
-    for bidprice in entirebook['bids'][:15]:
-        print '<--BID--$',bidprice[0][:-6],bidprice[1][:-3]    
+    entirebook = floatify(bitfloor.book(2))
+    if size is '':
+        uglyprintbooks(entirebook['asks'],entirebook['bids'],15)      #default to 15 if size is not given
+    else:
+        uglyprintbooks(entirebook['asks'],entirebook['bids'],int(size))   #otherwise use the size that was given after calling book        
+        
 #give a little user interface
     print 'Press Ctrl+Z to exit gracefully or  Ctrl+C to force quit'
     print 'Typing book will show the order book again'
     print 'Typing orders will show your current open orders'
     print 'Typing cancelall will cancel every single open order'
+    print 'Typing help will show you the list of commands'
     print 'trade example: '
-    print '   buy 40 41 6.4 128 = buys 128 chunks totaling 6.4 BTC between $40 and $41'
+    print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
     print ' '
     
 class Shell(cmd.Cmd):
-    def emptyline(self):
-        pass
+    def emptyline(self):      
+        pass                #Do nothing on empty input line instead of re-executing the last command
+    def __init__(self):
+        cmd.Cmd.__init__(self)
+        self.prompt = 'Bitfloor CMD>'   # The prompt for a new user input command
+        self.use_rawinput = False
+        self.onecmd('help')
     #start out by printing the order book and the instructions
-    printorderbook()
-    #trading command prompt
-    prompt = 'buy/sell, price_lower, price_upper, amount(BTC), chunks(#)'
-#pass arguments back up to trade() function
+    printorderbook(15)
+
     def do_buy(self, arg):
-        try:
-            price_lower, price_upper, size, chunks = arg.split()
+        try:        #pass arguments back up to spread() function
+            size, price_lower, price_upper, chunks = arg.split()
+            spread('bitfloor',bitfloor, 0, size, price_lower, price_upper, chunks)
         except:
-            print "Invalid arg {1}, expected size price".format(side, arg)        
-        trade(0,  price_lower, price_upper, size, chunks)
+            try:
+                size,price_lower = arg.split()
+                spread('bitfloor',bitfloor, 0, size, price_lower)
+            except:
+                print "Invalid args given. Expecting: size price"
+        
             
     def do_sell(self, arg):
         try:
-            price_lower, price_upper, size, chunks = arg.split()
+            size, price_lower, price_upper, chunks = arg.split()
+            try:
+                spread('bitfloor',bitfloor, 1, size, price_lower, price_upper, chunks)
+            except:
+                print 'Trade failed'
         except:
-            print "Invalid arg {1}, expected size price".format(side, arg)        
-        trade(1,  price_lower, price_upper, size, chunks)
+            try:
+                size,price_lower = arg.split()
+                try:
+                    spread('bitfloor',bitfloor, 1, size, price_lower)
+                except:
+                    print 'Trade failed'
+            except:
+                print "Invalid args given. Expecting: size price"
+        
 
-    def do_book(self, arg):
-        printorderbook()
+    def do_book(self,size):
+        printorderbook(size)
         
     def do_orders(self,arg):
         time.sleep(1)
@@ -75,13 +82,21 @@ class Shell(cmd.Cmd):
             else:
                 type="Buy"
             print type,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['timestamp']),float(order['price']),float(order['size']))
+    
     def do_cancelall(self,arg):
         bitfloor.cancel_all()
         print "All Orders have been Cancelled!!!!!"
 
 #exit out if Ctrl+Z is pressed
-    def do_EOF(self, arg):
-        print "Any Trades have been Executed, Session Terminating......."
+    def do_exit(self,arg):      #standard way to exit
+        """Exits the program"""
+        print '\nSession Terminating.......'
+        print 'Exiting......'
         return True
+    def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
+        """Exits the program"""
+        return True
+    def help_help(self):
+        print 'Prints the help screen'
 
 Shell().cmdloop()

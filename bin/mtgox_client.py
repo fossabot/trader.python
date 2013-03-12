@@ -6,8 +6,8 @@
 import mtgoxhmac
 import cmd
 import time
-#import readline
 from book import Book, Order
+from common import *
 
 mtgox = mtgoxhmac.Client()
 
@@ -16,32 +16,16 @@ mtgox = mtgoxhmac.Client()
 
 #display info like account balance & funds
 #print mtgox.get_info()
-
-# trade function including Chunk Trade spread logic
-def trade(side, size, price_lower, price_upper, chunks):
-    loop_price = float(price_lower)
-    for x in range (0, int(chunks)):
-        price_range = float(price_upper) - float(price_lower)
-        price_chunk = float(price_range)/ float(chunks)
-        chunk_size = float(size) / float(chunks)
-        if side == 'buy':
-            print 'Buying...', "Chunk # ",x+1," = ",chunk_size," BTC @ $", loop_price
-            mtgox.buy_btc(amount=chunk_size, price=loop_price)
-        elif side == 'sell' :
-            print 'Selling...', "Chunk # ",x+1," = ",chunk_size," BTC @ $", loop_price
-            mtgox.sell_btc(amount=chunk_size, price=loop_price) 
-        loop_price += price_chunk
  
 #start printing part of the order book (first 10 asks and 10 bids)
-def printorderbook():
-    #get current trade depth book
+def printorderbook(size):
+    #get current trade order book (depth)
     entirebook=Book.parse(mtgox.get_depth())
     entirebook.sort()
-    for o in reversed(entirebook.asks[:15]):
-        print '                              $',o.price,o.size, '--ASK-->'
-    print '                    |||||||||||'
-    for o in entirebook.bids[:15]:
-        print '<--BID--$',o.price,o.size
+    if size is '':
+        uglyprintbooks(entirebook.asks,entirebook.bids,15)
+    else:
+        uglyprintbooks(entirebook.asks,entirebook.bids,int(size))
         
 def bal():
     balance = mtgox.get_balance()
@@ -95,10 +79,11 @@ class Feesubroutine(cmd.Cmd):
         print 'Prints the help screen'
 
 class Shell(cmd.Cmd):
+    def emptyline(self):      
+        pass                #Do nothing on empty input line instead of re-executing the last command
     def __init__(self):
         cmd.Cmd.__init__(self)
-        # The prompt for a new user input command
-        self.prompt = 'Main CMD>'
+        self.prompt = 'MtGox CMD>'      # The prompt for a new user input command
         self.use_rawinput = False
         self.onecmd('help')
     #give a little user interface
@@ -107,37 +92,41 @@ class Shell(cmd.Cmd):
     print 'sample trade example: '
     print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
     
-    def emptyline(self):      
-        pass                #Do nothing on empty input line instead of re-executing the last command
-    #start out by printing the order book and the instructions
-    printorderbook()
 
-#pass arguments back up to trade() function
+    #start out by printing the order book and the instructions
+    printorderbook(15)
+
+#pass arguments back to spread() function in common.py
     def do_buy(self, arg):
         """Sell some BTC between price A and price B of equal sized chunks"""
         """Format is buy amount(BTC) price_lower price_upper chunks(#)"""
         """ie:   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
         try:
             size, price_lower, price_upper, chunks = arg.split()
+            spread('mtgox',mtgox,'buy', size, price_lower, price_upper, chunks)
         except:
-            print "Incomplete Command. Retry"
-            return
-        trade('buy', size, price_lower, price_upper, chunks)
- 
+            try:
+                size,price_lower = arg.split()
+                spread('mtgox',mtgox,'buy', size, price_lower)
+            except:
+                print "Invalid args given. Expecting: size price"   
     def do_sell(self, arg):
         """Sell some BTC between price A and price B of equal sized chunks"""
         """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
         """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
         try:
-             size, price_lower, price_upper, chunks = arg.split()
+            size, price_lower, price_upper, chunks = arg.split()
+            spread('mtgox',mtgox,'sell', size, price_lower, price_upper, chunks)
         except:
-            print "Incomplete Command. Retry"
-            return
-        trade('sell', size, price_lower, price_upper, chunks)
+            try:
+                size,price_lower = arg.split()
+                spread('mtgox',mtgox,'sell', size, price_lower)
+            except:
+                print "Invalid args given. Expecting: size price" 
         
-    def do_book(self,arg):
-        """Download and print the order book of current bids and asks"""
-        printorderbook()
+    def do_book(self,size):
+        """Download and print the order book of current bids and asks of depth $size"""
+        printorderbook(size)
         
     def do_orders(self,arg):
         """Print a list of all your open orders, including pending"""

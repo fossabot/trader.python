@@ -196,13 +196,17 @@ class Client:
     def entire_trade_history(self):
         return self.request("BTCUSD/private/trades", None, API_VERSION=1)
     def last_order(self):
-        orders = self.get_orders()['orders']
-        max_date = 0
-        last_order = orders[0]
-        for o in orders:
-            if o['date'] > last_order['date']:
-                last_order = o
-            return last_order
+        try:
+            orders = self.get_orders()['orders']
+            max_date = 0
+            last_order = orders[0]
+            for o in orders:
+                if o['date'] > last_order['date']:
+                    last_order = o
+                return last_order
+        except:
+            print 'no orders found'
+            return
 
     def buy_btc(self, amount, price):
         #new mtgox market orders begin in a pending state

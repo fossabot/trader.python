@@ -9,8 +9,12 @@ class Order(object):
         self.price = price
 
     def __repr__(self):
-        return "{0}@{1}".format(self.size, self.price)
-
+        #return "{0}@{1}".format(self.size, self.price)
+        return str([self.price,self.size])
+    def __getitem__(self,index):
+        alist=[self.price,self.size]
+        return alist[index]
+    
 class Book(object):
     @classmethod
     def parse(cls, d):
