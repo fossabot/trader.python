@@ -23,9 +23,9 @@ class Book(object):
             return orders
 
         bids = parse_side(d['bids'])
-        print 'Bids side Parsed'
+        #print 'Bids side Parsed'
         asks = parse_side(d['asks'])
-        print 'Asks side Parsed'
+        #print 'Asks side Parsed'
         
         return cls(bids, asks)
 

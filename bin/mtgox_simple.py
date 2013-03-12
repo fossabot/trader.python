@@ -4,13 +4,6 @@
 
 import mtgoxhmac
 import cmd
-import httplib
-import urllib
-import json
-import json_ascii
-import hashlib
-import hmac
-import time
 import unlock_api_key
 
 mtgox = mtgoxhmac.Client()

@@ -66,7 +66,13 @@ echo PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.p
 echo PATH=%PATH%;C:\python27\
 You will need a bunch of py modules:
 -crypto
+-pyreadline
 -readline
+-requests (1.1.0)
+-setuptools (0.6c11)
+-twisted
+-zope
 -cjson
--requests
 -probably more
+To enable command line tab completion inside the scripts :
+copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.ini" %HOMEPATH%

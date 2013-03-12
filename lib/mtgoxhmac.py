@@ -175,7 +175,8 @@ class Client:
             else:
                 return []
 
-
+    def lag(self):
+        return self.request('generic/order/lag',None,API_VERSION=1)["return"]
     def get_history_btc(self):
         return self.request('history_BTC.csv',None,JSON=False)
     def get_history_usd(self):
@@ -192,6 +193,8 @@ class Client:
         return self.request("getFunds.php", None)
     def get_orders(self):
         return self.request("getOrders.php", None)
+    def entire_trade_history(self):
+        return self.request("BTCUSD/private/trades", None, API_VERSION=1)
     def last_order(self):
         orders = self.get_orders()['orders']
         max_date = 0
@@ -256,6 +259,7 @@ class Client:
     def cancel_sell_order(self, oid):
         params = {"oid":str(oid), "type":str(1)}
         return self.request("cancelOrder.php", params)
+        
     def cancelall(self):
         orders = self.get_orders()
         for order in orders['orders']:
@@ -265,7 +269,6 @@ class Client:
             self.request("cancelOrder.php", params)
             print '%r Successfully Cancelled!' % (oid)
 
-if __name__ == "__main__":
     def ppdict(d):
         #pretty print a dict
         print "-"*40
@@ -288,7 +291,8 @@ if __name__ == "__main__":
         f.write(str(d))
         f.close()
         return d
-
+        
+if __name__ == "__main__":
     print "\nMTGoxHMAC module test"
     print "**warning: running this script will initiate then cancel an order on the MtGox exchange.**"
 
