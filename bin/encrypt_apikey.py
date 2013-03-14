@@ -1,25 +1,7 @@
-
 """
 encrypt_api_key v0.01 
-VERSION 0.2 REVISED by genBTC 
-FOR MTGOX
-
 Copyright 2011 Brian Monkaba
-
-This file is part of ga-bitbot.
-
-    ga-bitbot is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    ga-bitbot is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with ga-bitbot.  If not, see <http://www.gnu.org/licenses/>.
+VERSION 0.3 REVISED by genBTC 
 """
 
 
@@ -29,6 +11,7 @@ import json
 import time
 import random
 import os
+import getpass
 
 print "\n\nga-bitbot API Key Encryptor v0.2"
 print "-" * 30
@@ -40,60 +23,78 @@ key = raw_input()
 print "\nEnter the API SECRET KEY:"
 secret = raw_input()
 
-print "Enter the site: "
+print "Enter the site:"
 site = raw_input()
 
 print "\n\nEnter an encryption password:"
 print "(This is the password required to execute trades)"
-password = raw_input()
+password = getpass.getpass()                #uses raw_input() but doesnt keep a history
 
-
-print "\n"
-print "Generating the local password salt..."
-pre_salt = str(time.time() * random.random() * 1000000) + 'H7gfJ8756Jg7HBJGtbnm856gnnblkjiINBMBV734'
-salt = hashlib.sha512(pre_salt).digest()
+print "\nGenerating the random salt..."
+salt = os.urandom(32)                   #requires Python 2.4  = 32 bytes or 256 bits of randomness
+"""salt = hashlib.sha512(pre_salt).digest()    #hashing does not add any new randomness """
 partialpath=os.path.join(os.path.dirname(__file__) + '../keys/' + site)
 f = open(os.path.join(partialpath + '_salt.txt'),'w')
 f.write(salt)
 f.close()
-print "\n"
-print "Generating the encrypted API KEY file..."
-print "Keys are located in: %r" % (partialpath)
+
+print "Generating the password hash..."
 hash_pass = hashlib.sha256(password + salt).digest()
-encryptor = AES.new(hash_pass, AES.MODE_CBC)
-text = json.dumps({"key":key,"secret":secret})
-#pad the text
-pad_len = 16 - len(text)%16
-text += " " * pad_len
-ciphertext = encryptor.encrypt(text)
+encryptor = AES.new(hash_pass, AES.MODE_CBC)            #create the AES container
+plaintext = json.dumps({"key":key,"secret":secret})
+
+#new way to pad. Uses 32 block size for the cipher 256 bit AES
+#chr(32) happens to be spacebar... (padding with spaces)
+pad = lambda s: s + (32 - len(s) % 32) * chr(32)        # function to pad the password 
+paddedtext = pad(plaintext)
+
+ciphertext = encryptor.encrypt(paddedtext)              #go ahead and encrypt it
+print "Length after encryption =",len(ciphertext)
+
+print "Generating the encrypted API KEY file located in: %r" % (partialpath)
 f = open(os.path.join(partialpath + '_key.txt'),'w')
+print "Writing encryption key to file..."
 f.write(ciphertext)
 f.close()
 
-print "Verifying encrypted file..."
+print "\n\nAttempting to verify encrypted files..."
 f = open(os.path.join(partialpath + '_key.txt'),'r')
-d = f.read()
+filedata = f.read()
 f.close()
 f = open(os.path.join(partialpath + '_salt.txt'),'r')
-salt = f.read()
+filesalt = f.read()
 f.close()
-hash_pass = hashlib.sha256(password + salt).digest()
-decryptor = AES.new(hash_pass, AES.MODE_CBC)
+typo=True
+while typo==True:
+    print "\nRe-enter your password to confirm:"
+    newpassword = getpass.getpass()                     #Just to check for typos
+    if newpassword == password:
+        typo=False
+    else:
+        failed("Incorrect password!!!!")
+hash_pass = hashlib.sha256(newpassword + filesalt).digest()
+decryptor = AES.new(hash_pass, AES.MODE_CBC)            #create the AES container    
 
-def failed ():
+def failed (message):
     os.remove(os.path.join(partialpath + '_key.txt'))
     os.remove(os.path.join(partialpath + '_salt.txt'))
-    print "Failed verification...try to re-run again. Make sure Length=160 or some multiple of 16"
-
-print 'Length = ',len(d)
-if len(d)%16 == 0:
+    print "Failed verification due to %r. Please re-run again." % (message)
+    
+print "File Read Verification Length = ",len(filedata)
+if len(filedata)%16 == 0:
     try:
-        text = decryptor.decrypt(d)
-        d = json.loads(text)
-        if d['key'] == key and d['secret'] == secret:
-            print "Passed verification"
-            print "\nDon't forget your password:",password," This is what is REQUIRED to enable trading."
+        filekeys = decryptor.decrypt(filedata)          #go ahead and decrypt the file
     except: 
-        failed()
+        failed("Failed AES Decyption")
+    try:
+        data = json.loads(filekeys)                     #convert the string to a dict
+    except:
+        failed("Failed JSON Decoding")
+    else:
+        if data['key'] == key and data['secret'] == secret:
+            print "\nPASSED Verification!!!!!!!!!!!!"
+            print "\nDon't forget your password. This is what is REQUIRED to enable trading."
+        else:
+            failed("Failed API Key Verification")
 else:
-    failed()
+    failed("Length was not 160. Make sure Length=160 or some multiple of 16.")
