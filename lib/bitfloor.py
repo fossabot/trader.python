@@ -11,8 +11,13 @@ import decimal
 from decimal import Decimal
 import os
 import common
+import unlock_api_key
 
-with open(os.path.join(os.path.dirname(__file__), 'config.json')) as f:
+def get_rapi():
+    key,secret,passphrase = unlock_api_key.unlock("bitfloor")
+    return RAPI(1,key,secret,passphrase) #the 1 means "product_ID" is USD
+    
+with open(os.path.join(os.path.dirname(__file__), '../data/config.json')) as f:
     config = json.load(f, object_hook=json_ascii.decode_dict)
     
 if config['data_port'] == 443 and config['order_port'] == 443:
@@ -32,7 +37,7 @@ class RAPI(object):
         url = '/book/L{1}/{0}'.format(self._product_id, level)
         return self._send_get(url)
 
-    def entirebook(self, level=2):
+    def entirebook(self, level=2):  #not needed at all (made because did not understand that book(2) does this)
         url = '/book/L2/1'
         return self._send_get(url)
 

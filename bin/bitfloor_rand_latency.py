@@ -5,14 +5,14 @@
 import random
 import math
 import time
-import args
+import bitfloor
 import decimal
 from decimal import Decimal
 import cmd
 import readline
 import sys
 
-bitfloor = args.get_rapi()
+bitfloor = bitfloor.get_rapi()
 
 olatency = [] # order latency
 clatency = [] # cancel latency

@@ -4,9 +4,9 @@
 import random
 import math
 
-import args
+import bitfloor
 
-bitfloor = args.get_rapi()
+bitfloor = bitfloor.get_rapi()
 
 count = 0
 while True:

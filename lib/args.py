@@ -11,9 +11,7 @@ from bitfloor import RAPI
 import unlock_api_key
 
 
-def get_rapi():
-    key,secret,passphrase = unlock_api_key.unlock("bitfloor")
-    return RAPI(1,key,secret,passphrase)
+
 
 #old method of using bitfloor.json keyfile    
 #def get_rapi():

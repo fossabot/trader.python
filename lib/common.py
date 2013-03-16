@@ -24,6 +24,19 @@ def floatify(l):
         return l
     return 0.0
 
+def decimalify(l):
+    if isinstance(l, (list, tuple)):
+        return [decimalify(v) for v in l]
+    elif isinstance(l, collections.Mapping):
+        return {decimalify(k): decimalify(l[k]) for k in l}
+    try:
+        return Decimal(l)
+    except:
+        pass
+    if isinstance(l, basestring) and len(l):
+        return l
+    return 0.0    
+
 def mean(l):
     l = floatify(l)
     if getattr(l,'__len__',[].__len__)():
@@ -46,13 +59,19 @@ def addupasks(somebook,amount,lower,upper,waittime=0):
     print '$', totalprice, totalBTC, ' BTC', weightedavgprice, ' for ASKS'
 
 def uglyprintbooks(asks,bids,howmany):
+
     for price in reversed(asks[:howmany]):
-        #print price[0],price[1]
-        print ' '*30,'$%.2f, %.5f ----ASK-->' % (price[0],price[1])
-    print ' '*20,'|'*11
+        print ' '*30,'$%s, %s -----ASK-->' % (str(price[0]),str(price[1]))
+    print ' '*10,'|'*6,'First %s Orders' % howmany,'|'*6
     for price in bids[:howmany]:
-        #print price[0],price[1]
-        print '<--BID----$%.2f, %.5f' % (price[0],price[1])
+        print '<--BID-----$%s, %s' % (str(price[0]),str(price[1]))
+
+    # for price in reversed(asks[:howmany]):
+    #     print type(price[0])
+    #     print ' '*30,'$%.2f, %.5f -----ASK-->' % (price[0],price[1])
+    # print ' '*10,'|'*6,'First %r Orders' % howmany,'|'*6
+    # for price in bids[:howmany]:
+    #     print '<--BID-----$%.2f, %.5f' % (price[0],price[1])
 
 # spread trade function including Chunk Trade spread logic & Confirmation
 def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000, chunks=1):

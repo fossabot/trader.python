@@ -5,13 +5,14 @@
 # optional Wait time (default to instant gratification)
 
 
-import args	#lib/args.py modified to use product 1 & bitfloor.json file
+import bitfloor	#lib/args.py modified to use product 1 & bitfloor.json file
 import cmd
 import time
 from common import *
+from book import *
 
 #this variable goes into args.py and will pass any API calls defined in the bitfloor.py RAPI
-bitfloor = args.get_rapi()
+bitfloor = bitfloor.get_rapi()
 
 def trade(entirebook,amount,lower,upper,waittime=0):
     totalBTC, totalprice, bidcounter, weightedavgprice, counter = (0,0,0,0,0)
@@ -31,13 +32,22 @@ def trade(entirebook,amount,lower,upper,waittime=0):
         print 'Your order cannot be serviced.'
     else:
         print '%r BTC @ $%.3f per each BTC is $%.3f' % (totalBTC, weightedavgprice,totalprice)
-def printorderbook(size):
+
+def refreshbook():
     #get the entire Lvl 2 order book    
-    entirebook = floatify(bitfloor.book(2))
+    entirebook = Book.parse(bitfloor.book(2),True)
+    #sort it
+    entirebook.sort()
+    return entirebook
+
+#start printing part of the order book (first 15 asks and 15 bids)
+def printorderbook(size):
+    entirebook = refreshbook()
+    #start printing part of the order book (first 15 asks and 15 bids)
     if size is '':
-        uglyprintbooks(entirebook['asks'],entirebook['bids'],15)      #default to 15 if size is not given
+        uglyprintbooks(entirebook.asks,entirebook.bids,15)      #default to 15 if size is not given
     else:
-        uglyprintbooks(entirebook['asks'],entirebook['bids'],int(size))   #otherwise use the size that was given after calling book
+        uglyprintbooks(entirebook.asks,entirebook.bids,int(size))   #otherwise use the size from the arguments
         
 #some ideas
 # if trying to buy start from lowerprice, check ask order book, buy if an order on order book is lower than lowerprice
@@ -64,6 +74,7 @@ class Shell(cmd.Cmd):
 
 	#pass arguments back up to trade() function
     def do_sell(self, arg):
+        entirebook = refreshbook()
         try:
             amount, lower, upper, waittime = arg.split()
             amount = float(amount)
@@ -72,8 +83,9 @@ class Shell(cmd.Cmd):
             waittime = float(waittime)
         except:
             print "Invalid arg {1}, expected amount price".format(arg)        
-        trade(entirebook['asks'],amount,lower,upper,waittime)
+        trade(entirebook.asks,amount,lower,upper,waittime)
     def do_buy(self, arg):
+        entirebook = refreshbook()
         try:
             amount, lower, upper, waittime = arg.split()
             amount = float(amount)
@@ -82,7 +94,7 @@ class Shell(cmd.Cmd):
             waittime = float(waittime)
         except:
             print "Invalid arg {1}, expected amount price".format(arg)        
-        trade(reversed(entirebook['bids']),amount,lower,upper,waittime)
+        trade(reversed(entirebook.bids),amount,lower,upper,waittime)
 
     def do_book(self,size):
         printorderbook(size)

@@ -12,7 +12,7 @@ import time
 import collections
 
 #following 8 lines are Modified from hobsonlane's fork
-import args
+import bitfloor
 import bitfloor
 
 # path = os.path.join('/etc','security','bfl.json')
@@ -21,7 +21,7 @@ import bitfloor
 # print config
 #bf = RAPI(product_id=1, key=config['key'], secret=config['secret'])
 
-bf = bitfloor = args.get_rapi()
+bf = bitfloor = bitfloor.get_rapi()
 olatency = [] # order latency
 clatency = [] # cancel latency
 

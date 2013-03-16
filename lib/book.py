@@ -4,33 +4,42 @@ import decimal
 from decimal import Decimal
 
 class Order(object):
-    def __init__(self, size, price):
-        self.size = size
+    def __init__(self, price, size):
         self.price = price
-
+        self.size = size
     def __repr__(self):
-        #return "{0}@{1}".format(self.size, self.price)
-        return str([self.price,self.size])
+        return str([self.price,self.size])   
     def __getitem__(self,index):
         alist=[self.price,self.size]
         return alist[index]
     
 class Book(object):
     @classmethod
-    def parse(cls, d):
+    def parse(cls, d, isbitfloor=False):
         def parse_side(arr):
             orders = []
-            for a in arr:
-                price = Decimal(str(a[0]))
-                size = Decimal(str(a[1]))
-                orders.append(Order(size, price))
-            return orders
+            for a in arr:                       #iterate over the array
+                price = str(a[0])
+                size = str(a[1])
+                # if len(price) >= 11:          #replaced with isbitfloor=False
+                #     if price[-9] == '.':
+                #         if price[-1] and price[-2] == '0':
+                if isbitfloor:                                    #all bitfloor data starts as 8 decimals
+                    price = Decimal(price).quantize(Decimal('0.01'))        #valid prices are 2 decimals
+                    size = Decimal(size).quantize(Decimal('0.00001'))       #valid sizes are 5 decimals
+                else:  #every other site
+                    if len(price) in (2,4):            #if the price is too short (ie 47 or 47.1)  then
+                        price = Decimal(price).quantize(Decimal('0.01'))    #pad it to 2 decimals
+                    else:
+                        price = Decimal(price)                          
+                    if '.' not in size:                 #if the size is an integer and has no dot, then
+                        size = Decimal(size).quantize(Decimal('0.1'))       #pad it to 1 decimal
+                    size = Decimal(size)
+                orders.append(Order(price,size))        #generate this side of the book as a class Order object
+            return orders                               #and return it
 
         bids = parse_side(d['bids'])
-        #print 'Bids side Parsed'
         asks = parse_side(d['asks'])
-        #print 'Asks side Parsed'
-        
         return cls(bids, asks)
 
     def __init__(self, bids, asks):
@@ -53,7 +62,7 @@ class Book(object):
         def add(d, price, size):
             o = d.get(price)
             if o is None:
-                d[price] = Order(size, price)
+                d[price] = Order(price,size)
             else:
                 o.size += size
 
@@ -82,7 +91,7 @@ class Book(object):
             if o is not None:
                 o.size -= size
             else:
-                d[price] = Order(-size, price)
+                d[price] = Order(price,-size)
 
         # remove order sizes book
         if other:

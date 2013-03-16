@@ -7,9 +7,9 @@ import random
 import math
 import time
 
-import args
+import bitfloor
 
-bitfloor = args.get_rapi()
+bitfloor = bitfloor.get_rapi()
 
 olatency = [] # order latency
 clatency = [] # cancel latency

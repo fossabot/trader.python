@@ -2,33 +2,28 @@
 # Created by genBTC 3/8/2013
 # adds a multitude of orders between price A and price B of sized chunks
 
-import args	#lib/args.py modified to use product 1 & bitfloor file
+#import args	    #lib/args.py modified to use product 1 & bitfloor file
+import bitfloor     #args was phased out and get_rapi() was moved to bitfloor and config.json moved to data/
 import cmd
 import time
 from decimal import Decimal
 from common import *
+from book import *
 
-bitfloor = args.get_rapi()
+bitfloor = bitfloor.get_rapi()
         
 #start printing part of the order book (first 15 asks and 15 bids)
 def printorderbook(size):
     #get the entire Lvl 2 order book    
-    entirebook = floatify(bitfloor.book(2))
+    entirebook = Book.parse(bitfloor.book(2),True)
+    #sort it
+    entirebook.sort()
+    #start printing part of the order book (first 15 asks and 15 bids)
     if size is '':
-        uglyprintbooks(entirebook['asks'],entirebook['bids'],15)      #default to 15 if size is not given
+        uglyprintbooks(entirebook.asks,entirebook.bids,15)      #default to 15 if size is not given
     else:
-        uglyprintbooks(entirebook['asks'],entirebook['bids'],int(size))   #otherwise use the size that was given after calling book        
-        
-#give a little user interface
-    print 'Press Ctrl+Z to exit gracefully or  Ctrl+C to force quit'
-    print 'Typing book will show the order book again'
-    print 'Typing orders will show your current open orders'
-    print 'Typing cancelall will cancel every single open order'
-    print 'Typing help will show you the list of commands'
-    print 'trade example: '
-    print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
-    print ' '
-    
+        uglyprintbooks(entirebook.asks,entirebook.bids,int(size))   #otherwise use the size from the arguments
+      
 class Shell(cmd.Cmd):
     def emptyline(self):      
         pass                #Do nothing on empty input line instead of re-executing the last command
@@ -39,6 +34,15 @@ class Shell(cmd.Cmd):
         self.onecmd('help')
     #start out by printing the order book and the instructions
     printorderbook(15)
+    #give a little user interface
+    print 'Press Ctrl+Z to exit gracefully or  Ctrl+C to force quit'
+    print 'Typing book will show the order book again'
+    print 'Typing orders will show your current open orders'
+    print 'Typing cancelall will cancel every single open order'
+    print 'Typing help will show you the list of commands'
+    print 'trade example: '
+    print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
+    print ' '
 
     def do_buy(self, arg):
         try:        #pass arguments back up to spread() function
@@ -84,8 +88,12 @@ class Shell(cmd.Cmd):
             print type,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['timestamp']),float(order['price']),float(order['size']))
     
     def do_cancelall(self,arg):
-        bitfloor.cancel_all()
-        print "All Orders have been Cancelled!!!!!"
+        orders = bitfloor.orders()
+        if orders:
+            bitfloor.cancel_all()
+            print "All Orders have been Cancelled!!!!!"
+        else:
+            print "No Orders found!!"
 
 #exit out if Ctrl+Z is pressed
     def do_exit(self,arg):      #standard way to exit

@@ -3,3 +3,5 @@
 <rikur> so that it's more like to buy or sell. Or hold.
 
 #stop order  #trailing optional   #fixed or percentage
+
+use 50%(assume half sales half bids) of the 24 hour trading volume to figure out how low the price will go if theres a disaster, or just otherwise use this info to predict things

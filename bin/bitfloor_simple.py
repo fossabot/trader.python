@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # adds a single order
 
-import args
+import bitfloor
 import cmd
 
-bitfloor = args.get_rapi()
+bitfloor = bitfloor.get_rapi()
 
 def trade(side, arg):
     try:
