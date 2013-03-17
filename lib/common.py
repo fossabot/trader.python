@@ -13,6 +13,7 @@ import collections
 import decimal
 from decimal import Decimal
 
+#turn a whole list or tuple into a float
 def floatify(l):
     if isinstance(l, (list, tuple)):
         return [floatify(v) for v in l]
@@ -26,6 +27,7 @@ def floatify(l):
         return l
     return 0.0
 
+#turn a whole list or tuple into a decimal
 def decimalify(l):
     if isinstance(l, (list, tuple)):
         return [decimalify(v) for v in l]
@@ -39,6 +41,7 @@ def decimalify(l):
         return l
     return 0.0    
 
+#get the mean of an entire list or tuple
 def mean(l):
     l = floatify(l)
     if getattr(l,'__len__',[].__len__)():
@@ -50,6 +53,7 @@ def mean(l):
             return float(sum(l))/len(l) if len(l) else None
     return floatify(l)
 
+#calculate and print the total BTC between price A and B
 def depthsum (bookside,lowest,highest):
     totalBTC,totalprice = (0,0)
     for order in bookside:
@@ -59,6 +63,8 @@ def depthsum (bookside,lowest,highest):
     print 'There are %s total BTC between %s and %s' % (totalBTC,lowest,highest)
     return totalBTC,totalprice
 
+#match any order to the opposite site of the order book (ie: if buying find a seller) - market order
+#given the amount of BTC and price range check to see if it can be filled as a market order
 def depthmatch (bookside,amount,lowest,highest):
     totalBTC,totalprice = (0,0)
     for order in bookside:
@@ -70,6 +76,8 @@ def depthmatch (bookside,amount,lowest,highest):
                 break
     return totalBTC
 
+#match any order to the opposite side of the order book (ie: if selling find a buyer) - market order
+#calculate the total price of the order and the average weighted price of each bitcoin 
 def depthprice (bookside,amount,lowest,highest):
     totalBTC, totalprice, weightedavgprice = (0,0,0)
     for order in bookside:
@@ -86,6 +94,7 @@ def depthprice (bookside,amount,lowest,highest):
     else: 
         print 'Your order cannot be serviced.'    
 
+#print the order books out to howmany length you want
 def printbothbooks(asks,bids,howmany):
     for price in reversed(asks[:howmany]):
         print ' '*30,'$%s, %s -----ASK-->' % (str(price[0]),str(price[1]))

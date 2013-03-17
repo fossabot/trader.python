@@ -1,11 +1,27 @@
-# Sample trader implementation in Python, for Bitfloor and Mt.Gox & some BTC-e
+Sample trader implementation in Python, for Bitfloor and Mt.Gox & some BTC-e!
+
 # Includes frameworks (libs) for Mt.Gox, Bitfloor, BTCE
 # All scripts located in bin/
 # API Framework located in lib/
 # Simple Example files in example/
 
 FEATURES:
-+) Diversify your position into "chunks" of a specified size between price A and B (WORKS GREAT, todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification)
++) Diversify your position into "chunks" of a specified size between price A and B (WORKS GREAT, todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification) (# spread trade function including Chunk Trade spread logic & Confirmation)
++) Print the order books out to X length
+
+
++) For Market Orders
+#TODO: optional Wait time (default to instant gratification) 
+#Checks exact price (total and per bitcoin) @ Market prices
+#   by checking opposite Order Book depth for a given size and price range (lower to upper)
+#   and alerts you if cannot be filled immediately, and lets you place a limit order instead
+
++) Bitcoin Functions:
+#calculate and print the total BTC between price A and B
+#match any order to the opposite site of the order book (ie: if buying find a seller) - market order
+	given the amount of BTC and price range check to see if it can be filled as a market order
+	calculate the total price of the order and the average weighted price of each bitcoin 
+
 
 TO BEGIN:
 ---------------
@@ -33,40 +49,53 @@ Call any script by opening a command window (cmd.exe) to the directory:
 
 bin/
 -encrypt_api_key - REQUIRED to use this suite, generates an encrypted API key file in keys/ with the site name (see above)
--bitfloor_client.py - Advanced Trading on bitfloor
--mtgox_client.py - Advanced Trading on mtgox
+-bitfloor_client.py - Advanced Trading on bitfloor!
+-mtgox_client.py - Advanced Trading on mtgox!
+
 -mtgox_simple.py - CLI prompt for simple trading on mt.gox (simple, Buy/Sell, Amount, Price on mtgox)
 -bitfloor_cancel_all - 3 lines of code to cancel every order on bitfloor (very simple, passes the cancel order function to the framework lib/bitfloor.py)
 -bitfloor_check_orders - print out current orders on bitfloor (simple, just prints out open orders)
 -bitfloor_mirror_mtgox - mirror the mt.gox order book over to bitfloor (NOT WORKING FULLY)
 -bitfloor_rand_latency - Test the ordering and cancellation latency on bitfloor (fairly non-useful since bitfloor latency is usually very low (~3 seconds))
 -bitfloor_single - CLI prompt for simple trade execution on bitfloor (simple, Buy/Sell, Amount, Price on bitfloor) 
--yolo.py  -  Uses bitfloor, some new functions, but will be merged into bitfloor_client when i'm done (incomplete)
 
 -btce_show_info - uses the framework of lib/btce.py to make several queries , like price ticker, open orders, order book, transaction history, etc
 
--bcbookie (taken from ga-bitbot) on github - NOT USED ATM
--goxcli (taken from Trasp/GoxCLI) on github - NOT USED ATM
--goxcli.xml datafile for goxcli - NOT USED ATM
--nonce_state_btce - required for the btce framework to generate a nonce(Saving this to a file is useful, since if the nonce messes up you have to recreate the API key)
+-bcbookie (taken from ga-bitbot) on github - NOT USED directly.
+-goxcli (taken from Trasp/GoxCLI) on github - NOT USED directly. -goxcli.xml datafile for goxcli - NOT USED 
+
+
+
 
 lib/
-unlock_api_key.py - Decrypts the encrypted API keys that we make from keys/ 
-mtgoxhmac.py - Actual Mt.Gox Framework that should be used to make API calls
-bitfloor.py - Bitfloor Framework with all API calls
-args.py - was needed for bitfloor plaintext keyfile which has been 90% phased out in favor of encrypted API keys
-btce.py - BTC-E Framework with all api calls (some HTTP error checking)
-book.py -  # will parse any json book in standard form
+-unlock_api_key.py - Decrypts the encrypted API keys that we make from keys/ 
+-mtgoxhmac.py - Actual Mt.Gox Framework that should be used to make API calls
+-bitfloor.py - Bitfloor Framework with all API calls
+-args.py - was needed for bitfloor plaintext keyfile which has been 90% phased out in favor of encrypted API keys
+-btce.py - BTC-E Framework with all api calls (some HTTP error checking)
+-book.py -  # will parse any json book in standard form
 
-fencebot.py - pretty sure this is OBSOLETE (bitfloor_rand_latency does this)
-common.py - Common trading functionality was merged in here for bitfloor/mtgox_client.py
-json_ascii.py - # json decode strings as ascii instead of unicode
-liquidbot.py  		>	Both of these are taken from https://github.com/chrisacheson/liquidbot
-liquidbot_mtgox.py	>	Self-sufficient but not utilized in this suite (YET) he has a few good ideas
-mtgox2.py - an alternate Mt.gox framework
+-fencebot.py - pretty sure this is OBSOLETE (bitfloor_rand_latency does this)
+common.py - Common trading functionality was merged in here for bitfloor_client.py and mtgox_client.py
+-depthparser.py - imported a portion of goxcli into this file for use in mtgox. 
+-json_ascii.py - # json decode strings as ascii instead of unicode
+-liquidbot.py  		>	Both of these are taken from https://github.com/chrisacheson/liquidbot
+-liquidbot_mtgox.py	>	Self-sufficient but not utilized in this suite (YET) he has a few good ideas
+-mtgox2.py - an alternate Mt.gox framework
+
+data/
+config.json  - stores the hostname and port of the bitfloor API interface. thats it.
+nonce_state_btce - required for the btce framework to generate a nonce(Saving this to a file is useful, since if the nonce messes up you have to recreate the API key)
 
 keys/
 {exchange}_key.txt and {exchange}_salt.txt   = this is what is written by encrypt_api_key and what is used to unlock your API keys to access the trading console
+
+
++) Programming Functions:
+#turn a whole list or tuple into a float
+#turn a whole list or tuple into a decimal
+#get the mean of an entire list or tuple
+#pretty print and pretty write a dict
 
 PYTHON ON WINDOWS INFORMATION
 -------------------------------
@@ -81,11 +110,12 @@ You will also need a bunch of py modules mostlikely:
 -readline
 -requests (1.1.0)
 -setuptools (0.6c11)
+-cjson
+NOT YET:
 -twisted
 -zope
--cjson
 -keyczar
--probably more
+AND PROBABLY MORE,
 To enable command line tab completion inside the scripts :
 copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.ini" %HOMEPATH%
 (tab completion was phased out in favor of command history (on windows))

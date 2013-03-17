@@ -16,21 +16,22 @@ import unlock_api_key
 import requests
 
 class BTCEError(Exception):
-	def __init__(self, msg):
-		self.msg = msg
-	def __str__(self):
-		return repr(self.msg)
+    def __init__(self, msg):
+        self.msg = msg
+    def __str__(self):
+        return repr(self.msg)
 
 def nonce_generator():
-	fd = open("nonce_state_btce", "r")
-	nonce = int(fd.read())
-	fd.close()
-	while (True):
-		nonce = nonce+1
-		fd = open("nonce_state_btce", "w")
-		fd.write(str(nonce))
-		fd.close()
-		yield nonce
+    partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
+    fd = open(os.path.join(partialpath + 'nonce_state_btce', 'r'))
+    nonce = int(fd.read())
+    fd.close()
+    while (True):
+        nonce = nonce+1
+        fd = open(os.path.join(partialpath + 'nonce_state_btce', 'w'))
+        fd.write(str(nonce))
+        fd.close()
+        yield nonce
 
 #unlock the encrypted API key file
 key,secret,unused = unlock_api_key.unlock("btc-e")
@@ -217,43 +218,43 @@ tick = genpairs()
 print tick.update(pairs)
 
 def ticker(pair):
-	return pubapi_request(pair, "ticker")['ticker']
+    return pubapi_request(pair, "ticker")['ticker']
 
 def trades(pair):
-	return pubapi_request(pair, "trades")
+    return pubapi_request(pair, "trades")
 
 def depth(pair):
-	return pubapi_request(pair, "depth")
+    return pubapi_request(pair, "depth")
 
 def getinfo():
-	return api_request('getInfo')
+    return api_request('getInfo')
 
 def order_list(filter = {}):
-	return api_request('OrderList', filter)
+    return api_request('OrderList', filter)
 
 def trans_history(filter = {}):
-	return api_request('TransHistory', filter)
+    return api_request('TransHistory', filter)
 
 def trade_history(filter = {}):
-	return api_request('TradeHistory', filter)
+    return api_request('TradeHistory', filter)
 
 def prepare_trade(from_currency, to_currency, rate, amount):
-	pair = [from_currency, to_currency]
-	for p in correct_pairs:
-		if pair == p:
-			type = 'sell'
-		elif pair == [p[1], p[0]]:
-			type = 'buy'
-			pair = p
-			amount = float(amount) / float(rate)
-	pair = '_'.join(pair)
-	if not type:
-		raise BTCEError("Unsupported currency pair: " + pair[0] + "_" + pair[1])
-	return pair, type, rate, amount
+    pair = [from_currency, to_currency]
+    for p in correct_pairs:
+        if pair == p:
+            type = 'sell'
+        elif pair == [p[1], p[0]]:
+            type = 'buy'
+            pair = p
+            amount = float(amount) / float(rate)
+    pair = '_'.join(pair)
+    if not type:
+        raise BTCEError("Unsupported currency pair: " + pair[0] + "_" + pair[1])
+    return pair, type, rate, amount
 
 def trade(pair, type, rate, amount):
 #	print pair, type, amount, rate
-	return api_request('Trade', { 'pair': pair, 'type': type, 'rate': rate, 'amount': amount })
+    return api_request('Trade', { 'pair': pair, 'type': type, 'rate': rate, 'amount': amount })
 
 def cancel_order(id):
-	return api_request('CancelOrder', {'order_id': id})
+    return api_request('CancelOrder', {'order_id': id})
