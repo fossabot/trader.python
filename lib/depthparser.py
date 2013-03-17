@@ -310,18 +310,21 @@ class DepthParser(object):
                 table["asks"] = []
         else:
             print "The else case of process() meaning self.side was not given"
+            lowask = json["asks"][0][0]
+            highbid = json["bids"][-1][0]
+            spread = lowask - highbid
             table["gap"] = dict()
-            table["gap"]["upper"]     = json["asks"][0][0]
-            table["gap"]["upper_int"] = int(json["asks"][0][0])
-            table["gap"]["lower"]     = json["bids"][-1][0]
-            table["gap"]["lower_int"] = int(json["bids"][-1][0])
+            table["gap"]["lowask"]     = lowask
+            table["gap"]["highbid"]     = highbid
+            table["gap"]["spread"] = spread
+        print "The bid/ask spread is: ", spread
         for side in self.__sides:
             # Parse sides independently
             orders = json[side]
             # Read lowest and highest price of orders on current side
             lowest  = orders[0][0]
             highest = orders[-1][0]
-            print "Lowest %r and Highest %r" % (lowest,highest)
+            print side, "Lowest %r and Highest %r" % (lowest,highest)
             # Convert minimum and maximum price from arguments to int
             #  and check if any orders are within that range.
             if oMinPrice == None: minPrice = None
@@ -540,6 +543,17 @@ class DepthParser(object):
             value = float(Decimal(value).quantize(precision))
             order.append(value)
         return order
+
+    def _error(self,*args):
+        u"Prints errormessages."
+        if len(args) == 1:
+            message,arg = args[0],""
+        elif len(args) == 2:
+            message,arg = args
+        else:
+            e = "_error takes at most 3 argument (%s given)" % len(args)+1
+            raise TypeError(e)
+        print "{message} {arg}".format( message = message, arg = arg )
 
 def goxnewcalc(mtgox,args):
 # 	u"Takes arguments: (bid|ask), (btc|usd), amount, price=optional"

@@ -9,6 +9,9 @@ import time
 from book import Book, Order
 from common import *
 import depthparser
+import json
+
+import traceback
 
 mtgox = mtgoxhmac.Client()
 
@@ -18,23 +21,25 @@ mtgox = mtgoxhmac.Client()
 #display info like account balance & funds
 #print mtgox.get_info()
 
-    
-def printorderbook(size):
-    #get current trade order book (depth)
+
+def refreshbook():
+    #get current trade order book (depth)   
     entirebook=Book.parse(mtgox.get_depth())
+    #sort it
     entirebook.sort()
+    return entirebook
+def printorderbook(size):
+    entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
     if size is '':
         uglyprintbooks(entirebook.asks,entirebook.bids,15)
     else:
-        uglyprintbooks(entirebook.asks,entirebook.bids,int(size))
-        
+        uglyprintbooks(entirebook.asks,entirebook.bids,int(size))      
 def bal():
     balance = mtgox.get_balance()
     btcbalance = float(balance['btcs'])
     usdbalance = float(balance['usds'])
     return btcbalance,usdbalance
-        
 def get_tradefee():
     return (float(mtgox.get_info()['Trade_Fee'])/100)
 def calc_fees():
@@ -101,19 +106,24 @@ class Shell(cmd.Cmd):
 
     def do_new(self,args):
        depthparser.goxnewcalc(mtgox,args)
+
     def do_updown(self,arg):
-        try:
+        def catchmeifyoucan(arg):
+            low = high = 0
             low, high = arg.split()
             low = float(low)
             high = float(high)
-            #entirebook=Book.parse(mtgox.get_depth())
-            #entirebook.sort()
-            entirebook = process(mtgox.get_depth())
-            type (entirebook)
-            print entirebook
-            
-        except ValueError:
-            print "You need to give a high and low range: low high"
+            entirebook = refreshbook()
+            depthgot   = mtgox.get_depth()
+            depth  = depthparser.DepthParser(5)
+            data  = depth.process(depthgot, raw = False)
+            return low,high
+        try:
+            low, high = catchmeifyoucan(arg)
+        except Exception as e:
+            traceback.print_exc()
+            return
+            #raise depthparser.InputError("You need to give a high and low range: low high")
         partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
         while True:
             last = float(mtgox.get_ticker()['last'])
@@ -126,16 +136,16 @@ class Shell(cmd.Cmd):
                 #last falls between given variance range, keep tracking
                 time.sleep(30)
             elif last >= high:
+                
                 print "then make some sales mtgox.sell_btc"
+                time.sleep(30)
                 
             else:
                 #spread('mtgox',mtgox,'buy', 111, last, low, 5)
                 print "then make some buys- mtgox.buy_btc"
-
-            #time(sleep,30)
-                
-                    
-                
+                time.sleep(30)
+               
+ 
 #pass arguments back to spread() function in common.py
     def do_buy(self, arg):
         """Sell some BTC between price A and price B of equal sized chunks"""

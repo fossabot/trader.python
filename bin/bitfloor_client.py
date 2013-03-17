@@ -11,13 +11,17 @@ from common import *
 from book import *
 
 bitfloor = bitfloor.get_rapi()
-        
-#start printing part of the order book (first 15 asks and 15 bids)
-def printorderbook(size):
+
+def refreshbook():
     #get the entire Lvl 2 order book    
     entirebook = Book.parse(bitfloor.book(2),True)
     #sort it
     entirebook.sort()
+    return entirebook
+
+#start printing part of the order book (first 15 asks and 15 bids)
+def printorderbook(size):
+    entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
     if size is '':
         uglyprintbooks(entirebook.asks,entirebook.bids,15)      #default to 15 if size is not given
