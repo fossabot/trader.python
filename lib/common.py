@@ -1,5 +1,7 @@
+#!/usr/bin/env python
 # list of commonly used and useful functions
 # NOW contains common client interface function calls to each individual API framework
+
 import time
 import random
 import math
@@ -48,30 +50,49 @@ def mean(l):
             return float(sum(l))/len(l) if len(l) else None
     return floatify(l)
 
-def addupasks(somebook,amount,lower,upper,waittime=0):
-    totalBTC, totalprice, bidcounter, weightedavgprice, counter = (0,0,0,0,0)
-    for price in reversed(somebook['asks']):
-        totalprice+=float(price[0])*float(price[1])
-        totalBTC+=float(price[1])
-        weightedavgprice=totalprice/totalBTC
-        counter+=1
-    time.sleep(float(waittime))
-    print '$', totalprice, totalBTC, ' BTC', weightedavgprice, ' for ASKS'
+def depthsum (bookside,lowest,highest):
+    totalBTC,totalprice = (0,0)
+    for order in bookside:
+        if order.price >= lowest and order.price <= highest:
+            totalBTC+=order.size
+            totalprice+=order.price * order.size
+    print 'There are %s total BTC between %s and %s' % (totalBTC,lowest,highest)
+    return totalBTC,totalprice
 
-def uglyprintbooks(asks,bids,howmany):
+def depthmatch (bookside,amount,lowest,highest):
+    totalBTC,totalprice = (0,0)
+    for order in bookside:
+        if order.price >= lowest and order.price <= highest:
+            totalBTC+=order.size
+            totalprice+=order.price * order.size
+            if amount <= totalBTC:
+                print 'Your bid amount of %s BTC can be serviced by the first %s of orders' % (amount,totalBTC)
+                break
+    return totalBTC
 
+def depthprice (bookside,amount,lowest,highest):
+    totalBTC, totalprice, weightedavgprice = (0,0,0)
+    for order in bookside:
+        if order.price >= lowest and order.price <= highest:
+            totalBTC+=order.size
+            totalprice+=order.price * order.size
+            if totalBTC >= amount:
+                totalprice-=order.price*(totalBTC-amount)
+                totalBTC=amount
+                weightedavgprice=totalprice/totalBTC
+    if weightedavgprice > 0:
+        print '%s BTC @ $%.5f/BTC equals: $%.5f' % (totalBTC, weightedavgprice,totalprice)
+        return totalBTC,weightedavgprice,totalprice
+    else: 
+        print 'Your order cannot be serviced.'    
+
+def printbothbooks(asks,bids,howmany):
     for price in reversed(asks[:howmany]):
         print ' '*30,'$%s, %s -----ASK-->' % (str(price[0]),str(price[1]))
     print ' '*10,'|'*6,'First %s Orders' % howmany,'|'*6
     for price in bids[:howmany]:
         print '<--BID-----$%s, %s' % (str(price[0]),str(price[1]))
 
-    # for price in reversed(asks[:howmany]):
-    #     print type(price[0])
-    #     print ' '*30,'$%.2f, %.5f -----ASK-->' % (price[0],price[1])
-    # print ' '*10,'|'*6,'First %r Orders' % howmany,'|'*6
-    # for price in bids[:howmany]:
-    #     print '<--BID-----$%.2f, %.5f' % (price[0],price[1])
 
 # spread trade function including Chunk Trade spread logic & Confirmation
 def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000, chunks=1):

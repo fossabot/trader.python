@@ -1,6 +1,9 @@
 #!/usr/bin/env python
-# Created by genBTC 3/10/2013
-# adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
+# Created by genBTC 3/10/2013 Updated 3/17/2013
+# mtgox_client.py
+# Universal Client for all things mtgox
+# Functionality _should_ be listed in README
+
 # now this is turning into a complete command line Client with a menu
 
 import mtgoxhmac
@@ -32,9 +35,9 @@ def printorderbook(size):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
     if size is '':
-        uglyprintbooks(entirebook.asks,entirebook.bids,15)
+        printbothbooks(entirebook.asks,entirebook.bids,15)
     else:
-        uglyprintbooks(entirebook.asks,entirebook.bids,int(size))      
+        printbothbooks(entirebook.asks,entirebook.bids,int(size))      
 def bal():
     balance = mtgox.get_balance()
     btcbalance = float(balance['btcs'])
@@ -146,7 +149,8 @@ class Shell(cmd.Cmd):
                 time.sleep(30)
                
  
-#pass arguments back to spread() function in common.py
+# pass arguments back to spread() function in common.py
+# adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
     def do_buy(self, arg):
         """Sell some BTC between price A and price B of equal sized chunks"""
         """Format is buy amount(BTC) price_lower price_upper chunks(#)"""

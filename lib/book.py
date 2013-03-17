@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # will parse any json book in standard form
 
 import decimal
@@ -45,6 +46,9 @@ class Book(object):
     def __init__(self, bids, asks):
         self.bids = bids
         self.asks = asks
+
+    # def __getitem__(self,index):
+    #     return self.index(index)
 
     def sort(self):
         self.bids.sort(key=lambda o: o.price, reverse=True)
