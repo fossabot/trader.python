@@ -47,9 +47,6 @@ class Book(object):
         self.bids = bids
         self.asks = asks
 
-    # def __getitem__(self,index):
-    #     return self.index(index)
-
     def sort(self):
         self.bids.sort(key=lambda o: o.price, reverse=True)
         self.asks.sort(key=lambda o: o.price)

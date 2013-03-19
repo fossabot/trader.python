@@ -1,9 +1,10 @@
 """
-MtGoxHMAC v0.01 
+MtGoxHMAC v0.1
 
 Copyright 2011 Brian Monkaba
+Modified 2013 by genBTC 
 
-This file is part of ga-bitbot.
+This file *was* part of ga-bitbot. It was modified heavily and is now part of genBTC's program.
 
     ga-bitbot is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -49,8 +50,8 @@ class Client:
         
         self.buff = ""
         self.timeout = 15
-        self.__url_parts = urlparse.urlsplit("https://mtgox.com/api/0/")
-        self.__url_parts_1 = urlparse.urlsplit("https://mtgox.com/api/1/")
+        self.__url_parts = urlparse.urlsplit("https://data.mtgox.com/api/0/")
+        self.__url_parts_1 = urlparse.urlsplit("https://data.mtgox.com/api/1/")
         self.clock_window = time.time()
         self.clock = time.time()
         self.query_count = 0
@@ -207,6 +208,13 @@ class Client:
         except:
             print 'no orders found'
             return
+            
+    def get_spread(self):
+        depth = self.get_depth()
+        lowask = depth["asks"][0][0]
+        highbid = depth["bids"][-1][0]
+        spread = lowask - highbid
+        return spread
 
     def buy_btc(self, amount, price):
         #new mtgox market orders begin in a pending state
@@ -271,7 +279,9 @@ class Client:
             oid = order['oid']
             params = {"oid":str(oid), "type":str(type)}
             self.request("cancelOrder.php", params)
-            print '%r Successfully Cancelled!' % (oid)
+            print '%s Successfully Cancelled!' % (oid)
+        if orders['orders']:
+            print "All Orders have been Cancelled!!!!!"
         
 if __name__ == "__main__":
     print "\nMTGoxHMAC module test"

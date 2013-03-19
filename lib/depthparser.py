@@ -309,7 +309,7 @@ class DepthParser(object):
             else:
                 table["asks"] = []
         else:
-            print "The else case of process() meaning self.side was not given"
+#            print "The else case of process() meaning self.side was not given"
             lowask = json["asks"][0][0]
             highbid = json["bids"][-1][0]
             spread = lowask - highbid
@@ -317,7 +317,7 @@ class DepthParser(object):
             table["gap"]["lowask"]     = lowask
             table["gap"]["highbid"]     = highbid
             table["gap"]["spread"] = spread
-        print "The bid/ask spread is: ", spread
+#        print "The bid/ask spread is: ", spread
         for side in self.__sides:
             # Parse sides independently
             orders = json[side]

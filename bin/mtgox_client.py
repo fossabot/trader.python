@@ -108,9 +108,15 @@ class Shell(cmd.Cmd):
     print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
 
     def do_new(self,args):
-       depthparser.goxnewcalc(mtgox,args)
+        """New function to test out new depth functions"""
+        try:
+            depthparser.goxnewcalc(mtgox,args)
+        except Exception as e:
+            print "Was expecting 3-4 arguments: (bid|ask), (btc|usd), amount, price=optional"
+            return
 
     def do_updown(self,arg):
+        """#2 New function to test out new depth functions"""
         def catchmeifyoucan(arg):
             low = high = 0
             low, high = arg.split()
@@ -124,30 +130,33 @@ class Shell(cmd.Cmd):
         try:
             low, high = catchmeifyoucan(arg)
         except Exception as e:
-            traceback.print_exc()
-            return
+            #traceback.print_exc()
             #raise depthparser.InputError("You need to give a high and low range: low high")
+            print "You need to give a high and low range: low high"
+            return
         partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
-        while True:
-            last = float(mtgox.get_ticker()['last'])
-            f = open(os.path.join(partialpath + 'mtgox_last.txt'),'a')
-            text = json.dumps({"time":time.time(),"lastprice":last})
-            f.write(text)
-            f.write("\n")
-            f.close()
-            if last > low and last < high:
-                #last falls between given variance range, keep tracking
-                time.sleep(30)
-            elif last >= high:
-                
-                print "then make some sales mtgox.sell_btc"
-                time.sleep(30)
-                
-            else:
-                #spread('mtgox',mtgox,'buy', 111, last, low, 5)
-                print "then make some buys- mtgox.buy_btc"
-                time.sleep(30)
-               
+        with open(os.path.join(partialpath + 'mtgox_last.txt'),'a') as f:
+            while True:
+                last = float(mtgox.get_ticker()['last'])
+                text = json.dumps({"time":time.time(),"lastprice":last})
+                f.write(text)
+                f.write("\n")
+                f.flush()
+                if last > low and last < high:
+                    #last falls between given variance range, keep tracking
+                    pass
+                elif last >= high:
+                    print "then make some sales mtgox.sell_btc"
+                else:
+                    #spread('mtgox',mtgox,'buy', 111, last, low, 5)
+                    print "then make some buys- mtgox.buy_btc"
+                time.sleep(61)
+
+    def do_readlog(self,arg):
+        partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
+        arg = int(arg)
+        with open(os.path.join(partialpath + 'mtgox_last.txt'),'r') as f:
+            print tail(f,arg)
  
 # pass arguments back to spread() function in common.py
 # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
@@ -162,8 +171,12 @@ class Shell(cmd.Cmd):
             try:
                 size,price_lower = arg.split()
                 spread('mtgox',mtgox,'buy', size, price_lower)
-            except:
-                print "Invalid args given. Expecting: size price"   
+            except Exception as e:
+                print "Invalid args given!!! Proper use is:"
+                print "buy size price"
+                print "buy size price_lower price_upper chunks"
+                return
+
     def do_sell(self, arg):
         """Sell some BTC between price A and price B of equal sized chunks"""
         """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
@@ -175,30 +188,40 @@ class Shell(cmd.Cmd):
             try:
                 size,price_lower = arg.split()
                 spread('mtgox',mtgox,'sell', size, price_lower)
-            except:
-                print "Invalid args given. Expecting: size price" 
-        
+            except Exception as e:
+                print "Invalid args given!!! Proper use is:"
+                print "sell size price"
+                print "sell size price_lower price_upper chunks"
+                return
+                
+    def do_ticker(self,arg):
+        print mtgox.get_ticker()
+
     def do_book(self,size):
         """Download and print the order book of current bids and asks of depth $size"""
         printorderbook(size)
         
     def do_orders(self,arg):
-        """Print a list of all your open orders, including pending"""
-        time.sleep(1)
-        orders = mtgox.get_orders()['orders']
-        for order in orders:
-            if order['status'] == 1:
-                if order['type']== 1:
-                    type="Sell"
-                else:
-                    type="Buy"
-                print type,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['priority']),float(order['price']),float(order['amount']))
-            elif order['status'] == 2:
-                print 'order %r  PENDING Amount: %.5f or not enough Funds' % (str(order['priority']),float(order['amount']))
+        """Print a list of all your open orders, including pending and lacking enough funds"""
+        try:    
+            time.sleep(1)
+            orders = mtgox.get_orders()['orders']
+            for order in orders:
+                ordertype="Sell" if order['type'] == 1 else "Buy"
+                if order['status'] == 1:
+                    print ordertype,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['priority']),float(order['price']),float(order['amount']))
+                elif order['status'] == 2:
+                    print ordertype,'order %r  PENDING Amount: %.5f BTC' % (str(order['priority']),float(order['amount']))
+                elif order['status'] == 0:
+                    print ordertype,'order %r  NOT ENOUGH FUNDS for: %.5f BTC' % (str(order['priority']),float(order['amount']))
+        except Exception as e:
+            traceback.print_exc()
+            print "Something went wrong."
+            return
+
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         mtgox.cancelall()
-        print "All Orders have been Cancelled!!!!!"
     def do_lag(self,arg):
         """Shows the current Mt.Gox trading engine lag time"""
         lag = mtgox.lag()

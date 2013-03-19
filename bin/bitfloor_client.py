@@ -105,9 +105,11 @@ class Shell(cmd.Cmd):
             try:
                 size,price_lower = arg.split()
                 spread('bitfloor',bitfloor, 0, size, price_lower)
-            except:
-                print "Invalid args given. Expecting: size price"
-        
+            except Exception as e:
+                print "Invalid args given!!! Proper use is:"
+                print "buy size price"
+                print "buy size price_lower price_upper chunks"
+                return
             
     def do_sell(self, arg):
         try:
@@ -124,8 +126,11 @@ class Shell(cmd.Cmd):
                     spread('bitfloor',bitfloor, 1, size, price_lower)
                 except:
                     print 'Trade failed'
-            except:
-                print "Invalid args given. Expecting: size price"
+            except Exception as e:
+                print "Invalid args given!!! Proper use is:"
+                print "sell size price"
+                print "sell size price_lower price_upper chunks"
+                return
 
     def do_marketbuy(self, arg):
         entirebook = refreshbook()
@@ -136,9 +141,11 @@ class Shell(cmd.Cmd):
             upper = Decimal(upper)
             waittime = Decimal(waittime)
             side = entirebook.asks
-        except:
-            print "Invalid arg {1}, expected amount price".format(arg)        
-        markettrade(side,'buy',amount,lower,upper,waittime)
+            markettrade(side,'buy',amount,lower,upper,waittime)
+        except Exception as e:
+            print "Invalid args given. Expected: amount lowprice highprice "
+            return
+        
 
 
     def do_marketsell(self, arg):
@@ -151,9 +158,11 @@ class Shell(cmd.Cmd):
             waittime = Decimal(waittime)
             side = entirebook.bids
             side.reverse()
-        except:
-            print "Invalid arg {1}, expected amount price".format(arg)    
-        markettrade(side,'sell',amount,lower,upper,waittime)    
+            markettrade(side,'sell',amount,lower,upper,waittime)    
+        except Exception as e:
+            print "Invalid args given. Expected: amount lowprice highprice "
+            return
+        
         
 
     def do_book(self,size):
