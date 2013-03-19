@@ -24,7 +24,7 @@ bitfloor = bitfloor.get_rapi()
 #   and alerts you if cannot be filled immediately, and lets you place a limit order instead
 def markettrade(bookside,action,amount,lowest,highest,waittime=0):
 
-    depthsum(bookside,lowest,highest)
+    depthsumrange(bookside,lowest,highest)
     depthmatch(bookside,amount,lowest,highest)
 
     if action == 'sell':

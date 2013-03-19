@@ -28,6 +28,7 @@ import hmac
 import hashlib
 import time
 import json
+import json_ascii
 import urllib
 import urllib2
 import urlparse
@@ -67,7 +68,7 @@ class Client:
         self.query_count += 1
         if self.query_count > self.query_limit_per_time_slice:
             #throttle the connection
-            #print "### Throttled ###"
+            print "### Throttled ###"
             time.sleep(self.query_time_slice - tdelta)
         return
        
@@ -85,7 +86,7 @@ class Client:
 
         # Create header for auth-requiring operations
         header = {
-            "User-Agent": 'ga-bitbot',
+            "User-Agent": 'genBTC-bot',
             "Rest-Key": self.key,
             "Rest-Sign": ahmac
             }
@@ -111,17 +112,15 @@ class Client:
 
         with closing(urllib2.urlopen(req, post_data)) as res:
             if JSON == True:
-                data = json.load(res)
+                data = json.load(res,object_hook=json_ascii.decode_dict)
             else:
                 data = res.read()
         if JSON == True:
-            if u"error" in data:
-                if data[u"error"] == u"Not logged in.":
+            if "error" in data:
+                if data["error"] == "Not logged in.":
                     raise UserError()
                 else:
-                    raise ServerError(data[u"error"])
-            else:
-                return data
+                    raise ServerError(data["error"])
         return data
         
 
@@ -188,6 +187,8 @@ class Client:
         return self.request("ticker.php", None)["ticker"]  
     def get_depth(self):
         return self.request("data/getDepth.php", {"Currency":"USD"})
+    def get_fulldepth(self):
+        return self.request("BTCUSD/depth/full", None,API_VERSION=1)
     def get_trades(self):
         return self.request("data/getTrades.php", None)
     def get_balance(self):
@@ -208,7 +209,7 @@ class Client:
         except:
             print 'no orders found'
             return
-            
+
     def get_spread(self):
         depth = self.get_depth()
         lowask = depth["asks"][0][0]
@@ -216,7 +217,9 @@ class Client:
         spread = lowask - highbid
         return spread
 
-    def buy_btc(self, amount, price):
+    def buy_btc(self, amount, price=None):
+        #omit the price to place a market order
+        #
         #new mtgox market orders begin in a pending state
         #so we have to make a second delayed call to verify the order was actually accepted
         #there is a risk here that the mtgox system will not be able to verify the order before
@@ -224,9 +227,12 @@ class Client:
         #In this case, the host script will need to verify the order at a later time.
         #to do: check how the system responds to instant orders and partialy filled orders.
         if amount < 0.01:
-            print "minimun amount is 0.1btc"
+            print "Minimum amount is 0.01btc"
             return 0
-        params = {"amount":str(amount), "price":str(price)}
+        if price:
+            params = {"amount":str(amount), "price":str(price)}
+        else:
+            params = {"amount":str(amount)}
         buy = self.request("buyBTC.php", params)
         oid = buy['oid']
         #check the response for the order
@@ -234,7 +240,7 @@ class Client:
             if order['oid'] == oid:
                 return order
         #if it wasn't reported yet...check again
-        time.sleep(1)
+        time.sleep(2)
         orders = self.get_orders()['orders']
         for order in orders:
             if order['oid'] == oid:
@@ -244,11 +250,15 @@ class Client:
         
 
 
-    def sell_btc(self, amount, price):
+    def sell_btc(self, amount, price=None):
+        #omit the price to place a market order
         if amount < 0.01:
-            print "minimun amount is 0.1btc"
+            print "Minimum amount is 0.01btc"
             return 0
-        params = {"amount":str(amount), "price":str(price)}
+        if price:
+            params = {"amount":str(amount), "price":str(price)}
+        else:
+            params = {"amount":str(amount)}
         sell = self.request("sellBTC.php", params)
         oid = sell['oid']
         #check the response for the order

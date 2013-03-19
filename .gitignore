@@ -3,3 +3,4 @@
 keys/*
 tradeshistory.txt
 pyinstaller.bat
+data/*

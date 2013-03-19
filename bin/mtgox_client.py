@@ -13,7 +13,7 @@ from book import Book, Order
 from common import *
 import depthparser
 import json
-
+import json_ascii
 import traceback
 
 mtgox = mtgoxhmac.Client()
@@ -24,6 +24,29 @@ mtgox = mtgoxhmac.Client()
 #display info like account balance & funds
 #print mtgox.get_info()
 
+# data partial path
+datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
+
+#write the FULL depth to a log file
+def writedepth():
+    with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'w') as f:
+        print "Starting to download fulldepth from mtgox....",
+        fulldepth = mtgox.get_fulldepth()
+        depthvintage = str(time.time())
+        f.write(depthvintage)
+        f.write('\n')
+        json.dump(fulldepth,f)
+        f.close()
+        print "Finished."
+        return 1
+def readdepth():            
+    with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'r') as f:
+        everything = f.readlines()
+    global depthvintage
+    depthvintage = everything[0]
+    global fulldepth
+    fulldepth = json.loads(everything[1])
+    return depthvintage, fulldepth
 
 def refreshbook():
     #get current trade order book (depth)   
@@ -70,9 +93,13 @@ class Feesubroutine(cmd.Cmd):
     def do_calc(self,amount):
         """Calculate how much fees will cost on X amount"""
         """Give X amount as a paramter ie: calc 50"""
-        amount = float(amount)
-        btcbalance,totalfees,last = calc_fees()
-        print_calcedfees(amount,last,totalfees)
+        try:
+            amount = float(amount)
+            btcbalance,totalfees,last = calc_fees()
+            print_calcedfees(amount,last,totalfees)
+        except Exception as e: 
+            self.onecmd('help calc')
+            print "Invalid Args. Expected: amount"
     def do_exit(self,arg):
         """Exits out of the fee menu and goes back to the main level"""
         print '\nReturning to the main level...'
@@ -98,6 +125,25 @@ class Shell(cmd.Cmd):
         #now it does store a history but we lose tab completion. This is what use_rawinput = false means.
         self.use_rawinput = False
         self.onecmd('help')             #print out the possible commands (help) on first run
+
+    #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
+    try:
+        depthvintage,fulldepth = readdepth()
+        if (time.time() - float(depthvintage)) > 120 :   # don't fetch from gox more often than every 2 min
+            writedepth()
+            depthvintage,fulldepth = readdepth()
+    except IOError as e:
+        try:
+            with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'w') as f:
+                f.flush()
+                f.close()
+            print "Attempting to write full depth to log file for the first time....."
+            response = raw_input("Download full depth and Create the full depth file? Y/n")
+            if response == 'Y' or response == 'y':
+                writedepth()
+        except:
+            traceback.print_exc()
+            print "Something went wrong. IO Error trying to READ, then could not initially CREATE the fulldepth file."
 
     #start out by printing the order book and the instructions
     printorderbook(15)
@@ -134,8 +180,8 @@ class Shell(cmd.Cmd):
             #raise depthparser.InputError("You need to give a high and low range: low high")
             print "You need to give a high and low range: low high"
             return
-        partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
-        with open(os.path.join(partialpath + 'mtgox_last.txt'),'a') as f:
+        #Log lastprice to the ticker log file
+        with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'a') as f:
             while True:
                 last = float(mtgox.get_ticker()['last'])
                 text = json.dumps({"time":time.time(),"lastprice":last})
@@ -153,17 +199,77 @@ class Shell(cmd.Cmd):
                 time.sleep(61)
 
     def do_readlog(self,arg):
-        partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
+        """Prints the last X lines of the ticker log file"""
         arg = int(arg)
-        with open(os.path.join(partialpath + 'mtgox_last.txt'),'r') as f:
+        with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'r') as f:
             print tail(f,arg)
- 
+
+    def do_asks(self,arg):
+        """Calculate the amount of bitcoins for sale at or under <pricetarget>.""" 
+        """If 'over' option is given, find coins or at or over <pricetarget>."""
+        #right now this is using the FULL DEPTH data which is retrieved upon initial startup then cached
+        # larger, but also quite outdated.
+        try:
+            pricetarget = float(arg)
+            response = 'under'
+        except:
+            response, pricetarget = arg.split()
+            pricetarget = float(pricetarget)
+        if response == 'over':
+            f = lambda price,pricetarget: price >= pricetarget
+        else:
+            f = lambda price,pricetarget: price <= pricetarget
+        n_coins = 0.0
+        total = 0.0
+        try:
+            #depth = mtgox.get_depth()
+            depth = fulldepth
+            asks=depth["return"]["asks"]
+        except KeyError:
+            print "Failure to retrieve order book data. Try again later."
+            return
+        for ask in asks:
+            if f(ask["price"], pricetarget):
+                n_coins += ask["amount"]
+                total += (ask["amount"] * ask["price"])
+        print "There are currently %.8g bitcoins offered at or %s %s USD, worth %.2f USD in total."  % (n_coins,response, pricetarget, total)
+    
+    def do_bids(self,arg):
+        """Calculate the amount of bitcoin demanded at or over <pricetarget>."""
+        """If 'under' option is given, find coins or at or under <pricetarget>"""
+        #still using the smaller but more up to date order depth get_depth() book
+        try:
+            pricetarget = float(arg)
+            response = 'over'
+        except:
+            response, pricetarget = arg.split()
+            pricetarget = float(pricetarget)
+        if response == 'under':
+            f = lambda price,pricetarget: price <= pricetarget
+        else:
+            f = lambda price,pricetarget: price >= pricetarget
+        n_coins = 0.0
+        total = 0.0
+        try:
+            depth = mtgox.get_depth()
+            #depth = fulldepth
+            bids=depth['bids']
+        except KeyError:
+            print "Failure to retrieve order book data. Try again later."
+            return
+        for bid in bids:
+            if f(bid[0], pricetarget):
+                n_coins += bid[1]
+                total += (bid[1] * bid[0])
+        print "There are currently %.8g bitcoins demanded at or %s %s USD, worth %.2f USD in total."  % (n_coins,response,pricetarget, total)
+
+
 # pass arguments back to spread() function in common.py
 # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
     def do_buy(self, arg):
-        """Sell some BTC between price A and price B of equal sized chunks"""
-        """Format is buy amount(BTC) price_lower price_upper chunks(#)"""
-        """ie:   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
+        """(market order): buy size \n""" \
+        """(limit order): buy size price \n""" \
+        """(spread order): buy size price_lower price_upper chunks"""
         try:
             size, price_lower, price_upper, chunks = arg.split()
             spread('mtgox',mtgox,'buy', size, price_lower, price_upper, chunks)
@@ -171,16 +277,19 @@ class Shell(cmd.Cmd):
             try:
                 size,price_lower = arg.split()
                 spread('mtgox',mtgox,'buy', size, price_lower)
-            except Exception as e:
-                print "Invalid args given!!! Proper use is:"
-                print "buy size price"
-                print "buy size price_lower price_upper chunks"
-                return
+            except:
+                try:
+                    arg = float(arg)
+                    mtgox.buy_btc(arg)
+                except Exception as e:
+                    print "Invalid args given!!! Proper use is:"
+                    self.onecmd('help buy')
+                    return
 
     def do_sell(self, arg):
-        """Sell some BTC between price A and price B of equal sized chunks"""
-        """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
-        """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
+        """(market order): sell size \n""" \
+        """(limit order): sell size price \n""" \
+        """(spread order): sell size price_lower price_upper chunks"""
         try:
             size, price_lower, price_upper, chunks = arg.split()
             spread('mtgox',mtgox,'sell', size, price_lower, price_upper, chunks)
@@ -188,14 +297,37 @@ class Shell(cmd.Cmd):
             try:
                 size,price_lower = arg.split()
                 spread('mtgox',mtgox,'sell', size, price_lower)
-            except Exception as e:
-                print "Invalid args given!!! Proper use is:"
-                print "sell size price"
-                print "sell size price_lower price_upper chunks"
-                return
-                
+            except:
+                try:
+                    arg = float(arg)
+                    mtgox.sell_btc(size)
+                except Exception as e:
+                    print "Invalid args given!!! Proper use is:"
+                    self.onecmd('help sell')
+                    return
+
     def do_ticker(self,arg):
-        print mtgox.get_ticker()
+        """Print the entire ticker out or use one of the following options:\n""" \
+        """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
+        ticker = mtgox.get_ticker()
+        if not arg:
+            print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
+                "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s" % \
+                (ticker['buy'], ticker['sell'], \
+                float(ticker['sell']) - float(ticker['buy']), \
+                ticker['last'], ticker['vol'], \
+                ticker['low'], ticker['high'], \
+                ticker['vwap'])
+        else:
+            try:
+                print "BTCUSD ticker | %s = %s" % (arg,ticker[arg])
+            except:
+                print "Invalid args. Expecting a valid ticker subkey."
+                self.onecmd('help ticker')
+
+    def do_spread(self,arg):
+        """Print out the bid/ask spread"""
+        print mtgox.get_spread()
 
     def do_book(self,size):
         """Download and print the order book of current bids and asks of depth $size"""
@@ -209,11 +341,11 @@ class Shell(cmd.Cmd):
             for order in orders:
                 ordertype="Sell" if order['type'] == 1 else "Buy"
                 if order['status'] == 1:
-                    print ordertype,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['priority']),float(order['price']),float(order['amount']))
+                    print ordertype,'order %r  Price $%s @ Amount: %s' % (str(order['priority']),order['price'],order['amount'])
                 elif order['status'] == 2:
-                    print ordertype,'order %r  PENDING Amount: %.5f BTC' % (str(order['priority']),float(order['amount']))
+                    print ordertype,'order %r PENDING - Price $%s @ Amount: %s' % (str(order['priority']),order['price'],order['amount'])
                 elif order['status'] == 0:
-                    print ordertype,'order %r  NOT ENOUGH FUNDS for: %.5f BTC' % (str(order['priority']),float(order['amount']))
+                    print ordertype,'order %r NOT ENOUGH FUNDS for: %s BTC' % (str(order['priority']),order['amount'])
         except Exception as e:
             traceback.print_exc()
             print "Something went wrong."

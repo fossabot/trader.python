@@ -79,7 +79,7 @@ def mean(l):
     return floatify(l)
 
 #calculate and print the total BTC between price A and B
-def depthsum (bookside,lowest,highest):
+def depthsumrange (bookside,lowest,highest):
     totalBTC,totalprice = (0,0)
     for order in bookside:
         if order.price >= lowest and order.price <= highest:
@@ -130,13 +130,21 @@ def printbothbooks(asks,bids,howmany):
 
 # spread trade function including Chunk Trade spread logic & Confirmation
 def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000, chunks=1):
+    """Sell some BTC between price A and price B of equal sized chunks"""
+    """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
+    """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
+    """Simple trade also allowed: (buy/sell) amount price"""
     loop_price = float(price_lower)
     for x in range (0, int(chunks)):
         price_range = float(price_upper) - float(price_lower)
-        price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal('0.01'))
-        chunk_size = Decimal(float(size) / float(chunks)).quantize(Decimal('0.00001'))
+        if exchangename == 'bitfloor':
+            price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal('0.01'))
+            chunk_size = Decimal(float(size) / float(chunks)).quantize(Decimal('0.00001'))
+        else:
+            price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal('0.00001'))
+            chunk_size = Decimal(float(size) / float(chunks)).quantize(Decimal('0.00000001'))
         if side == 0 or side == 'buy':
-            print 'Buying...', "Chunk # ",x+1," = ",chunk_size," BTC @ $", loop_price
+            print 'Buying...', "Chunk # ",x+1," = ",chunk_size,"BTC @ $", loop_price
             if exchangename == 'bitfloor':
                 print exchangename,' order going through'
                 exchangeobject.order_new(side=side, size=chunk_size, price=loop_price)
@@ -144,7 +152,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                 print exchangename,' order going through'
                 exchangeobject.buy_btc(amount=chunk_size, price=loop_price)
         elif side == 1 or side == 'sell':
-            print 'Selling...', "Chunk # ",x+1," = ",chunk_size," BTC @ $", loop_price
+            print 'Selling...', "Chunk # ",x+1," = ",chunk_size,"BTC @ $", loop_price
             if exchangename == 'bitfloor':
                 print exchangename,' order going through'
                 exchangeobject.order_new(side=side, size=chunk_size, price=loop_price) 
