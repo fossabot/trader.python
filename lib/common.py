@@ -13,6 +13,11 @@ import collections
 import decimal
 from decimal import Decimal
 
+def movavg(trades):
+    #movingavg = sum(map(lambda x: x['price'], trades)) / len(trades)
+    movingavg = sum(x['price'] for x in trades) / len(trades)       #uses list comprehension instead of a map and lambda
+    return movingavg
+
 #return the last N (window) lines of a file, ie: linux's tail command"
 def tail(f, window=20):
     BUFSIZ = 1024
@@ -183,3 +188,17 @@ def pwdict(d,filename):
     f.write(str(d))
     f.close()
     return d
+
+def getSlope(values):
+    points = []
+    for i in range(len(values)):
+      points.append({'x':i, 'y':values[i]})
+    n = len(values)
+    sx = sum([x['x'] for x in points])
+    sy = sum([x['y'] for x in points])
+    sxy = sum([x['x']*x['y'] for x in points])
+    sxx = sum([x['x']*x['x'] for x in points])
+    delta = (n*sxx)-(sx**2)
+    if delta == 0:
+      return UNDEFINED_SLOPE
+    return ((n*sxy)-(sx*sy))/delta

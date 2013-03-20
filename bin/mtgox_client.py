@@ -15,6 +15,7 @@ import depthparser
 import json
 import json_ascii
 import traceback
+import pyreadline
 
 mtgox = mtgoxhmac.Client()
 
@@ -312,12 +313,12 @@ class Shell(cmd.Cmd):
         ticker = mtgox.get_ticker()
         if not arg:
             print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
-                "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s" % \
+                "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s, 24 hour avg: %s" % \
                 (ticker['buy'], ticker['sell'], \
                 float(ticker['sell']) - float(ticker['buy']), \
                 ticker['last'], ticker['vol'], \
                 ticker['low'], ticker['high'], \
-                ticker['vwap'])
+                ticker['vwap'],ticker['avg'])
         else:
             try:
                 print "BTCUSD ticker | %s = %s" % (arg,ticker[arg])
@@ -351,6 +352,17 @@ class Shell(cmd.Cmd):
             print "Something went wrong."
             return
 
+    def do_entiretradehistory(self,arg):
+        print "Starting to download entire trade history from mtgox....",
+        eth = mtgox.entire_trade_history()
+        with open(os.path.join(datapartialpath + 'mtgox_entiretrades.txt'),'w') as f:
+            depthvintage = str(time.time())
+            f.write(depthvintage)
+            f.write('\n')
+            json.dump(eth,f)
+            f.close()
+            print "Finished."
+            return 1
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         mtgox.cancelall()
