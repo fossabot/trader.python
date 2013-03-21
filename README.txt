@@ -1,4 +1,4 @@
-#trader.python customized by genBTC
+trader.python customized by genBTC (trades on mtgox, bitfloor, btce) (hard coded for USD)
 
 ##Features
 Secure Authentication via password using 256-bit AES Encryption of your API-key and API-secret (see Usage->Login with API-key/secret)
@@ -7,18 +7,23 @@ Simple - Buy/Sell X amount of BTC    TODO:   (Specify buy/sell amounts in USD )
 Spread - Buy/Sell some BTC between price A and price B of equal sized chunks"""
 List your orders
 Cancel ALL orders at once (or a single one)	TODO: (Specify a cancel range somehow)
-Display account balance
+Display account balance (of BTC and USD) and USD value of BTC+USD
 Display ticker (sell,buy,last,vol,vwap,high,low,avg)	the time frame for high, low, vol, avg, vwap ... is sliding 24 hours
 Log the ticker to a file (and check or print it out later)
 Display the bid/ask spread 
 Show the current Mt.Gox Lag (trading lag)
 
 ###Depth Functions
-Print the order books out to howmany length you want (Display depth) (current order book of bids/asks)
-calculate and print the total BTC between price A and B
+Print the order books out to howmany length you want (Display depth) (current order book of bids/asks) printorderbooks()
+calculate and print the total BTC between price A and B depthsumrange()
+OBIP """Calculate the "order book implied price", by finding the weighted average price of coins <width> BTC up and down from the spread."""
+ASKS """Calculate the amount of bitcoins for sale at or under <pricetarget>.""" 
+BIDS """Calculate the amount of bitcoin demanded at or over <pricetarget>""" 
 
 ###Fees
 Find out your current fee rate (Mt.Gox's commission)
+"""Calculate how much fees will cost on X amount"""
+"""Calculate how much fees will cost if you sold off your entire BTC Balance"""
 
 ###Market Orders
 Match any order to the opposite site of the order book (ie: if buying find a seller or vice versa) - market order
@@ -26,8 +31,8 @@ Given the amount of BTC and price range, check to see if it can be filled as a m
 calculate the total price of the order and the average weighted price of each bitcoin 
 
 ###History 
-Prints out your entire trading history of BTC transactions
-Prints out your entire history of USD transactions (including deposits)
+Prints out your entire trading history of BTC transactions or USD (including deposits)
+Download the entire trading history of mtgox for the past 24 hours. 
 
 # Includes frameworks (libs) for Mt.Gox, Bitfloor, BTCE
 # All scripts located in bin/

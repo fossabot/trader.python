@@ -5,7 +5,7 @@ import json_ascii
 from time import strftime, localtime
 
 info = btce.getinfo()['return']
-print 'Info: ', info
+#print 'Info: ', info
 print "Funds:"
 for currency in ['BTC', 'USD', 'LTC']:
     print "\t", currency, info['funds'][currency.lower()]
@@ -16,7 +16,8 @@ print
 #print 'Depth: ', btce.depth('btc_usd')
 #print 'All Trades: ', btce.trades('btc_usd')
 #print 'Trans_History', btce.trans_history()
-print 'Ticker: ', btce.ticker('btc_usd')
+ticker = btce.ticker('btc_usd')
+print 'Ticker: ', ticker
 
 if info['open_orders']:
 	print "Open orders (" + str(info['open_orders']) + "):"

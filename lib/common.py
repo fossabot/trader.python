@@ -13,6 +13,33 @@ import collections
 import decimal
 from decimal import Decimal
 
+#write the FULL depth to a log file
+def writedepth(mtgox):
+    with open('../data/mtgox_fulldepth.txt','w') as f:
+        print "Starting to download fulldepth from mtgox....",
+        fulldepth = mtgox.get_fulldepth()
+        depthvintage = str(time.time())
+        f.write(depthvintage)
+        f.write('\n')
+        json.dump(fulldepth,f)
+        f.close()
+        print "Finished."
+    return depthvintage,fulldepth
+def readdepth():            
+    with open('../data/mtgox_fulldepth.txt','r') as f:
+        everything = f.readlines()
+    depthvintage = everything[0]
+    fulldepth = json.loads(everything[1])
+    return depthvintage, fulldepth
+
+def updatedepthdata(mtgox):
+    global depthvintage
+    global fulldepth
+    depthvintage,fulldepth = readdepth()
+    if (time.time() - float(depthvintage)) > 120 :   # don't fetch from gox more often than every 2 min
+        depthvintage,fulldepth = writedepth(mtgox)
+    return depthvintage,fulldepth
+
 def movavg(trades):
     #movingavg = sum(map(lambda x: x['price'], trades)) / len(trades)
     movingavg = sum(x['price'] for x in trades) / len(trades)       #uses list comprehension instead of a map and lambda
@@ -82,6 +109,34 @@ def mean(l):
         elif isinstance(l, (tuple, list)):
             return float(sum(l))/len(l) if len(l) else None
     return floatify(l)
+
+
+def obip(mtgox,amount):
+    """Order book implied price. Weighted avg price of BTC <width> up and down from the spread."""
+    updatedepthdata(mtgox)
+    s=fulldepth["data"]['asks']
+    b=fulldepth["data"]['bids']
+    s=floatify(s)
+    b=floatify(b)
+    b.reverse()
+    def do_obip(l,amount):
+        totalBTC, totalprice = (0,0)
+        for x in l:
+            if totalBTC < amount:
+                totalBTC+=x['amount']
+                totalprice+=x['price'] * x['amount']
+                if totalBTC >= amount:
+                    totalprice-=x['price']*(totalBTC-amount)
+                    totalBTC=amount
+                    obip=totalprice/totalBTC
+        return obip
+
+    obips = do_obip(s,amount)
+    obipb = do_obip(b,amount)
+    obip = (obips+obipb)/2.0 
+    print "The weighted average price of BTC, %s coins up and down from the spread, is %.5f USD. \
+        Data vintage: %.4f seconds"  % (amount, obip,(time.time() - float(depthvintage)))
+
 
 #calculate and print the total BTC between price A and B
 def depthsumrange (bookside,lowest,highest):

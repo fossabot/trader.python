@@ -1,8 +1,8 @@
 """
-MtGoxHMAC v0.1
+MtGoxHMAC v0.2
 
 Copyright 2011 Brian Monkaba
-Modified 2013 by genBTC 
+Modified 3/21/2013 by genBTC 
 
 This file *was* part of ga-bitbot. It was modified heavily and is now part of genBTC's program.
 
@@ -51,8 +51,7 @@ class Client:
         
         self.buff = ""
         self.timeout = 15
-        self.__url_parts = urlparse.urlsplit("https://data.mtgox.com/api/0/")
-        self.__url_parts_1 = urlparse.urlsplit("https://data.mtgox.com/api/1/")
+        self.__url_parts = "https://data.mtgox.com/api/"
         self.clock_window = time.time()
         self.clock = time.time()
         self.query_count = 0
@@ -84,6 +83,15 @@ class Client:
         post_data = urllib.urlencode(params)
         ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),post_data,hashlib.sha512).digest()))
 
+        if API_VERSION == 0:
+            url = self.__url_parts + '0/' + path
+        elif API_VERSION == 1: 
+            url = self.__url_parts + '1/' + path
+        else: #assuming API_VERSION 2
+            url = self.__url_parts + '2/' + path
+            api2postdatatohash = path + chr(0) + post_data
+            ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),api2postdatatohash,hashlib.sha512).digest()))
+        
         # Create header for auth-requiring operations
         header = {
             "User-Agent": 'genBTC-bot',
@@ -91,38 +99,28 @@ class Client:
             "Rest-Sign": ahmac
             }
 
-        if API_VERSION == 0:
-            url = urlparse.urlunsplit((
-                self.__url_parts.scheme,
-                self.__url_parts.netloc,
-                self.__url_parts.path + path,
-                self.__url_parts.query,
-                self.__url_parts.fragment
-            ))
-        else: #assuming API_VERSION 1
-            url = urlparse.urlunsplit((
-                self.__url_parts_1.scheme,
-                self.__url_parts_1.netloc,
-                self.__url_parts_1.path + path,
-                self.__url_parts_1.query,
-                self.__url_parts_1.fragment
-            ))
-        
-        req = urllib2.Request(url, post_data, header)
-
-        with closing(urllib2.urlopen(req, post_data)) as res:
-            if JSON == True:
-                data = json.load(res,object_hook=json_ascii.decode_dict)
-            else:
-                data = res.read()
-        if JSON == True:
-            if "error" in data:
-                if data["error"] == "Not logged in.":
-                    raise UserError()
+        while True:
+            req = urllib2.Request(url, post_data, header)
+            with closing(urllib2.urlopen(req, post_data)) as res:
+                if JSON == True:
+                    try:
+                        data = json.load(res,object_hook=json_ascii.decode_dict)
+                        if "error" in data:
+                            if data["error"] == "Not logged in.":
+                                print UserError(data["error"])
+                            else:
+                                print ServerError(data["error"])
+                        else:
+                            return data
+                    except ValueError as e:
+                        print "JSON ERROR. Most likely BLANK Data. Still trying to figure out what happened here."
+                        data = "dummy"
+                        print res.read()
                 else:
-                    raise ServerError(data["error"])
-        return data
-        
+                    data = res.read()
+                    return data
+            print "Retrying Connection...."
+
 
     def request(self, path, params,JSON=True,API_VERSION=0):
         ret = self.perform(path, params,JSON,API_VERSION)
@@ -182,21 +180,28 @@ class Client:
     def get_history_usd(self):
         return self.request('history_USD.csv',None,JSON=False)
     def get_info(self):
-        return self.request('info.php', None) 
+        #return self.request('info.php', None)          #deprecated 
+        return self.request('generic/private/info',None,API_VERSION=1)["return"]
+    def get_ticker2(self):
+        return self.request("BTCUSD/money/ticker",None,API_VERSION=2)["data"]
     def get_ticker(self):
-        return self.request("ticker.php", None)["ticker"]  
+        return self.request("ticker.php",None)["ticker"]
     def get_depth(self):
         return self.request("data/getDepth.php", {"Currency":"USD"})
     def get_fulldepth(self):
-        return self.request("BTCUSD/depth/full", None,API_VERSION=1)
+        return self.request("BTCUSD/money/depth/full",None,API_VERSION=2)
     def get_trades(self):
-        return self.request("data/getTrades.php", None)
+        return self.request("data/getTrades.php",None)
     def get_balance(self):
-        return self.request("getFunds.php", None)
+        #return self.request("getFunds.php", None)              #deprecated since multicurrency
+        #info = self.request('info.php', None)["Wallets"]       
+        info = self.get_info()["Wallets"]
+        balance = { "usds":float(info["USD"]["Balance"]["value"]), "btcs":float(info["BTC"]["Balance"]["value"]) }
+        return balance
     def get_orders(self):
-        return self.request("getOrders.php", None)
+        return self.request("getOrders.php",None)
     def entire_trade_history(self):
-        return self.request("BTCUSD/private/trades", None, API_VERSION=1)
+        return self.request("BTCUSD/money/trades/fetch",None, API_VERSION=2)
     def last_order(self):
         try:
             orders = self.get_orders()['orders']

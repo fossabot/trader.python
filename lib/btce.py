@@ -3,17 +3,18 @@
 # begin to declare all API functions
 # genBTC 3/10/2013
 
-import sys
+import os
 import httplib
 import urllib
 import urllib2
+import requests
 import json
 import json_ascii
 import hashlib
 import hmac
 import time
 import unlock_api_key
-import requests
+
 
 class BTCEError(Exception):
     def __init__(self, msg):
@@ -22,19 +23,20 @@ class BTCEError(Exception):
         return repr(self.msg)
 
 def nonce_generator():
-    partialpath=os.path.join(os.path.dirname(__file__) + '../data/')
-    fd = open(os.path.join(partialpath + 'nonce_state_btce', 'r'))
+    partialpath=os.path.join('../data/')
+    fd = open(os.path.join(partialpath + 'nonce_state_btce'),'r')
     nonce = int(fd.read())
     fd.close()
     while (True):
         nonce = nonce+1
-        fd = open(os.path.join(partialpath + 'nonce_state_btce', 'w'))
+        fd = open(os.path.join(partialpath + 'nonce_state_btce'),'w')
         fd.write(str(nonce))
         fd.close()
         yield nonce
 
 #unlock the encrypted API key file
 key,secret,unused = unlock_api_key.unlock("btc-e")
+
 def api_request(method, misc_params = {}):
     nonce = nonce_generator()
     # method name and nonce go into the POST parameters
@@ -123,7 +125,7 @@ def pubapi_request(pair, type):
     while True:
         try:
             r = requests.post('https://btc-e.com/api/2/' + pair + '/' + type)
-            print r.url
+            #print r.url
 #            print json.loads(r.text, object_hook=json_ascii.decode_dict)
             return json.loads(r.text, object_hook=json_ascii.decode_dict)
             break
@@ -165,7 +167,7 @@ class genpairs():
             try:
                 request = urllib2.Request(url)
                 response = json.loads(urllib2.urlopen(request).read())
-                return response
+                #return response
                 break
             except urllib2.URLError:
                 print "Caught URL Error, sleeping..."
@@ -177,25 +179,12 @@ class genpairs():
                 time.sleep(3)
                 print "Retrying connection now"
                 continue
-    def ticker(self,pair):
-        url = self.url + pair + '/ticker' #construct url
-        ticker = self.parsePublicApi(url)
-        return ticker
- 
-    def depth(self,pair):
-        url = self.url + pair + '/depth'
-        depth = self.parsePublicApi(url)
-        return depth
- 
-    def trades(self,pair):
-        url = self.url + pair + '/trades'
-        trades = self.parsePublicApi(url)
-        return trades
-       
+      
     def updatepair(self,pair):
         '''modular update pair method'''
-        tick = self.ticker(pair)
-        tick = tick['ticker']
+        #tick = self.ticker(pair)
+        #tick = tick['ticker']
+        tick = ticker(pair)
         data = {}
         data['high'] = tick.get('high',0)
         data['low'] = tick.get('low',0)
@@ -211,11 +200,21 @@ class genpairs():
         self.tickerDict[pair] = data
         return data
 
-pairs = {'ltc_btc': 'True', 'ltc_usd': 'True', 'btc_usd': 'True', 
-        'ltc_rur': 'False', 'eur_usd': 'False', 'nmc_btc': 'False',
-        'btc_eur': 'False', 'btc_rur': 'False', 'usd_rur': 'False'}
-tick = genpairs()        
-print tick.update(pairs)
+    # def ticker(self,pair):
+    #     url = self.url + pair + '/ticker' #construct url
+    #     ticker = self.parsePublicApi(url)
+    #     return ticker
+ 
+    # def depth(self,pair):
+    #     url = self.url + pair + '/depth'
+    #     depth = self.parsePublicApi(url)
+    #     return depth
+ 
+    # def trades(self,pair):
+    #     url = self.url + pair + '/trades'
+    #     trades = self.parsePublicApi(url)
+    #     return trades
+#this file was constructed from multiple files and theres alot of redundant stuff.
 
 def ticker(pair):
     return pubapi_request(pair, "ticker")['ticker']
@@ -258,3 +257,14 @@ def trade(pair, type, rate, amount):
 
 def cancel_order(id):
     return api_request('CancelOrder', {'order_id': id})
+
+
+pairs = {'ltc_btc': 'True', 'ltc_usd': 'True', 'btc_usd': 'True', 
+        'ltc_rur': 'False', 'eur_usd': 'False', 'nmc_btc': 'False',
+        'btc_eur': 'False', 'btc_rur': 'False', 'usd_rur': 'False'}
+
+tick = genpairs()        
+
+#print tick.update(pairs)
+pairsdata = tick.update(pairs)
+#print pairsdata

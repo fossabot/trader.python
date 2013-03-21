@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-# Created by genBTC 3/10/2013 Updated 3/17/2013
+# Created by genBTC 3/10/2013 Updated 3/21/2013
 # mtgox_client.py
 # Universal Client for all things mtgox
 # Functionality _should_ be listed in README
-
 # now this is turning into a complete command line Client with a menu
 
 import mtgoxhmac
@@ -16,41 +15,17 @@ import json
 import json_ascii
 import traceback
 import pyreadline
+import winsound        #plays beeps for alerts :)
 
 mtgox = mtgoxhmac.Client()
 
-#get 24 hour trade history - cached
-#alltrades=mtgox.get_trades()
 
-#display info like account balance & funds
-#print mtgox.get_info()
-
-# data partial path
+# data partial path directory
 datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
 
-#write the FULL depth to a log file
-def writedepth():
-    with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'w') as f:
-        print "Starting to download fulldepth from mtgox....",
-        fulldepth = mtgox.get_fulldepth()
-        depthvintage = str(time.time())
-        f.write(depthvintage)
-        f.write('\n')
-        json.dump(fulldepth,f)
-        f.close()
-        print "Finished."
-        return 1
-def readdepth():            
-    with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'r') as f:
-        everything = f.readlines()
-    global depthvintage
-    depthvintage = everything[0]
-    global fulldepth
-    fulldepth = json.loads(everything[1])
-    return depthvintage, fulldepth
 
 def refreshbook():
-    #get current trade order book (depth)   
+    #get current trade order book (depth)  - uses simple depth (api 0)
     entirebook=Book.parse(mtgox.get_depth())
     #sort it
     entirebook.sort()
@@ -129,19 +104,16 @@ class Shell(cmd.Cmd):
 
     #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
     try:
-        depthvintage,fulldepth = readdepth()
-        if (time.time() - float(depthvintage)) > 120 :   # don't fetch from gox more often than every 2 min
-            writedepth()
-            depthvintage,fulldepth = readdepth()
+        depthvintage,fulldepth = updatedepthdata(mtgox)
     except IOError as e:
         try:
             with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'w') as f:
                 f.flush()
                 f.close()
             print "Attempting to write full depth to log file for the first time....."
-            response = raw_input("Download full depth and Create the full depth file? Y/n")
+            response = raw_input("Download full depth and Create the full depth file? Y/n: ")
             if response == 'Y' or response == 'y':
-                writedepth()
+                depthvintage,fulldepth = writedepth(mtgox)
         except:
             traceback.print_exc()
             print "Something went wrong. IO Error trying to READ, then could not initially CREATE the fulldepth file."
@@ -163,16 +135,17 @@ class Shell(cmd.Cmd):
             return
 
     def do_updown(self,arg):
-        """#2 New function to test out new depth functions"""
+        """Logs ticker to file, spits out an alert if last price is above or below the range given"""
+        """usage: updown <low> <high>"""
         def catchmeifyoucan(arg):
             low = high = 0
             low, high = arg.split()
             low = float(low)
             high = float(high)
-            entirebook = refreshbook()
-            depthgot   = mtgox.get_depth()
-            depth  = depthparser.DepthParser(5)
-            data  = depth.process(depthgot, raw = False)
+            #entirebook = refreshbook()
+            #depthgot   = mtgox.get_depth()
+            #depth  = depthparser.DepthParser(5)
+            #data  = depth.process(depthgot, raw = False)
             return low,high
         try:
             low, high = catchmeifyoucan(arg)
@@ -184,8 +157,10 @@ class Shell(cmd.Cmd):
         #Log lastprice to the ticker log file
         with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'a') as f:
             while True:
-                last = float(mtgox.get_ticker()['last'])
-                text = json.dumps({"time":time.time(),"lastprice":last})
+                ticker =mtgox.get_ticker2()
+                last = float(ticker['last']['value'])
+                svrtime = float(Decimal(float(ticker["now"]) / 1000000).quantize(Decimal("0.001")))
+                text = json.dumps({"time":svrtime,"lastprice":last})
                 f.write(text)
                 f.write("\n")
                 f.flush()
@@ -193,23 +168,38 @@ class Shell(cmd.Cmd):
                     #last falls between given variance range, keep tracking
                     pass
                 elif last >= high:
-                    print "then make some sales mtgox.sell_btc"
+                    print "ALERT!! Ticker has risen above range. Price is now: %s" % (last)
+                    #print "then make some sales mtgox.sell_btc"
+                    winsound.Beep(500,4000)     #frequency(Hz),duration(ms)
                 else:
+                    print "ALERT!! Ticker has fallen below range. Price is now: %s" % (last)
+                    winsound.Beep(2500,1000)
+                    winsound.Beep(2500,1000)
                     #spread('mtgox',mtgox,'buy', 111, last, low, 5)
-                    print "then make some buys- mtgox.buy_btc"
-                time.sleep(61)
+                    #print "then make some buys- mtgox.buy_btc"
+                try:
+                    time.sleep(60)
+                except KeyboardInterrupt as e:
+                    print "CTRL+C was pressed, stopping logging."
+                    return
 
-    def do_readlog(self,arg):
+    def do_readtickerlog(self,arg):
         """Prints the last X lines of the ticker log file"""
         arg = int(arg)
         with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'r') as f:
             print tail(f,arg)
 
+    def do_obip(self, width):
+        """<width>
+        Calculate the "order book implied price", by finding the weighted
+        average price of coins <width> BTC up and down from the spread."""
+        width = float(width)
+        obip(mtgox,width)
     def do_asks(self,arg):
         """Calculate the amount of bitcoins for sale at or under <pricetarget>.""" 
         """If 'over' option is given, find coins or at or over <pricetarget>."""
-        #right now this is using the FULL DEPTH data which is retrieved upon initial startup then cached
-        # larger, but also quite outdated.
+        #right now this is using the FULL DEPTH data so we call update which will update if necessary
+        depthvintage,fulldepth = updatedepthdata(mtgox)
         try:
             pricetarget = float(arg)
             response = 'under'
@@ -223,9 +213,8 @@ class Shell(cmd.Cmd):
         n_coins = 0.0
         total = 0.0
         try:
-            #depth = mtgox.get_depth()
             depth = fulldepth
-            asks=depth["return"]["asks"]
+            asks=depth["data"]["asks"]
         except KeyError:
             print "Failure to retrieve order book data. Try again later."
             return
@@ -234,11 +223,12 @@ class Shell(cmd.Cmd):
                 n_coins += ask["amount"]
                 total += (ask["amount"] * ask["price"])
         print "There are currently %.8g bitcoins offered at or %s %s USD, worth %.2f USD in total."  % (n_coins,response, pricetarget, total)
+        #return n_coins
     
     def do_bids(self,arg):
         """Calculate the amount of bitcoin demanded at or over <pricetarget>."""
         """If 'under' option is given, find coins or at or under <pricetarget>"""
-        #still using the smaller but more up to date order depth get_depth() book
+        depthvintage,fulldepth = updatedepthdata(mtgox)
         try:
             pricetarget = float(arg)
             response = 'over'
@@ -252,18 +242,17 @@ class Shell(cmd.Cmd):
         n_coins = 0.0
         total = 0.0
         try:
-            depth = mtgox.get_depth()
-            #depth = fulldepth
-            bids=depth['bids']
+            depth = fulldepth
+            bids=depth["data"]['bids']
         except KeyError:
             print "Failure to retrieve order book data. Try again later."
             return
         for bid in bids:
-            if f(bid[0], pricetarget):
-                n_coins += bid[1]
-                total += (bid[1] * bid[0])
+            if f(bid["price"], pricetarget):
+                n_coins += bid["amount"]
+                total += (bid["amount"] * bid["price"])
         print "There are currently %.8g bitcoins demanded at or %s %s USD, worth %.2f USD in total."  % (n_coins,response,pricetarget, total)
-
+        #return n_coins
 
 # pass arguments back to spread() function in common.py
 # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
@@ -310,15 +299,15 @@ class Shell(cmd.Cmd):
     def do_ticker(self,arg):
         """Print the entire ticker out or use one of the following options:\n""" \
         """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
-        ticker = mtgox.get_ticker()
+        ticker = mtgox.get_ticker2()
         if not arg:
             print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
                 "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s, 24 hour avg: %s" % \
-                (ticker['buy'], ticker['sell'], \
-                float(ticker['sell']) - float(ticker['buy']), \
-                ticker['last'], ticker['vol'], \
-                ticker['low'], ticker['high'], \
-                ticker['vwap'],ticker['avg'])
+                (ticker['buy']['value'], ticker['sell']['value'], \
+                float(ticker['sell']['value']) - float(ticker['buy']['value']), \
+                ticker['last']['value'], ticker['vol']['value'], \
+                ticker['low']['value'], ticker['high']['value'], \
+                ticker['vwap']['value'],ticker['avg']['value'])
         else:
             try:
                 print "BTCUSD ticker | %s = %s" % (arg,ticker[arg])
@@ -352,7 +341,8 @@ class Shell(cmd.Cmd):
             print "Something went wrong."
             return
 
-    def do_entiretradehistory(self,arg):
+    def do_tradehist24(self,arg):
+        """Download the entire trading history of mtgox for the past 24 hours. Write it to a file"""
         print "Starting to download entire trade history from mtgox....",
         eth = mtgox.entire_trade_history()
         with open(os.path.join(datapartialpath + 'mtgox_entiretrades.txt'),'w') as f:
@@ -362,7 +352,7 @@ class Shell(cmd.Cmd):
             json.dump(eth,f)
             f.close()
             print "Finished."
-            return 1
+
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         mtgox.cancelall()
@@ -373,9 +363,9 @@ class Shell(cmd.Cmd):
     def do_balance(self,arg):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
         balance = mtgox.get_balance()
-        last = mtgox.get_ticker()['last']
-        print 'Your balance is %r BTC and $%.2f USD ' % (float(balance['btcs']),float(balance['usds']))
-        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (float(balance['btcs'])*last+float(balance['usds']),last)
+        last = float(mtgox.get_ticker2()['last']['value'])
+        print 'Your balance is %r BTC and $%.2f USD ' % (balance['btcs'],balance['usds'])
+        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance['btcs']*last+balance['usds'],last)
     def do_btchistory(self,arg):
         """Prints out your entire history of BTC transactions"""
         btchistory=mtgox.get_history_btc()
