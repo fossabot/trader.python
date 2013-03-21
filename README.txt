@@ -3,8 +3,8 @@ trader.python customized by genBTC (trades on mtgox, bitfloor, btce) (hard coded
 ##Features
 Secure Authentication via password using 256-bit AES Encryption of your API-key and API-secret (see Usage->Login with API-key/secret)
 ###Buy and sell bitcoins
-Simple - Buy/Sell X amount of BTC    TODO:   (Specify buy/sell amounts in USD ) 
-Spread - Buy/Sell some BTC between price A and price B of equal sized chunks"""
+Simple - Buy/Sell X amount of BTC    (TODO: Specify buy/sell amounts in USD also ) 
+Spread - Buy/Sell some BTC between price A and price B of equal sized chunks
 List your orders
 Cancel ALL orders at once (or a single one)	TODO: (Specify a cancel range somehow)
 Display account balance (of BTC and USD) and USD value of BTC+USD
@@ -40,7 +40,8 @@ Download the entire trading history of mtgox for the past 24 hours.
 # Simple Example files in example/
 
 FEATURES:
-+) Diversify your position into "chunks" of a specified size between price A and B (WORKS GREAT, todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification) (# spread trade function including Chunk Trade spread logic & Confirmation)
++) Diversify your position into "chunks" of a specified size between price A and B. WORKS GREAT!  #spread trade function including Chunk Trade spread logic & Confirmation#
+	( todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification)
 +) Print the order books out to X length
 
 
