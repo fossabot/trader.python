@@ -41,6 +41,10 @@ class RAPI(object):
         url = '/book/L2/1'
         return self._send_get(url)
 
+    def dayinfo(self):
+        url = '/day-info/{0}'.format(self._product_id)
+        return self._send_get(url)
+
     def ticker(self):
         url = '/ticker/{0}'.format(self._product_id)
         return self._send_get(url)
@@ -76,7 +80,11 @@ class RAPI(object):
         orders = self.orders()
         for order in orders:
             x = self.order_cancel(order['order_id'])
-            print x;
+            print x
+        if orders:
+            print "All Orders have been Cancelled!!!!!"
+        else:
+            print "No Orders found!!"
 
     def accounts(self):
         return self._send_post('/accounts')

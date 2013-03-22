@@ -4,7 +4,7 @@ import json
 import json_ascii
 from time import strftime, localtime
 
-info = btce.getinfo()['return']
+info = btce.getinfo()
 #print 'Info: ', info
 print "Funds:"
 for currency in ['BTC', 'USD', 'LTC']:

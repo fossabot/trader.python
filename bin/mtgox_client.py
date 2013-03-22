@@ -16,6 +16,9 @@ import json_ascii
 import traceback
 import pyreadline
 import winsound        #plays beeps for alerts :)
+import threading
+#import signal
+import sys
 
 mtgox = mtgoxhmac.Client()
 
@@ -104,7 +107,8 @@ class Shell(cmd.Cmd):
 
     #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
     try:
-        depthvintage,fulldepth = updatedepthdata(mtgox)
+        #depthvintage,fulldepth = updatedepthdata(mtgox)
+        pass
     except IOError as e:
         try:
             with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'w') as f:
@@ -136,56 +140,67 @@ class Shell(cmd.Cmd):
 
     def do_updown(self,arg):
         """Logs ticker to file, spits out an alert if last price is above or below the range given"""
+        """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!"""
         """usage: updown <low> <high>"""
+        """Shutdown: updown exit  """
         def catchmeifyoucan(arg):
             low = high = 0
             low, high = arg.split()
             low = float(low)
             high = float(high)
-            #entirebook = refreshbook()
-            #depthgot   = mtgox.get_depth()
-            #depth  = depthparser.DepthParser(5)
-            #data  = depth.process(depthgot, raw = False)
             return low,high
-        try:
-            low, high = catchmeifyoucan(arg)
-        except Exception as e:
-            #traceback.print_exc()
-            #raise depthparser.InputError("You need to give a high and low range: low high")
-            print "You need to give a high and low range: low high"
-            return
-        #Log lastprice to the ticker log file
-        with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'a') as f:
-            while True:
-                ticker =mtgox.get_ticker2()
-                last = float(ticker['last']['value'])
-                svrtime = float(Decimal(float(ticker["now"]) / 1000000).quantize(Decimal("0.001")))
-                text = json.dumps({"time":svrtime,"lastprice":last})
-                f.write(text)
-                f.write("\n")
-                f.flush()
-                if last > low and last < high:
-                    #last falls between given variance range, keep tracking
-                    pass
-                elif last >= high:
-                    print "ALERT!! Ticker has risen above range. Price is now: %s" % (last)
-                    #print "then make some sales mtgox.sell_btc"
-                    winsound.Beep(500,4000)     #frequency(Hz),duration(ms)
-                else:
-                    print "ALERT!! Ticker has fallen below range. Price is now: %s" % (last)
-                    winsound.Beep(2500,1000)
-                    winsound.Beep(2500,1000)
-                    #spread('mtgox',mtgox,'buy', 111, last, low, 5)
-                    #print "then make some buys- mtgox.buy_btc"
-                try:
-                    time.sleep(60)
-                except KeyboardInterrupt as e:
-                    print "CTRL+C was pressed, stopping logging."
-                    return
+        def tickeralert(firstarg,stop_event):
+            try:
+                low, high = catchmeifyoucan(arg)
+            except Exception as e:
+                #traceback.print_exc()
+                #raise depthparser.InputError("You need to give a high and low range: low high")
+                print "You need to give a high and low range: low high"
+                return
+            #Log lastprice to the ticker log file
+            with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'a') as f:
+                while(not stop_event.is_set()):
+                    ticker =mtgox.get_ticker2()
+                    last = float(ticker['last']['value'])
+                    svrtime = float(Decimal(float(ticker["now"]) / 1000000).quantize(Decimal("0.001")))
+                    text = json.dumps({"time":svrtime,"lastprice":last})
+                    f.write(text)
+                    f.write("\n")
+                    f.flush()
+                    if last > low and last < high:
+                        #last falls between given variance range, keep tracking
+                        pass
+                    elif last >= high:
+                        print "ALERT!! Ticker has risen above range %s-%s. Price is now: %s" % (low,high,last)
+                        #print "then make some sales mtgox.sell_btc"
+                        for x in range(2,25):
+                            winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                    elif last == low or last == high:
+                        print "ALERT!! Ticker is exactly on the boundary of %s" % (last)
+                    else:
+                        print "ALERT!! Ticker has fallen below range %s-%s. Price is now: %s" % (low,high,last)
+                        for x in range(25,2,-1):
+                            winsound.Beep(x*100,90)   
+                        #spread('mtgox',mtgox,'buy', 111, last, low, 5)
+                        #print "then make some buys- mtgox.buy_btc"
+                    stop_event.wait(30)
 
-    def do_readtickerlog(self,arg):
+        global t1_stop
+        if arg == 'exit':
+            print "Shutting down background thread..."
+            t1_stop.set()
+        else:
+            t1_stop = threading.Event()
+            thread1 = threading.Thread(target = tickeralert, args=(1,t1_stop)).start()
+
+
+    def do_readtickerlog(self,arg=15):
         """Prints the last X lines of the ticker log file"""
-        arg = int(arg)
+        try:
+            arg = int(arg)
+        except ValueError as e:
+            self.onecmd('help readtickerlog')
+            return
         with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'r') as f:
             print tail(f,arg)
 
@@ -338,7 +353,7 @@ class Shell(cmd.Cmd):
                     print ordertype,'order %r NOT ENOUGH FUNDS for: %s BTC' % (str(order['priority']),order['amount'])
         except Exception as e:
             traceback.print_exc()
-            print "Something went wrong."
+            print "Something went wrong. %s" % e
             return
 
     def do_tradehist24(self,arg):

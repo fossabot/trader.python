@@ -33,6 +33,7 @@ import urllib
 import urllib2
 import urlparse
 import unlock_api_key
+import ssl
 
 class ServerError(Exception):
     def __init__(self, ret):
@@ -50,7 +51,7 @@ class Client:
         self.key,self.secret,enc_password = unlock_api_key.unlock("mtgox")
         
         self.buff = ""
-        self.timeout = 15
+        self.timeout = 10
         self.__url_parts = "https://data.mtgox.com/api/"
         self.clock_window = time.time()
         self.clock = time.time()
@@ -89,7 +90,7 @@ class Client:
             url = self.__url_parts + '1/' + path
         else: #assuming API_VERSION 2
             url = self.__url_parts + '2/' + path
-            api2postdatatohash = path + chr(0) + post_data
+            api2postdatatohash = path + chr(0) + post_data          #new way to hash for API 2, includes path + NUL
             ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),api2postdatatohash,hashlib.sha512).digest()))
         
         # Create header for auth-requiring operations
@@ -100,25 +101,35 @@ class Client:
             }
 
         while True:
-            req = urllib2.Request(url, post_data, header)
-            with closing(urllib2.urlopen(req, post_data)) as res:
-                if JSON == True:
-                    try:
-                        data = json.load(res,object_hook=json_ascii.decode_dict)
-                        if "error" in data:
-                            if data["error"] == "Not logged in.":
-                                print UserError(data["error"])
+            try:
+                req = urllib2.Request(url, post_data, header)
+                with closing(urllib2.urlopen(req, post_data,timeout=self.timeout)) as res:
+                    if JSON == True:
+                        try:
+                            data = json.load(res,object_hook=json_ascii.decode_dict)
+                            if "error" in data:
+                                if data["error"] == "Not logged in.":
+                                    print UserError(data["error"])
+                                else:
+                                    print ServerError(data["error"])
                             else:
-                                print ServerError(data["error"])
-                        else:
-                            return data
-                    except ValueError as e:
-                        print "JSON ERROR. Most likely BLANK Data. Still trying to figure out what happened here."
-                        data = "dummy"
-                        print res.read()
-                else:
-                    data = res.read()
-                    return data
+                                return data
+                        except ValueError as e:
+                            print "JSON Error: %s. Most likely BLANK Data. Still trying to figure out what happened here." % e
+                            data = "dummy"
+                            unchobj = res
+                            print unchobj.read()
+                    else:
+                        data = res.read()
+                        return data
+            except urllib2.HTTPError as e:
+                print e
+            except urllib2.URLError as e:
+                print "URL Error %s: %s." % (e.reason,e) 
+            except ssl.SSLError as e:
+                print "SSL Error: %s." % e
+            except Exception as e:
+                print "General Error: %s" % e
             print "Retrying Connection...."
 
 
@@ -294,9 +305,11 @@ class Client:
             oid = order['oid']
             params = {"oid":str(oid), "type":str(type)}
             self.request("cancelOrder.php", params)
-            print '%s Successfully Cancelled!' % (oid)
+            print 'OID: %s Successfully Cancelled!' % (oid)
         if orders['orders']:
             print "All Orders have been Cancelled!!!!!"
+        else:
+            print "No Orders found!!"
         
 if __name__ == "__main__":
     print "\nMTGoxHMAC module test"

@@ -12,6 +12,7 @@ import time
 import collections
 import decimal
 from decimal import Decimal
+import random
 
 #write the FULL depth to a log file
 def writedepth(mtgox):

@@ -4,7 +4,7 @@ from time import *
 import urllib2
 import sys
 import datetime
-
+import time
 __app_version__ = "0.03"
 
 print """
@@ -18,7 +18,7 @@ Automaticaly downloads and processes the mtgox usd historic data from bitcoincha
 link = """http://bitcoincharts.com/t/trades.csv?symbol=mtgoxUSD&start={START_TIME}"""
 start_time = 0 		
 auto_move_output = 1
-
+begintiming = time.time()
 try:
     for line in open('../data/download_mtgoxUSD.csv'):pass
     line = line.split(',')[0]
@@ -85,4 +85,5 @@ for t,p,v in one_min:
     f.write(",".join(map(str,[t,p,v])) + '\n')
 f.close()
 print "Done. The last time in the file was %s aka %s" % (t,datetime.datetime.fromtimestamp(t))
-    
+endtiming = time.time()
+print "Began at: ",begintiming, " Ended at: ", endtiming, "Total Time: ", endtiming-begintiming    

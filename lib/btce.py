@@ -1,8 +1,9 @@
 # BTCE API calls
-# sample from website heavily modified to use encrypted API keys
+# sample from website heavily modified to use encrypted API keys and "Requests" HTTP library calls
 # begin to declare all API functions
-# genBTC 3/10/2013
+# genBTC 3/10/2013  Modified 3/21/2013
 
+import sys
 import os
 import httplib
 import urllib
@@ -22,6 +23,7 @@ class BTCEError(Exception):
     def __str__(self):
         return repr(self.msg)
 
+#must already have this nonce file in ../data/
 def nonce_generator():
     partialpath=os.path.join('../data/')
     fd = open(os.path.join(partialpath + 'nonce_state_btce'),'r')
@@ -44,7 +46,6 @@ def api_request(method, misc_params = {}):
               "nonce": nonce.next()}
     #Update params
     params.update(misc_params)
-#    params = urllib.urlencode(params)
     # Hash the params string to produce the Sign header value
     H = hmac.new(str(secret), digestmod=hashlib.sha512)
     H.update(urllib.urlencode(params))
@@ -53,80 +54,37 @@ def api_request(method, misc_params = {}):
     headers = {"Content-type": "application/x-www-form-urlencoded",
                "Key":key,
                "Sign":sign}
-#    conn = httplib.HTTPSConnection("btc-e.com")
+    #NEW CODE using Requests lib
     while True:
-#       conn.request("POST", "/tapi", params, headers)
         url = 'https://btc-e.com/tapi'
         r = requests.post(url,data=params,headers=headers)
-        # print params
-        # print headers
-        # print r.headers
-        # print r.status_code
         if r.status_code == '502':
-            print "Caught 502 Error, sleeping..."
-            time.sleep(6)
-            print "Retrying connection"
-            continue
+            print "Caught 502 Error(Bad Gateway)."
         elif r.status_code == requests.codes.ok:
-            rj = r.json()
- #           print rj
-            if rj['success'] == 0:
-                print rj['error']
-                break
-            if rj['return']:
-                return json.loads(r.text, object_hook=json_ascii.decode_dict)
-            else:
-                break
+            try:
+                rj = r.json()
+                if rj['return']:
+                    return json.loads(r.text, object_hook=json_ascii.decode_dict)
+                if rj['success'] == 0:
+                    print ("API returned error: " + rj['error'])
+            except Exception as e:
+                print "JSON Error or non-JSON. %s" % e
+                try:
+                    print r.text
+                except:
+                    print "Not able to print the response body for later debugging of the error."
+                    print ("Unexpected error: " + str(sys.exc_info()[0]))
         else:
-            print "Caught HTTP Error, sleeping..."
-            time.sleep(6)
-            print "Retrying connection"
-            continue     
-        # except httplib.HTTPException:
-            # print "Caught HTTP Error, sleeping..."
-            # time.sleep(3)
-            # print "Retrying connection now"
-            # continue
-        # try:
-            # reply = json.load(conn.getresponse())
-            # if reply['success'] == 1:
-                # return reply['return']
-            # else:
-                # print ("API returned error: " + reply['error'])
-                # time.sleep(3)
-                # print "Retrying connection now"
-                # continue
-            # print response.status, response.reason
-        # except:
-            # print ("Unexpected error: " + str(sys.exc_info()[0]))
-            # time.sleep(3)
-            # print "Retrying connection now"
-            # continue
+            print "Caught HTTP Error %s." % r.status_code
+        time.sleep(5)
+        print "Retrying connection..."
 
-#print s['return']['funds']['btc'], ' BTC available'
-#    conn.close()
+
 def pubapi_request(pair, type):
-    #OLDEST CODE 
-    # try:
-        # f = urllib.urlopen(url)
-        # return json.load(f)
-    # except IOError:
-        # print f.code()
-    #OLD CODE
-    # HTTPConn = httplib.HTTPSConnection
-    # conn = HTTPConn("btc-e.com","443")
-    # url = "/api/2/" + pair + "/" + type
-    # conn.request("POST", url)
-    # resp = conn.getresponse()
-    # s = resp.read()
-    # conn.close()
-    # return json.loads(s, object_hook=json_ascii.decode_dict)
-    #NEW CODE using requests lib
+    #NEW CODE using Requests lib
     while True:
         try:
             r = requests.post('https://btc-e.com/api/2/' + pair + '/' + type)
-            #print r.url
-#            print json.loads(r.text, object_hook=json_ascii.decode_dict)
             return json.loads(r.text, object_hook=json_ascii.decode_dict)
             break
         except r.status_code == '404':
@@ -139,6 +97,10 @@ def pubapi_request(pair, type):
             time.sleep(3)
             print "Retrying connection now"
             continue        
+        except IOError as e:
+            print "IO Error. %s" % e
+            print r.url
+            print r.text
 
 #TODO: can also support btc_eur, nmc_btc, eur_usd
 #correct_pairs = [['btc', 'usd'], ['ltc', 'btc'], ['ltc','usd']]
@@ -167,7 +129,6 @@ class genpairs():
             try:
                 request = urllib2.Request(url)
                 response = json.loads(urllib2.urlopen(request).read())
-                #return response
                 break
             except urllib2.URLError:
                 print "Caught URL Error, sleeping..."
@@ -182,8 +143,6 @@ class genpairs():
       
     def updatepair(self,pair):
         '''modular update pair method'''
-        #tick = self.ticker(pair)
-        #tick = tick['ticker']
         tick = ticker(pair)
         data = {}
         data['high'] = tick.get('high',0)
@@ -200,21 +159,6 @@ class genpairs():
         self.tickerDict[pair] = data
         return data
 
-    # def ticker(self,pair):
-    #     url = self.url + pair + '/ticker' #construct url
-    #     ticker = self.parsePublicApi(url)
-    #     return ticker
- 
-    # def depth(self,pair):
-    #     url = self.url + pair + '/depth'
-    #     depth = self.parsePublicApi(url)
-    #     return depth
- 
-    # def trades(self,pair):
-    #     url = self.url + pair + '/trades'
-    #     trades = self.parsePublicApi(url)
-    #     return trades
-#this file was constructed from multiple files and theres alot of redundant stuff.
 
 def ticker(pair):
     return pubapi_request(pair, "ticker")['ticker']
@@ -226,7 +170,7 @@ def depth(pair):
     return pubapi_request(pair, "depth")
 
 def getinfo():
-    return api_request('getInfo')
+    return api_request('getInfo')['return']
 
 def order_list(filter = {}):
     return api_request('OrderList', filter)
