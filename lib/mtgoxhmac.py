@@ -34,6 +34,8 @@ import urllib2
 import urlparse
 import unlock_api_key
 import ssl
+import gzip
+import io
 
 class ServerError(Exception):
     def __init__(self, ret):
@@ -48,99 +50,112 @@ class UserError(Exception):
 
 class Client:
     def __init__(self, enc_password=""):
+        #This is part of my encrypt_api_key and unlock_api_key file.
+        #without these, set self.key and self.secret to your API Key/Secret in " " 
         self.key,self.secret,enc_password = unlock_api_key.unlock("mtgox")
         
         self.buff = ""
-        self.timeout = 10
+        self.timeout = 5
         self.__url_parts = "https://data.mtgox.com/api/"
-        self.clock_window = time.time()
+        self.clock_last = time.time()
         self.clock = time.time()
         self.query_count = 0
-        self.query_limit_per_time_slice = 5
+        self.query_limit_per_time_slice = 10
         self.query_time_slice = 10
 
     def throttle(self):
         self.clock = time.time()
-        tdelta = self.clock - self.clock_window
+        tdelta = self.clock - self.clock_last
         if tdelta > self.query_time_slice:
             self.query_count = 0
-            self.clock_window = time.time()
+            self.clock_last = time.time()
         self.query_count += 1
         if self.query_count > self.query_limit_per_time_slice:
             #throttle the connection
             print "### Throttled ###"
             time.sleep(self.query_time_slice - tdelta)
-        return
        
-    def perform(self, path, params,JSON=True,API_VERSION=0):
-        self.throttle()
-        nonce =  str(int(time.time()*1000))
-        if params != None:
-            params = params.items()
-        else:
-            params = []
-
-        params += [(u'nonce',nonce)]
-        post_data = urllib.urlencode(params)
-        ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),post_data,hashlib.sha512).digest()))
-
-        if API_VERSION == 0:
-            url = self.__url_parts + '0/' + path
-        elif API_VERSION == 1: 
-            url = self.__url_parts + '1/' + path
-        else: #assuming API_VERSION 2
-            url = self.__url_parts + '2/' + path
-            api2postdatatohash = path + chr(0) + post_data          #new way to hash for API 2, includes path + NUL
-            ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),api2postdatatohash,hashlib.sha512).digest()))
-        
-        # Create header for auth-requiring operations
-        header = {
-            "User-Agent": 'genBTC-bot',
-            "Rest-Key": self.key,
-            "Rest-Sign": ahmac
-            }
-
+    def perform(self, path, params,JSON=True,API_VERSION=0,GZIP=True):
         while True:
+            self.throttle()
             try:
+                nonce =  str(int(time.time()*1000))
+                if params != None:
+                    if isinstance(params, dict):
+                        params = params.items()
+                else:
+                    params = []
+
+                params += [(u'nonce',nonce)]
+                post_data = urllib.urlencode(params)
+                ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),post_data,hashlib.sha512).digest()))
+
+                if API_VERSION == 0:
+                    url = self.__url_parts + '0/' + path
+                elif API_VERSION == 1: 
+                    url = self.__url_parts + '1/' + path
+                else: #assuming API_VERSION 2
+                    url = self.__url_parts + '2/' + path
+                    api2postdatatohash = path + chr(0) + post_data          #new way to hash for API 2, includes path + NUL
+                    ahmac = base64.b64encode(str(hmac.new(base64.b64decode(self.secret),api2postdatatohash,hashlib.sha512).digest()))
+                
+                # Create header for auth-requiring operations
+                header = {
+                    "User-Agent": 'genBTC-bot',
+                    "Rest-Key": self.key,
+                    "Rest-Sign": ahmac
+                    }
+                # Create the request
                 req = urllib2.Request(url, post_data, header)
-                with closing(urllib2.urlopen(req, post_data,timeout=self.timeout)) as res:
-                    if JSON == True:
-                        try:
-                            data = json.load(res,object_hook=json_ascii.decode_dict)
-                            if "error" in data:
-                                if data["error"] == "Not logged in.":
-                                    print UserError(data["error"])
-                                else:
-                                    print ServerError(data["error"])
+                # if GZIP was set, accept gzip encoding
+                if GZIP:
+                    req.add_header('Accept-encoding', 'gzip')
+                # Send the request to the server and receive the response
+                resp = urllib2.urlopen(req, post_data)
+                # Un-Gzip the response
+                if resp.info().get('Content-Encoding') == 'gzip':
+                    buf = io.BytesIO(resp.read())
+                    resp = gzip.GzipFile(fileobj=buf)
+                # if JSON was set, json-ify the response, or say what went wrong, otherwise return plain data
+                if JSON == True:
+                    try:
+                        data = json.load(resp,object_hook=json_ascii.decode_dict)
+                        if "error" in data:
+                            if data["error"] == "Not logged in.":
+                                print UserError(data["error"])
                             else:
-                                return data
-                        except ValueError as e:
-                            print "JSON Error: %s. Most likely BLANK Data. Still trying to figure out what happened here." % e
-                            data = "dummy"
-                            unchobj = res
-                            print unchobj.read()
-                    else:
-                        data = res.read()
-                        return data
+                                print ServerError(data["error"])
+                    except ValueError as e:
+                        print "JSON Error: %s. Most likely BLANK Data. Still trying to figure out what happened here." % e
+                        data = "dummy"
+                        unchobj = resp
+                        print unchobj.read()
+                else:
+                    data = resp.read()
+                return data
+            #Try to catch a number of possible errors. 
+            #Since this is used for debugging, logging.debug() should really be used instead
             except urllib2.HTTPError as e:
-                print e
+                #HTTP Error ie: 500/502/503 etc
+                print 'HTTP Error %s: %s' % (e.code, e.msg)
+                print "URL: %s" % (e.filename)
+                if e.fp:
+                    datastring = e.fp.read()
+                    if "error" in datastring:
+                        data = json.loads(datastring,object_hook=json_ascii.decode_dict)
+                        print "Error: %s" % (data["error"])
             except urllib2.URLError as e:
-                print "URL Error %s: %s." % (e.reason,e) 
+                print "URL Error:", e 
             except ssl.SSLError as e:
-                print "SSL Error: %s." % e
+                print "SSL Error: %s." % e  #Read error timeout. (Removed timeout variable)
             except Exception as e:
                 print "General Error: %s" % e
+            #print this before going back up to the While Loop and running this entire function over again
             print "Retrying Connection...."
 
 
-    def request(self, path, params,JSON=True,API_VERSION=0):
-        ret = self.perform(path, params,JSON,API_VERSION)
-        if JSON == True:
-            if "error" in ret:
-                raise UserError(ret["error"])
-            else:
-                return ret
-        return ret
+    def request(self, path, params,JSON=True,API_VERSION=0,GZIP=True):
+        return self.perform(path, params,JSON,API_VERSION,GZIP)
 
     #public api
     def get_bid_history(self,OID):
@@ -198,9 +213,9 @@ class Client:
     def get_ticker(self):
         return self.request("ticker.php",None)["ticker"]
     def get_depth(self):
-        return self.request("data/getDepth.php", {"Currency":"USD"})
+        return self.request("data/getDepth.php", {"Currency":"USD"},GZIP=True)
     def get_fulldepth(self):
-        return self.request("BTCUSD/money/depth/full",None,API_VERSION=2)
+        return self.request("BTCUSD/money/depth/full",None,JSON=True,API_VERSION=2,GZIP=True)
     def get_trades(self):
         return self.request("data/getTrades.php",None)
     def get_balance(self):
@@ -212,7 +227,7 @@ class Client:
     def get_orders(self):
         return self.request("getOrders.php",None)
     def entire_trade_history(self):
-        return self.request("BTCUSD/money/trades/fetch",None, API_VERSION=2)
+        return self.request("BTCUSD/money/trades/fetch",None,JSON=True,API_VERSION=2,GZIP=True)
     def last_order(self):
         try:
             orders = self.get_orders()['orders']

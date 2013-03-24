@@ -33,11 +33,11 @@ def readdepth():
     fulldepth = json.loads(everything[1])
     return depthvintage, fulldepth
 
-def updatedepthdata(mtgox):
+def updatedepthdata(mtgox,maxage=120):
     global depthvintage
     global fulldepth
     depthvintage,fulldepth = readdepth()
-    if (time.time() - float(depthvintage)) > 120 :   # don't fetch from gox more often than every 2 min
+    if (time.time() - float(depthvintage)) > maxage :   # don't fetch from gox more often than every 2 min
         depthvintage,fulldepth = writedepth(mtgox)
     return depthvintage,fulldepth
 
@@ -190,36 +190,49 @@ def printbothbooks(asks,bids,howmany):
 
 
 # spread trade function including Chunk Trade spread logic & Confirmation
-def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000, chunks=1):
+def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000,chunks=1,dorandom='random'):
     """Sell some BTC between price A and price B of equal sized chunks"""
     """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
     """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
     """Simple trade also allowed: (buy/sell) amount price"""
+    """Added in some optional randomness to it"""
+    randomnesstotal = 0
     loop_price = float(price_lower)
+    price_range = float(price_upper) - float(price_lower)
+    if exchangename == 'bitfloor':
+        cPrec = '0.01'
+        bPrec = '0.00001'
+    else:               #mtgox
+        cPrec = '0.00001'
+        bPrec = '0.00000001'
+    price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal(cPrec))
+    chunk_size = Decimal(float(size) / float(chunks)).quantize(Decimal(bPrec))
     for x in range (0, int(chunks)):
-        price_range = float(price_upper) - float(price_lower)
-        if exchangename == 'bitfloor':
-            price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal('0.01'))
-            chunk_size = Decimal(float(size) / float(chunks)).quantize(Decimal('0.00001'))
-        else:
-            price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal('0.00001'))
-            chunk_size = Decimal(float(size) / float(chunks)).quantize(Decimal('0.00000001'))
+        randomchunk = chunk_size
+        if dorandom.lower()=='random':
+            if chunks > 1:
+                if x+1 == int(chunks):
+                    randomchunk -= randomnesstotal
+                else:
+                    randomness = Decimal(Decimal(random.random()) / Decimal((random.random()*100))).quantize(Decimal(bPrec))
+                    randomnesstotal += randomness
+                    randomchunk += randomness
         if side == 0 or side == 'buy':
-            print 'Buying...', "Chunk # ",x+1," = ",chunk_size,"BTC @ $", loop_price
+            print 'Buying...', "Chunk # ",x+1," = ",randomchunk,"BTC @ $", loop_price
             if exchangename == 'bitfloor':
                 print exchangename,' order going through'
-                exchangeobject.order_new(side=side, size=chunk_size, price=loop_price)
+                #exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
             elif exchangename == 'mtgox':
                 print exchangename,' order going through'
-                exchangeobject.buy_btc(amount=chunk_size, price=loop_price)
+                #exchangeobject.buy_btc(amount=randomchunk, price=loop_price)
         elif side == 1 or side == 'sell':
-            print 'Selling...', "Chunk # ",x+1," = ",chunk_size,"BTC @ $", loop_price
+            print 'Selling...', "Chunk # ",x+1," = ",randomchunk,"BTC @ $", loop_price
             if exchangename == 'bitfloor':
                 print exchangename,' order going through'
-                exchangeobject.order_new(side=side, size=chunk_size, price=loop_price) 
+                #exchangeobject.order_new(side=side, size=randomchunk, price=loop_price) 
             elif exchangename == 'mtgox':
                 print exchangename,' order going through'
-                exchangeobject.sell_btc(amount=chunk_size, price=loop_price)
+                #exchangeobject.sell_btc(amount=randomchunk, price=loop_price)
         loop_price += float(price_chunk)
         
 def ppdict(d):

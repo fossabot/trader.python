@@ -107,7 +107,7 @@ class Shell(cmd.Cmd):
 
     #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
     try:
-        #depthvintage,fulldepth = updatedepthdata(mtgox)
+        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=720)
         pass
     except IOError as e:
         try:
@@ -139,7 +139,8 @@ class Shell(cmd.Cmd):
             return
 
     def do_updown(self,arg):
-        """Logs ticker to file, spits out an alert if last price is above or below the range given"""
+        """Logs ticker to file, spits out an alert and beeps if last price is above or below the range given"""
+        """Range window is modified and readjusted"""
         """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!"""
         """usage: updown <low> <high>"""
         """Shutdown: updown exit  """
@@ -158,6 +159,7 @@ class Shell(cmd.Cmd):
                 print "You need to give a high and low range: low high"
                 return
             #Log lastprice to the ticker log file
+            txfee = get_tradefee()
             with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'a') as f:
                 while(not stop_event.is_set()):
                     ticker =mtgox.get_ticker2()
@@ -172,18 +174,24 @@ class Shell(cmd.Cmd):
                         pass
                     elif last >= high:
                         print "ALERT!! Ticker has risen above range %s-%s. Price is now: %s" % (low,high,last)
-                        #print "then make some sales mtgox.sell_btc"
                         for x in range(2,25):
                             winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                        low = high - 0.5
+                        lowsell = low*(1+txfee*2)
+                        high = low + 3
+                        #spread('mtgox',mtgox,'sell', 1, lowsell, lowsell+1, 3)
+                        print "New range is: %s-%s" % (low,high)
                     elif last == low or last == high:
                         print "ALERT!! Ticker is exactly on the boundary of %s" % (last)
                     else:
                         print "ALERT!! Ticker has fallen below range %s-%s. Price is now: %s" % (low,high,last)
                         for x in range(25,2,-1):
-                            winsound.Beep(x*100,90)   
-                        #spread('mtgox',mtgox,'buy', 111, last, low, 5)
-                        #print "then make some buys- mtgox.buy_btc"
-                    stop_event.wait(30)
+                            winsound.Beep(x*100,90)
+                        high = low + 1
+                        low = high -3
+                        #spread('mtgox',mtgox,'buy', 1, low+1, high-1, 5)
+                        print "New range is: %s-%s" % (low,high)
+                    stop_event.wait(40)
 
         global t1_stop
         if arg == 'exit':
@@ -352,8 +360,6 @@ class Shell(cmd.Cmd):
                 elif order['status'] == 0:
                     print ordertype,'order %r NOT ENOUGH FUNDS for: %s BTC' % (str(order['priority']),order['amount'])
         except Exception as e:
-            traceback.print_exc()
-            print "Something went wrong. %s" % e
             return
 
     def do_tradehist24(self,arg):

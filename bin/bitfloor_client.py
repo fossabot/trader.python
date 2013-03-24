@@ -14,6 +14,11 @@ from book import *
 
 bitfloor = bitfloor.get_rapi()
 
+class UserError(Exception):
+    def __init__(self, errmsg):
+        self.errmsg = errmsg
+    def __str__(self):
+        return self.errmsg
 
 #For Market Orders (not limit)
 # Checks market conditions
@@ -100,39 +105,31 @@ class Shell(cmd.Cmd):
         """(market order): buy size \n""" \
         """(limit order): buy size price \n""" \
         """(spread order): buy size price_lower price_upper chunks"""
-        try:        #pass arguments back up to spread() function
-            size, price_lower, price_upper, chunks = arg.split()
-            # adds a multitude of orders between price A and price B of sized chunks
-            spread('bitfloor',bitfloor, 0, size, price_lower, price_upper, chunks)
-        except:
-            try:
-                size,price_lower = arg.split()
-                spread('bitfloor',bitfloor, 0, size, price_lower)
-            except Exception as e:
-                print "Invalid args given!!! Proper use is:"
-                print "buy size price"
-                print "buy size price_lower price_upper chunks"
-                return
+        try:
+            args = arg.split()
+            newargs = tuple(floatify(args))
+            if len(newargs) not in (1,3):
+                spread('bitfloor',bitfloor, 0, *newargs)
+            else:
+                raise UserError
+        except Exception as e:
+            print "Invalid args given!!! Proper use is:"
+            print "buy size price"
+            print "buy size price_lower price_upper chunks"
+            return
             
     def do_sell(self, arg):
         """(market order): sell size \n""" \
         """(limit order): sell size price \n""" \
         """(spread order): sell size price_lower price_upper chunks"""
         try:
-            size, price_lower, price_upper, chunks = arg.split()
-            try:
-                # adds a multitude of orders between price A and price B of sized chunks
-                spread('bitfloor',bitfloor, 1, size, price_lower, price_upper, chunks)
-            except:
-                print 'Trade failed'
-        except:
-            try:
-                size,price_lower = arg.split()
-                try:
-                    spread('bitfloor',bitfloor, 1, size, price_lower)
-                except:
-                    print 'Trade failed'
-            except Exception as e:
+            args = arg.split()
+            newargs = tuple(floatify(args))
+            if len(newargs) not in (1,3):
+                spread('bitfloor',bitfloor, 1, *newargs)
+            else:
+                raise UserError
+        except Exception as e:
                 print "Invalid args given!!! Proper use is:"
                 print "sell size price"
                 print "sell size price_lower price_upper chunks"
@@ -140,42 +137,38 @@ class Shell(cmd.Cmd):
 
     def do_marketbuy(self, arg):
         """working on new markettrade buy function"""
+        """usage: amount lowprice highprice"""
         entirebook = refreshbook()
         try:
-            amount, lower, upper, waittime = arg.split()
-            amount = Decimal(amount)
-            lower = Decimal(lower)
-            upper = Decimal(upper)
-            waittime = Decimal(waittime)
+            args = arg.split()
+            newargs = tuple(decimalify(args))
             side = entirebook.asks
-            markettrade(side,'buy',amount,lower,upper,waittime)
+            markettrade(side,'buy',*newargs)
         except Exception as e:
-            print "Invalid args given. Expected: amount lowprice highprice "
+            print "Invalid args given. Proper use is: "
+            self.onecmd('help marketbuy')
             return
-        
-
 
     def do_marketsell(self, arg):
         """working on new markettrade sell function"""
+        """usage: amount lowprice highprice"""
         entirebook = refreshbook()
         try:
-            amount, lower, upper, waittime = arg.split()
-            amount = Decimal(amount)
-            lower = Decimal(lower)
-            upper = Decimal(upper)
-            waittime = Decimal(waittime)
+            args = arg.split()
+            newargs = tuple(decimalify(args))
             side = entirebook.bids
             side.reverse()
-            markettrade(side,'sell',amount,lower,upper,waittime)    
+            markettrade(side,'buy',*newargs)    
         except Exception as e:
-            print "Invalid args given. Expected: amount lowprice highprice "
+            print "Invalid args given. Proper use is: "
+            self.onecmd('help marketsell')
             return
         
     def do_sellwhileaway(self,arg):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
-        amount, price = arg.split()
-        amount = float(amount)
-        price = float(price)
+        """Usage: amount price"""
+        args = arg.split()
+        amount,price = tuple(floatify(args))
         #seed initial balance data so we can check it during first run of the while loop
         balance = floatify(bitfloor.accounts())
         #seed the last price just in case we have the money already and we never use the while loop
@@ -219,11 +212,8 @@ class Shell(cmd.Cmd):
         time.sleep(1)
         orders = bitfloor.orders()
         for order in orders:
-            if order['side']== 1:
-                type="Sell"
-            else:
-                type="Buy"
-            print type,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['timestamp']),float(order['price']),float(order['size']))
+            ordertype="Sell" if order['side']==1 else "Buy"
+            print ordertype,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['timestamp']),float(order['price']),float(order['size']))
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         bitfloor.cancel_all()

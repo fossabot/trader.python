@@ -18,11 +18,13 @@ def unlock(site,enc_password=""):
         f = open(os.path.join(partialpath + '_salt.txt'),'r')
         salt = f.read()
         f.close()
-        hash_pass = hashlib.sha256(enc_password + salt).digest()
+        hash_pass = hashlib.sha512(enc_password.encode("utf-8") + salt).digest()     #create the AES container    
+        crypt_key = hash_pass[:32]
+        crypt_ini = hash_pass[-16:]
         f = open(os.path.join(partialpath + '_key.txt'),'r')
         ciphertext = f.read()
         f.close()
-        decryptor = AES.new(hash_pass, AES.MODE_CBC)
+        decryptor = AES.new(crypt_key, AES.MODE_OFB, crypt_ini)
         plaintext = decryptor.decrypt(ciphertext)
         d = json.loads(plaintext)
         key = d['key']
