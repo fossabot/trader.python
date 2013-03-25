@@ -73,13 +73,10 @@ def refreshbook():
     return entirebook
 
 #start printing part of the order book (first 15 asks and 15 bids)
-def printorderbook(size):
+def printorderbook(size=15):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
-    if size is '':
-        printbothbooks(entirebook.asks,entirebook.bids,15)      #default to 15 if size is not given
-    else:
-        printbothbooks(entirebook.asks,entirebook.bids,int(size))   #otherwise use the size from the arguments
+    printbothbooks(entirebook.asks,entirebook.bids,int(size))   #otherwise use the size from the arguments
       
 class Shell(cmd.Cmd):
     def emptyline(self):      
@@ -90,7 +87,7 @@ class Shell(cmd.Cmd):
         self.use_rawinput = False
         self.onecmd('help')
     #start out by printing the order book and the instructions
-    printorderbook(15)
+    printorderbook()
     #give a little user interface
     print 'Press Ctrl+Z to exit gracefully or  Ctrl+C to force quit'
     print 'Typing book will show the order book again'
@@ -101,10 +98,15 @@ class Shell(cmd.Cmd):
     print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
     print ' '
 
+
+    def do_liquidbot(self,arg):
+    	entirebook = refreshbook()
+    	depthsumrange(entirebook.asks)
+
+
     def do_buy(self, arg):
-        """(market order): buy size \n""" \
         """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks"""
+        """(spread order): buy size price_lower price_upper chunks ("random")"""
         try:
             args = arg.split()
             newargs = tuple(floatify(args))
@@ -119,9 +121,8 @@ class Shell(cmd.Cmd):
             return
             
     def do_sell(self, arg):
-        """(market order): sell size \n""" \
         """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks"""
+        """(spread order): sell size price_lower price_upper chunks("random")"""
         try:
             args = arg.split()
             newargs = tuple(floatify(args))

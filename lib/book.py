@@ -16,15 +16,17 @@ class Order(object):
     
 class Book(object):
     @classmethod
-    def parse(cls, d, isbitfloor=False):
+    def parse(cls, d, isbitfloor=False,goxfulldepth=False):
         def parse_side(arr):
             orders = []
             for a in arr:                       #iterate over the array
-                price = str(a[0])
-                size = str(a[1])
-                # if len(price) >= 11:          #replaced with isbitfloor=False
-                #     if price[-9] == '.':
-                #         if price[-1] and price[-2] == '0':
+                if goxfulldepth:
+                    price = str(a['price'])
+                    size = str(a['amount'])
+                else:
+                    price = str(a[0])
+                    size = str(a[1])
+
                 if isbitfloor:                                    #all bitfloor data starts as 8 decimals
                     price = Decimal(price).quantize(Decimal('0.01'))        #valid prices are 2 decimals
                     size = Decimal(size).quantize(Decimal('0.00001'))       #valid sizes are 5 decimals

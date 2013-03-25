@@ -14,6 +14,7 @@ import decimal
 from decimal import Decimal
 import random
 
+
 #write the FULL depth to a log file
 def writedepth(mtgox):
     with open('../data/mtgox_fulldepth.txt','w') as f:
@@ -112,59 +113,75 @@ def mean(l):
     return floatify(l)
 
 
-def obip(mtgox,amount):
+def obip(mtgox,amount,isUSD='BTC'):
     """Order book implied price. Weighted avg price of BTC <width> up and down from the spread."""
     updatedepthdata(mtgox)
+    amount = float(amount)
     s=fulldepth["data"]['asks']
     b=fulldepth["data"]['bids']
     s=floatify(s)
     b=floatify(b)
     b.reverse()
-    def do_obip(l,amount):
+    
+    def do_obip(l,amount,isUSD='BTC'):
         totalBTC, totalprice = (0,0)
-        for x in l:
-            if totalBTC < amount:
-                totalBTC+=x['amount']
-                totalprice+=x['price'] * x['amount']
-                if totalBTC >= amount:
-                    totalprice-=x['price']*(totalBTC-amount)
-                    totalBTC=amount
-                    obip=totalprice/totalBTC
-        return obip
+        if isUSD=='BTC':
+            for x in l:
+                if totalBTC < amount:
+                    totalBTC+=x['amount']
+                    totalprice+=x['price'] * x['amount']
+                    if totalBTC >= amount:
+                        totalprice-=x['price']*(totalBTC-amount)
+                        totalBTC=amount
+                        obip=totalprice/totalBTC
+        else:
+            for x in l:
+                if totalprice < amount:
+                    totalBTC+=x['amount']
+                    totalprice+=x['price'] * x['amount']
+                    if totalprice >= amount:
+                        overBTC = ((totalprice-amount) / x['price'])
+                        totalBTC -= overBTC
+                        totalprice -= x['price'] * overBTC
+                        obip=totalprice/totalBTC
+        return obip,totalBTC
 
-    obips = do_obip(s,amount)
-    obipb = do_obip(b,amount)
+    obips,sbtc = do_obip(s,amount,isUSD)
+    obipb,bbtc = do_obip(b,amount,isUSD)
     obip = (obips+obipb)/2.0 
-    print "The weighted average price of BTC, %s coins up and down from the spread, is %.5f USD. \
-        Data vintage: %.4f seconds"  % (amount, obip,(time.time() - float(depthvintage)))
+    if isUSD=='USD':
+        print "The ask side was: %s BTC. The bid side was %s BTC." % (sbtc,bbtc)
+    print "The weighted average price(OBIP) of BTC, %s %s up and down from the spread is:" % (amount,isUSD),
+    print "$%.5f USD. Data vintage: %.2f seconds."  % (obip,(time.time() - float(depthvintage)))
+    print "The ask side OBIP was: $%.5f. The bid side OBIP was: $%.5f" % (obips,obipb)
 
 
 #calculate and print the total BTC between price A and B
-def depthsumrange (bookside,lowest,highest):
+def depthsumrange (bookside,lowest=0,highest=1000000000):
+    """Usage is: bookside(object) lowest highest"""
     totalBTC,totalprice = (0,0)
     for order in bookside:
         if order.price >= lowest and order.price <= highest:
             totalBTC+=order.size
             totalprice+=order.price * order.size
-    print 'There are %s total BTC between %s and %s' % (totalBTC,lowest,highest)
+    print 'There are %s BTC total between $%s and $%s' % (totalBTC,lowest,highest)
     return totalBTC,totalprice
 
 #match any order to the opposite site of the order book (ie: if buying find a seller) - market order
 #given the amount of BTC and price range check to see if it can be filled as a market order
 def depthmatch (bookside,amount,lowest,highest):
-    totalBTC,totalprice = (0,0)
-    for order in bookside:
-        if order.price >= lowest and order.price <= highest:
-            totalBTC+=order.size
-            totalprice+=order.price * order.size
-            if amount <= totalBTC:
-                print 'Your bid amount of %s BTC can be serviced by the first %s of orders' % (amount,totalBTC)
-                break
+    """Usage is: bookside(object) amount lowest highest"""
+    totalBTC,totalprice = depthsumrange(bookside,lowest,highest)
+    if amount <= totalBTC:
+        print "Your %s BTC is available from a total of: %s BTC" % (amount,totalBTC)
+    else:
+        print "This amount %s BTC is not available between %s and %s" % (amount,lowest,highest)
     return totalBTC
 
 #match any order to the opposite side of the order book (ie: if selling find a buyer) - market order
 #calculate the total price of the order and the average weighted price of each bitcoin 
 def depthprice (bookside,amount,lowest,highest):
+    """Usage is: bookside(object) amount lowest highest"""
     totalBTC, totalprice, weightedavgprice = (0,0,0)
     for order in bookside:
         if order.price >= lowest and order.price <= highest:
@@ -221,18 +238,18 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
             print 'Buying...', "Chunk # ",x+1," = ",randomchunk,"BTC @ $", loop_price
             if exchangename == 'bitfloor':
                 print exchangename,' order going through'
-                #exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
+                exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
             elif exchangename == 'mtgox':
                 print exchangename,' order going through'
-                #exchangeobject.buy_btc(amount=randomchunk, price=loop_price)
+                exchangeobject.buy_btc(amount=randomchunk, price=loop_price)
         elif side == 1 or side == 'sell':
             print 'Selling...', "Chunk # ",x+1," = ",randomchunk,"BTC @ $", loop_price
             if exchangename == 'bitfloor':
                 print exchangename,' order going through'
-                #exchangeobject.order_new(side=side, size=randomchunk, price=loop_price) 
+                exchangeobject.order_new(side=side, size=randomchunk, price=loop_price) 
             elif exchangename == 'mtgox':
                 print exchangename,' order going through'
-                #exchangeobject.sell_btc(amount=randomchunk, price=loop_price)
+                exchangeobject.sell_btc(amount=randomchunk, price=loop_price)
         loop_price += float(price_chunk)
         
 def ppdict(d):

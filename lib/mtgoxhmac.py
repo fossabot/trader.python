@@ -75,7 +75,7 @@ class Client:
             print "### Throttled ###"
             time.sleep(self.query_time_slice - tdelta)
        
-    def perform(self, path, params,JSON=True,API_VERSION=0,GZIP=True):
+    def perform(self, path, params,JSON=True,API_VERSION=0,GZIP=True,GET=False):
         while True:
             self.throttle()
             try:
@@ -106,12 +106,18 @@ class Client:
                     "Rest-Sign": ahmac
                     }
                 # Create the request
-                req = urllib2.Request(url, post_data, header)
+                if GET:
+                    req = urllib2.Request(url)
+                else:
+                    req = urllib2.Request(url, post_data, header)
                 # if GZIP was set, accept gzip encoding
                 if GZIP:
                     req.add_header('Accept-encoding', 'gzip')
                 # Send the request to the server and receive the response
-                resp = urllib2.urlopen(req, post_data)
+                if GET:
+                    resp = urllib2.urlopen(req)
+                else:
+                    resp = urllib2.urlopen(req, post_data)
                 # Un-Gzip the response
                 if resp.info().get('Content-Encoding') == 'gzip':
                     buf = io.BytesIO(resp.read())
@@ -154,16 +160,16 @@ class Client:
             print "Retrying Connection...."
 
 
-    def request(self, path, params,JSON=True,API_VERSION=0,GZIP=True):
-        return self.perform(path, params,JSON,API_VERSION,GZIP)
+    def request(self, path, params,JSON=True,API_VERSION=0,GZIP=True,GET=False):
+        return self.perform(path, params,JSON,API_VERSION,GZIP,GET)
 
     #public api
     def get_bid_history(self,OID):
         params = {"type":'bid',"order":OID}
-        return self.request('generic/private/order/result',params,API_VERSION=1)
+        return self.request('generic/order/result',params,API_VERSION=1)
     def get_ask_history(self,OID):
         params = {"type":'ask',"order":OID}
-        return self.request('generic/private/order/result',params,API_VERSION=1)
+        return self.request('generic/order/result',params,API_VERSION=1)
 
     def get_bid_tids(self,OID):
         #used to link an OID from an API order to a list of TIDs reported in the account history log
@@ -200,34 +206,31 @@ class Client:
                 return []
 
     def lag(self):
-        return self.request('generic/order/lag',None,API_VERSION=1)["return"]
+        return self.request('generic/order/lag',None,API_VERSION=1,GET=True)["return"]
     def get_history_btc(self):
         return self.request('history_BTC.csv',None,JSON=False)
     def get_history_usd(self):
         return self.request('history_USD.csv',None,JSON=False)
     def get_info(self):
-        #return self.request('info.php', None)          #deprecated 
-        return self.request('generic/private/info',None,API_VERSION=1)["return"]
+        return self.request('generic/info',None,API_VERSION=1)["return"]
     def get_ticker2(self):
-        return self.request("BTCUSD/money/ticker",None,API_VERSION=2)["data"]
+        return self.request("BTCUSD/money/ticker",None,API_VERSION=2,GET=True)["data"]
     def get_ticker(self):
-        return self.request("ticker.php",None)["ticker"]
+        return self.request("ticker.php",None,GET=True)["ticker"]
     def get_depth(self):
-        return self.request("data/getDepth.php", {"Currency":"USD"},GZIP=True)
+        return self.request("data/getDepth.php", {"Currency":"USD"})
     def get_fulldepth(self):
-        return self.request("BTCUSD/money/depth/full",None,JSON=True,API_VERSION=2,GZIP=True)
+        return self.request("BTCUSD/money/depth/full",None,JSON=True,API_VERSION=2,GET=True)
     def get_trades(self):
-        return self.request("data/getTrades.php",None)
+        return self.request("data/getTrades.php",None,GET=True)
     def get_balance(self):
-        #return self.request("getFunds.php", None)              #deprecated since multicurrency
-        #info = self.request('info.php', None)["Wallets"]       
         info = self.get_info()["Wallets"]
         balance = { "usds":float(info["USD"]["Balance"]["value"]), "btcs":float(info["BTC"]["Balance"]["value"]) }
         return balance
     def get_orders(self):
         return self.request("getOrders.php",None)
     def entire_trade_history(self):
-        return self.request("BTCUSD/money/trades/fetch",None,JSON=True,API_VERSION=2,GZIP=True)
+        return self.request("BTCUSD/money/trades/fetch",None,JSON=True,API_VERSION=2,GET=True)
     def last_order(self):
         try:
             orders = self.get_orders()['orders']

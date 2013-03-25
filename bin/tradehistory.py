@@ -33,15 +33,17 @@ filetoopen = raw_input("Enter the filename in the data/ directory to open: ")
 datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
 with open(os.path.join(datapartialpath + filetoopen),'r') as f:
     everything = f.readlines()
-print "Is this a Trade History file (not a full depth file)? Yes"
+print "Is this a Trade History file (not a full depth file)? No/Yes:"
 isdepthfile = raw_input("N/No or Leave blank for Yes(default)")
 if not(isdepthfile):
     everything[0],everything[1] = everything[1],everything[0]       #then by default its a history file
 
 new = json.loads(everything[0])
 newnew = common.floatify(new["data"])
-
 [earliesttime],[latesttime] = [[func(x[thing] for x in newnew) for thing in ['tid']] for func in [min,max]]
+
+
+
 # for x in newnew:                                        
 #     price  = float(x['price'])
 #     amount = float(x['amount'])

@@ -17,8 +17,8 @@ import traceback
 import pyreadline
 import winsound        #plays beeps for alerts :)
 import threading
-#import signal
 import sys
+import datetime
 
 mtgox = mtgoxhmac.Client()
 
@@ -30,6 +30,9 @@ datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
 def refreshbook():
     #get current trade order book (depth)  - uses simple depth (api 0)
     entirebook=Book.parse(mtgox.get_depth())
+    #get the FULL depth (API 2,gzip)
+    depthvintage,fulldepth = updatedepthdata(mtgox,maxage=120)
+    entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
     #sort it
     entirebook.sort()
     return entirebook
@@ -115,8 +118,9 @@ class Shell(cmd.Cmd):
                 f.flush()
                 f.close()
             print "Attempting to write full depth to log file for the first time....."
-            response = raw_input("Download full depth and Create the full depth file? Y/n: ")
-            if response == 'Y' or response == 'y':
+            print "Download full depth and Create the full depth file? Y/n: "
+            response = raw_input("N/No or Leave blank for Yes(default)")
+            if not(response):
                 depthvintage,fulldepth = writedepth(mtgox)
         except:
             traceback.print_exc()
@@ -144,15 +148,9 @@ class Shell(cmd.Cmd):
         """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!"""
         """usage: updown <low> <high>"""
         """Shutdown: updown exit  """
-        def catchmeifyoucan(arg):
-            low = high = 0
-            low, high = arg.split()
-            low = float(low)
-            high = float(high)
-            return low,high
         def tickeralert(firstarg,stop_event):
             try:
-                low, high = catchmeifyoucan(arg)
+                low, high = floatify(arg.split())
             except Exception as e:
                 #traceback.print_exc()
                 #raise depthparser.InputError("You need to give a high and low range: low high")
@@ -164,7 +162,7 @@ class Shell(cmd.Cmd):
                 while(not stop_event.is_set()):
                     ticker =mtgox.get_ticker2()
                     last = float(ticker['last']['value'])
-                    svrtime = float(Decimal(float(ticker["now"]) / 1000000).quantize(Decimal("0.001")))
+                    svrtime = float(Decimal(float(ticker["now"]) / 1E6).quantize(Decimal("0.001")))
                     text = json.dumps({"time":svrtime,"lastprice":last})
                     f.write(text)
                     f.write("\n")
@@ -202,27 +200,58 @@ class Shell(cmd.Cmd):
             thread1 = threading.Thread(target = tickeralert, args=(1,t1_stop)).start()
 
 
-    def do_readtickerlog(self,arg=15):
+    def do_readtickerlog(self,numlines=15):
         """Prints the last X lines of the ticker log file"""
         try:
-            arg = int(arg)
+            numlines = int(numlines)
+            with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'r') as f:
+                s = tail(f,numlines)
+            print s
+            l = s.splitlines()
+            for x in l: pass
+            j = json.loads(x)
+            tickertime = j['time']
+            print "Last ticker was:",datetime.datetime.fromtimestamp(tickertime).strftime("%Y-%m-%d %H:%M:%S")
+            print "Current time is:",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         except ValueError as e:
             self.onecmd('help readtickerlog')
             return
-        with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'r') as f:
-            print tail(f,arg)
 
-    def do_obip(self, width):
+    def do_depth(self,args):
+        """Shortcut for the 3 depth functions in common.py"""
+        try:
+            depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
+            entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
+            args = args.split()
+            mydict = {"buy":entirebook.bids,"bids":entirebook.bids,"bid":entirebook.bids,"sell":entirebook.asks,"ask":entirebook.asks,"asks":entirebook.asks}
+            for x in mydict.keys():
+                if x in args:
+                    args.remove(x)
+                    whichbook = mydict[x]
+            functlist = ["sum","range","match","price"]
+            for x in functlist:
+                if x in args:
+                    args.remove(x)
+                    newargs = tuple(decimalify(args))
+                    func = x
+            functdict = {"sum":depthsumrange,"range":depthsumrange,"match":depthmatch,"price":depthprice}[func](whichbook,*newargs)
+        except:
+            print "Invalid args given. Proper use is:"
+            print "depth (sum/match/price) (bids/asks)"
+
+    def do_obip(self, args):
+        args = args.split()
+        newargs = tuple(floatify(args))
         """<width>
         Calculate the "order book implied price", by finding the weighted
         average price of coins <width> BTC up and down from the spread."""
-        width = float(width)
-        obip(mtgox,width)
+        obip(mtgox,*newargs)
+
     def do_asks(self,arg):
         """Calculate the amount of bitcoins for sale at or under <pricetarget>.""" 
         """If 'over' option is given, find coins or at or over <pricetarget>."""
         #right now this is using the FULL DEPTH data so we call update which will update if necessary
-        depthvintage,fulldepth = updatedepthdata(mtgox)
+        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
         try:
             pricetarget = float(arg)
             response = 'under'
@@ -245,13 +274,12 @@ class Shell(cmd.Cmd):
             if f(ask["price"], pricetarget):
                 n_coins += ask["amount"]
                 total += (ask["amount"] * ask["price"])
-        print "There are currently %.8g bitcoins offered at or %s %s USD, worth %.2f USD in total."  % (n_coins,response, pricetarget, total)
-        #return n_coins
+        print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, pricetarget, total)
     
     def do_bids(self,arg):
         """Calculate the amount of bitcoin demanded at or over <pricetarget>."""
         """If 'under' option is given, find coins or at or under <pricetarget>"""
-        depthvintage,fulldepth = updatedepthdata(mtgox)
+        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
         try:
             pricetarget = float(arg)
             response = 'over'
@@ -275,54 +303,51 @@ class Shell(cmd.Cmd):
                 n_coins += bid["amount"]
                 total += (bid["amount"] * bid["price"])
         print "There are currently %.8g bitcoins demanded at or %s %s USD, worth %.2f USD in total."  % (n_coins,response,pricetarget, total)
-        #return n_coins
 
 # pass arguments back to spread() function in common.py
 # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
     def do_buy(self, arg):
         """(market order): buy size \n""" \
         """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks"""
+        """(spread order): buy size price_lower price_upper chunks ("random")"""
         try:
-            size, price_lower, price_upper, chunks = arg.split()
-            spread('mtgox',mtgox,'buy', size, price_lower, price_upper, chunks)
-        except:
-            try:
-                size,price_lower = arg.split()
-                spread('mtgox',mtgox,'buy', size, price_lower)
-            except:
-                try:
-                    arg = float(arg)
-                    mtgox.buy_btc(arg)
-                except Exception as e:
-                    print "Invalid args given!!! Proper use is:"
-                    self.onecmd('help buy')
-                    return
+            args = arg.split()
+            newargs = tuple(floatify(args))
+            if len(newargs) not in (3):
+                spread('mtgox',mtgox,'buy', *newargs)
+            elif len(newargs) == 1:
+                mtgox.buy_btc(newargs)
+            else:
+                raise UserError
+        except Exception as e:
+            print "Invalid args given!!! Proper use is:"
+            self.onecmd('help buy')
+            return
+
 
     def do_sell(self, arg):
         """(market order): sell size \n""" \
         """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks"""
+        """(spread order): sell size price_lower price_upper chunks ("random")"""
         try:
-            size, price_lower, price_upper, chunks = arg.split()
-            spread('mtgox',mtgox,'sell', size, price_lower, price_upper, chunks)
-        except:
-            try:
-                size,price_lower = arg.split()
-                spread('mtgox',mtgox,'sell', size, price_lower)
-            except:
-                try:
-                    arg = float(arg)
-                    mtgox.sell_btc(size)
-                except Exception as e:
-                    print "Invalid args given!!! Proper use is:"
-                    self.onecmd('help sell')
-                    return
+            args = arg.split()
+            newargs = tuple(floatify(args))
+            if len(newargs) not in (3):
+                spread('mtgox',mtgox,'sell', *newargs)
+            elif len(newargs) == 1:
+                mtgox.buy_sell(newargs)
+            else:
+                raise UserError
+        except Exception as e:
+            print "Invalid args given!!! Proper use is:"
+            self.onecmd('help sell')
+            return
 
     def do_ticker(self,arg):
         """Print the entire ticker out or use one of the following options:\n""" \
         """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
         ticker = mtgox.get_ticker2()
+        svrtime = float(Decimal(float(ticker["now"]) / 1E6).quantize(Decimal("0.001")))
         if not arg:
             print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
                 "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s, 24 hour avg: %s" % \
@@ -331,6 +356,7 @@ class Shell(cmd.Cmd):
                 ticker['last']['value'], ticker['vol']['value'], \
                 ticker['low']['value'], ticker['high']['value'], \
                 ticker['vwap']['value'],ticker['avg']['value'])
+            print "Time of ticker: ", datetime.datetime.fromtimestamp(svrtime).strftime("%Y-%m-%d %H:%M:%S"), "Ticker Lag: %.3f" % (time.time()-svrtime)
         else:
             try:
                 print "BTCUSD ticker | %s = %s" % (arg,ticker[arg])
