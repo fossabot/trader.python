@@ -27,11 +27,9 @@ mtgox = mtgoxhmac.Client()
 datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
 
 
-def refreshbook():
-    #get current trade order book (depth)  - uses simple depth (api 0)
-    entirebook=Book.parse(mtgox.get_depth())
-    #get the FULL depth (API 2,gzip)
-    depthvintage,fulldepth = updatedepthdata(mtgox,maxage=120)
+def refreshbook(maxage=180):
+    #get the FULL depth (current trade order) (API 2,gzip)
+    depthvintage,fulldepth = updatedepthdata(mtgox,maxage)
     entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
     #sort it
     entirebook.sort()
@@ -73,7 +71,7 @@ class Feesubroutine(cmd.Cmd):
         btcbalance,totalfees,last = calc_fees()
         print_calcedfees(btcbalance,last,totalfees)
     def do_calc(self,amount):
-        """Calculate how much fees will cost on X amount"""
+        """Calculate how much fees will cost on X amount\n""" \
         """Give X amount as a paramter ie: calc 50"""
         try:
             amount = float(amount)
@@ -143,10 +141,10 @@ class Shell(cmd.Cmd):
             return
 
     def do_updown(self,arg):
-        """Logs ticker to file, spits out an alert and beeps if last price is above or below the range given"""
-        """Range window is modified and readjusted"""
-        """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!"""
-        """usage: updown <low> <high>"""
+        """Logs ticker to file, spits out an alert and beeps if last price is above or below the range given\n""" \
+        """Range window is modified and readjusted\n""" \
+        """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!\n""" \
+        """usage: updown <low> <high>\n""" \
         """Shutdown: updown exit  """
         def tickeralert(firstarg,stop_event):
             try:
@@ -219,9 +217,9 @@ class Shell(cmd.Cmd):
 
     def do_depth(self,args):
         """Shortcut for the 3 depth functions in common.py"""
+
         try:
-            depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
-            entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
+            entirebook = refreshbook(maxage=180)
             args = args.split()
             mydict = {"buy":entirebook.bids,"bids":entirebook.bids,"bid":entirebook.bids,"sell":entirebook.asks,"ask":entirebook.asks,"asks":entirebook.asks}
             for x in mydict.keys():
@@ -240,15 +238,16 @@ class Shell(cmd.Cmd):
             print "depth (sum/match/price) (bids/asks)"
 
     def do_obip(self, args):
+        """Calculate the "order book implied price", by finding the weighted\n""" \
+        """average price of coins <width> BTC up and down from the spread.\n""" \
+        """Usage: <width> optional:(BTC/USD) """
         args = args.split()
         newargs = tuple(floatify(args))
-        """<width>
-        Calculate the "order book implied price", by finding the weighted
-        average price of coins <width> BTC up and down from the spread."""
+        
         obip(mtgox,*newargs)
 
     def do_asks(self,arg):
-        """Calculate the amount of bitcoins for sale at or under <pricetarget>.""" 
+        """Calculate the amount of bitcoins for sale at or under <pricetarget>.\n""" \
         """If 'over' option is given, find coins or at or over <pricetarget>."""
         #right now this is using the FULL DEPTH data so we call update which will update if necessary
         depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
@@ -277,7 +276,7 @@ class Shell(cmd.Cmd):
         print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, pricetarget, total)
     
     def do_bids(self,arg):
-        """Calculate the amount of bitcoin demanded at or over <pricetarget>."""
+        """Calculate the amount of bitcoin demanded at or over <pricetarget>.\n""" \
         """If 'under' option is given, find coins or at or under <pricetarget>"""
         depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
         try:
@@ -309,7 +308,7 @@ class Shell(cmd.Cmd):
     def do_buy(self, arg):
         """(market order): buy size \n""" \
         """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ("random")"""
+        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(floatify(args))
@@ -324,11 +323,10 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
             return
 
-
     def do_sell(self, arg):
         """(market order): sell size \n""" \
         """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks ("random")"""
+        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(floatify(args))
@@ -399,7 +397,15 @@ class Shell(cmd.Cmd):
             json.dump(eth,f)
             f.close()
             print "Finished."
-
+    def do_readtradehist24(self,arg):
+        """reading trade history data from a file and gathering stats on it"""
+        import tradehistory
+        print "Is this a Trade History file (not a full depth file)?"
+        isdepthfile = raw_input("N/No or [Leave blank for Yes(default)]")
+        if not(isdepthfile):
+            tradehistory.readhist24()
+        else:
+            tradehistory.readdepth()
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         mtgox.cancelall()

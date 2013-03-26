@@ -112,9 +112,18 @@ def mean(l):
             return float(sum(l))/len(l) if len(l) else None
     return floatify(l)
 
+def average(s): return sum(s) * 1.0 / len(s)
+
+def variance(thing,avg):
+    return map(lambda x: (x - avg)**2, thing)
+
+def stddev(x):
+    import math
+    return math.sqrt(average(x))
 
 def obip(mtgox,amount,isUSD='BTC'):
     """Order book implied price. Weighted avg price of BTC <width> up and down from the spread."""
+    """usage: obip(mtgoxobject,amount,"USD"/"BTC"(optional))"""
     updatedepthdata(mtgox)
     amount = float(amount)
     s=fulldepth["data"]['asks']
@@ -157,8 +166,8 @@ def obip(mtgox,amount,isUSD='BTC'):
 
 
 #calculate and print the total BTC between price A and B
-def depthsumrange (bookside,lowest=0,highest=1000000000):
-    """Usage is: bookside(object) lowest highest"""
+def depthsumrange (bookside,lowest=1,highest=100):
+    """Usage is: bookside(Book object) lowest(optional) highest(optional)"""
     totalBTC,totalprice = (0,0)
     for order in bookside:
         if order.price >= lowest and order.price <= highest:
@@ -170,7 +179,7 @@ def depthsumrange (bookside,lowest=0,highest=1000000000):
 #match any order to the opposite site of the order book (ie: if buying find a seller) - market order
 #given the amount of BTC and price range check to see if it can be filled as a market order
 def depthmatch (bookside,amount,lowest,highest):
-    """Usage is: bookside(object) amount lowest highest"""
+    """Usage is: bookside(Book object) amount lowest highest"""
     totalBTC,totalprice = depthsumrange(bookside,lowest,highest)
     if amount <= totalBTC:
         print "Your %s BTC is available from a total of: %s BTC" % (amount,totalBTC)
@@ -181,7 +190,7 @@ def depthmatch (bookside,amount,lowest,highest):
 #match any order to the opposite side of the order book (ie: if selling find a buyer) - market order
 #calculate the total price of the order and the average weighted price of each bitcoin 
 def depthprice (bookside,amount,lowest,highest):
-    """Usage is: bookside(object) amount lowest highest"""
+    """Usage is: bookside(Book object) amount lowest highest"""
     totalBTC, totalprice, weightedavgprice = (0,0,0)
     for order in bookside:
         if order.price >= lowest and order.price <= highest:

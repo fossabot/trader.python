@@ -4,3 +4,4 @@ keys/*
 tradeshistory.txt
 pyinstaller.bat
 data/*
+bin/goxtool.log

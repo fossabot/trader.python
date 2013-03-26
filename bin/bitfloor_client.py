@@ -100,6 +100,7 @@ class Shell(cmd.Cmd):
 
 
     def do_liquidbot(self,arg):
+    	"""incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
     	entirebook = refreshbook()
     	depthsumrange(entirebook.asks)
 
