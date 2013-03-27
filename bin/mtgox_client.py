@@ -312,13 +312,14 @@ class Shell(cmd.Cmd):
         try:
             args = arg.split()
             newargs = tuple(floatify(args))
-            if len(newargs) not in (3):
+            if len(newargs) == 1:
+                mtgox.buy_btc(*newargs)
+            elif not(len(newargs) == 3):
                 spread('mtgox',mtgox,'buy', *newargs)
-            elif len(newargs) == 1:
-                mtgox.buy_btc(newargs)
             else:
                 raise UserError
         except Exception as e:
+            traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help buy')
             return
@@ -330,13 +331,14 @@ class Shell(cmd.Cmd):
         try:
             args = arg.split()
             newargs = tuple(floatify(args))
-            if len(newargs) not in (3):
+            if len(newargs) == 1:
+                mtgox.buy_sell(*newargs)
+            elif not(len(newargs) == 3):
                 spread('mtgox',mtgox,'sell', *newargs)
-            elif len(newargs) == 1:
-                mtgox.buy_sell(newargs)
             else:
                 raise UserError
         except Exception as e:
+            traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help sell')
             return
@@ -432,11 +434,17 @@ class Shell(cmd.Cmd):
         Feesubroutine().cmdloop()
     def do_exit(self,arg):      #standard way to exit
         """Exits the program"""
-        print '\nSession Terminating.......'
+        try:
+            t1_stop.set()
+            print "\nShutting down threads..."
+        except:
+            print "\nNo background threads to shut down."
+        print 'Session Terminating.......'
         print 'Exiting......'
         return True
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
+        self.do_exit(arg)
         return True
     def help_help(self):
         print 'Prints the help screen'
