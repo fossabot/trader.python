@@ -34,13 +34,10 @@ def refreshbook(maxage=180):
     #sort it
     entirebook.sort()
     return entirebook
-def printorderbook(size):
+def printorderbook(size=15):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
-    if size is '':
-        printbothbooks(entirebook.asks,entirebook.bids,15)
-    else:
-        printbothbooks(entirebook.asks,entirebook.bids,int(size))      
+    printbothbooks(entirebook.asks,entirebook.bids,size)   #otherwise use the size from the arguments
 def bal():
     balance = mtgox.get_balance()
     btcbalance = float(balance['btcs'])
@@ -125,7 +122,7 @@ class Shell(cmd.Cmd):
             print "Something went wrong. IO Error trying to READ, then could not initially CREATE the fulldepth file."
 
     #start out by printing the order book and the instructions
-    printorderbook(15)
+    printorderbook()
     #give a little user interface       
     print 'Type exit to exit gracefully or Ctrl+Z or Ctrl+C to force quit'
     print 'Type help to show the available commands'
@@ -332,7 +329,7 @@ class Shell(cmd.Cmd):
             args = arg.split()
             newargs = tuple(floatify(args))
             if len(newargs) == 1:
-                mtgox.buy_sell(*newargs)
+                mtgox.sell_btc(*newargs)
             elif not(len(newargs) == 3):
                 spread('mtgox',mtgox,'sell', *newargs)
             else:
@@ -370,8 +367,11 @@ class Shell(cmd.Cmd):
 
     def do_book(self,size):
         """Download and print the order book of current bids and asks of depth $size"""
-        printorderbook(size)
-        
+        try:
+            size = int(size)
+            printorderbook(size)
+        except:
+            printorderbook() 
     def do_orders(self,arg):
         """Print a list of all your open orders, including pending and lacking enough funds"""
         try:    

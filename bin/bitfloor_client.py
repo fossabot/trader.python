@@ -4,13 +4,14 @@
 # Universal Client for all things bitfloor
 # Functionality _should_ be listed in README
 
-#import args	    #lib/args.py modified to use product 1 & bitfloor file
+#import args        #lib/args.py modified to use product 1 & bitfloor file
 import bitfloor     #args was phased out and get_rapi() was moved to bitfloor and config.json moved to data/
 import cmd
 import time
 from decimal import Decimal
 from common import *
 from book import *
+import threading
 
 bitfloor = bitfloor.get_rapi()
 
@@ -76,7 +77,7 @@ def refreshbook():
 def printorderbook(size=15):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
-    printbothbooks(entirebook.asks,entirebook.bids,int(size))   #otherwise use the size from the arguments
+    printbothbooks(entirebook.asks,entirebook.bids,size)   #otherwise use the size from the arguments
       
 class Shell(cmd.Cmd):
     def emptyline(self):      
@@ -100,15 +101,63 @@ class Shell(cmd.Cmd):
 
 
     def do_liquidbot(self,arg):
-    	"""incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
-    	entirebook = refreshbook()
-    	notonaskbookprice = []
-    	notonbidbookprice = []
-		for ask in entirebook.asks:
-			notonaskbookprice.append(ask.price)
-		for bid in entirebook.bids:
-			notonbidbookprice.append(bid.price)
-		
+        """incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
+        def liquidthread(firstarg,stop_event):
+            while(not stop_event.is_set()):
+                entirebook = refreshbook()
+                onaskbookprice = []
+                onbidbookprice = []
+                buyorderids = []
+                sellorderids = []
+                typedict = {0:"Buy",1:"Sell"}
+                for ask in entirebook.asks:
+                    onaskbookprice.append(float(ask.price))
+                for bid in entirebook.bids:
+                    onbidbookprice.append(float(bid.price))
+                targetbid = onbidbookprice[1] - 0.30
+                targetask = onaskbookprice[1] + 0.30
+                while targetbid in onbidbookprice:
+                    targetbid -= 0.01
+                while targetask in onaskbookprice:
+                    targetask += 0.01
+                if len(buyorderids) == len(sellorderids) and not len(buyorderids) == 10:
+                    buyorderids += spread('bitfloor',bitfloor,0,1,targetbid)
+                    sellorderids += spread('bitfloor',bitfloor,1,1,targetask)
+                else:
+                    print "Nothing to do. Waiting on some action."
+                stop_event.wait(60)
+                orders = bitfloor.orders()
+                allorders = buyorderids + sellorderids
+                for x in allorders:
+                    if not(x in str(orders)):
+                        co = completedorder = bitfloor.order_info(x)
+                        if "error" in co:
+                            print "There was some kind of error retrieving the order information."
+                        else:
+                            print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
+        def secondmethod(firstarg,stop_event):
+            while(not stop_event.is_set()):
+                entirebook = refreshbook()
+                onaskbookprice = []
+                onbidbookprice = []
+                buyorderids = []
+                sellorderids = []
+                typedict = {0:"Buy",1:"Sell"}
+                for ask in entirebook.asks:
+                    onaskbookprice.append(float(ask.price))
+                for bid in entirebook.bids:
+                    onbidbookprice.append(float(bid.price))
+                targetbid = onbidbookprice[1] - 0.30
+                targetask = onaskbookprice[1] + 0.30
+
+        global t1_stop
+        if arg == 'exit':
+            print "Shutting down background thread..."
+            t1_stop.set()
+        else:
+            t1_stop = threading.Event()
+            thread1 = threading.Thread(target = liquidthread, args=(1,t1_stop)).start()
+
 
 
     def do_buy(self, arg):
@@ -214,7 +263,11 @@ class Shell(cmd.Cmd):
         print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
     def do_book(self,size):
         """Download and print the order book of current bids and asks of depth $size"""
-        printorderbook(size)      
+        try:
+            size = int(size)
+            printorderbook(size)
+        except:
+            printorderbook()        
     def do_orders(self,arg):
         """Print a list of all your open orders"""
         time.sleep(1)

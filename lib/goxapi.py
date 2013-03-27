@@ -566,9 +566,11 @@ class BaseClient(BaseObject):
         #     "dbf1dee9-4f2e-4a08-8cb7-748919a71b21": "trades",
         #     "d5f06780-30a8-4a48-a2f8-7ed181b4a13f": "ticker",
         #     "24e67e0d-1cad-4cc0-9e7a-f8523ef460fe": "depth",
-        self.send(json.dumps({"op":"mtgox.subscribe", "type":"depth"}))
-        self.send(json.dumps({"op":"mtgox.subscribe", "type":"ticker"}))
+        #self.send(json.dumps({"op":"mtgox.subscribe", "type":"depth"}))
+        #self.send(json.dumps({"op":"mtgox.subscribe", "type":"ticker"}))
         self.send(json.dumps({"op":"mtgox.subscribe", "type":"trades"}))
+        # Once you join 1::/mtgox these are automaticlaly subscribed to
+        self.send(json.dumps({"op":"mtgox.subscribe", "type":"lag"}))
 
         if FORCE_HTTP_API or self.config.get_bool("gox", "use_http_api"):
             self.enqueue_http_request("money/orders", {}, "orders")
@@ -800,13 +802,17 @@ class SocketIOClient(BaseClient):
 
             self.connected = True
             self.debug("connected")
-            self.socket.send("1::/mtgox")
-
-            self.debug(self.socket.recv())
-            self.debug(self.socket.recv())
-
             self.debug("subscribing to channels")
-            self.channel_subscribe()
+            #self.socket.send("1::/")
+            
+            self.socket.send("1::/mtgox")
+            self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))
+            self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))
+
+            self.debug(self.socket.recv())
+            self.debug(self.socket.recv())
+           
+            #self.channel_subscribe()
 
             self.debug("waiting for data...")
             while not self._terminating: #loop1 (read messages)
@@ -820,6 +826,7 @@ class SocketIOClient(BaseClient):
                 if prefix == "4::/mtgox:":
                     str_json = msg[10:]
                     if str_json[0] == "{":
+                        #print str_json
                         self.signal_recv(self, (str_json))
 
             # except Exception as exc:
@@ -1057,6 +1064,12 @@ class Gox(BaseObject):
         if handler:
             handler(msg)
 
+    def _on_op_private_lag(self,msg):
+        """handle incoming ticker message (op=private, private=lag)"""
+        msg = msg["lag"]
+        lag = str(float(msg["age"] / 1E6))
+        self.debug(" lag: ",lag, "s")
+
     def _on_op_private_ticker(self, msg):
         """handle incoming ticker message (op=private, private=ticker)"""
         msg = msg["ticker"]
@@ -1082,7 +1095,7 @@ class Gox(BaseObject):
         self.debug(
             "depth: ", type_str+":", int2str(price, self.currency),
             "vol:", int2str(volume, "BTC"),
-            "now:", int2str(total_volume, "BTC"))
+            "total:", int2str(total_volume, "BTC"))
         self.signal_depth(self, (type_str, price, volume, total_volume))
 
     def _on_op_private_trade(self, msg):

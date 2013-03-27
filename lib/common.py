@@ -222,13 +222,15 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
     """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
     """Simple trade also allowed: (buy/sell) amount price"""
     """Added in some optional randomness to it"""
+    orderids = []
+    sidedict = {0:"Buy",1:"Sell","buy":"Buy","sell":"Sell"}
     randomnesstotal = 0
     loop_price = float(price_lower)
     price_range = float(price_upper) - float(price_lower)
     if exchangename == 'bitfloor':
         cPrec = '0.01'
         bPrec = '0.00001'
-    else:               #mtgox
+    elif exchangename == 'mtgox':
         cPrec = '0.00001'
         bPrec = '0.00000001'
     price_chunk = Decimal(float(price_range)/ float(chunks)).quantize(Decimal(cPrec))
@@ -243,23 +245,25 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                     randomness = Decimal(Decimal(random.random()) / Decimal((random.random()*100))).quantize(Decimal(bPrec))
                     randomnesstotal += randomness
                     randomchunk += randomness
-        if side == 0 or side == 'buy':
-            print 'Buying...', "Chunk # ",x+1," = ",randomchunk,"BTC @ $", loop_price
-            if exchangename == 'bitfloor':
-                print exchangename,' order going through'
-                exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
-            elif exchangename == 'mtgox':
-                print exchangename,' order going through'
-                exchangeobject.buy_btc(amount=randomchunk, price=loop_price)
-        elif side == 1 or side == 'sell':
-            print 'Selling...', "Chunk # ",x+1," = ",randomchunk,"BTC @ $", loop_price
-            if exchangename == 'bitfloor':
-                print exchangename,' order going through'
-                exchangeobject.order_new(side=side, size=randomchunk, price=loop_price) 
-            elif exchangename == 'mtgox':
-                print exchangename,' order going through'
-                exchangeobject.sell_btc(amount=randomchunk, price=loop_price)
+
+        if exchangename == 'bitfloor':
+            print '%sing... Chunk #%s = %s BTC @ $%s' % (sidedict[side],x+1,randomchunk,loop_price)
+            result = exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
+            if not("error" in result):
+                print "Order submitted. orderID is: %s" % result["order_id"]
+                orderids.append(result["order_id"])
+            elif "error" in result:
+                print "Order was submitted but failed because: %s" % result["error"]
+
+        elif exchangename == 'mtgox':
+            print '%sing... Chunk #%s = %s BTC @ $%s' % (sidedict[side],x+1,randomchunk,loop_price)
+            print exchangename,' submitting order.'
+            goxdict = {'buy':exchangeobject.buy_btc,'sell':exchangeobject.sell_btc}[side](amount=randomchunk, price=loop_price)
+
         loop_price += float(price_chunk)
+
+    if exchangename == 'bitfloor':
+        return orderids
         
 def ppdict(d):
     #pretty print a dict

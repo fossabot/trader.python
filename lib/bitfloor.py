@@ -53,6 +53,12 @@ class RAPI(object):
         url = '/history/{0}'.format(self._product_id)
         return self._send_get(url)
 
+    def buy(self, **kwargs):
+        return self.order_new(side=0, **kwargs)
+
+    def sell(self, **kwargs):
+        return self.order_new(side=1, **kwargs)
+
     def order_new(self, side, size, price):
         return self._send_post('/order/new', {
             'product_id': self._product_id,
@@ -61,20 +67,19 @@ class RAPI(object):
             'price': price
         })
 
-    def buy(self, **kwargs):
-        return self.order_new(side=0, **kwargs)
+    def order_info(self,order_id):
+        return self._send_post('/order/details', {
+            'order_id': order_id
+        })
 
-    def sell(self, **kwargs):
-        return self.order_new(side=1, **kwargs)
+    def orders(self):
+        return self._send_post('/orders')
 
     def order_cancel(self, order_id):
         return self._send_post('/order/cancel', {
             'product_id': self._product_id,
             'order_id': order_id
         })
-
-    def orders(self):
-        return self._send_post('/orders')
 
     def cancel_all(self):
         orders = self.orders()
