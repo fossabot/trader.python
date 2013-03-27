@@ -12,6 +12,7 @@ from decimal import Decimal
 from common import *
 from book import *
 import threading
+import traceback
 
 bitfloor = bitfloor.get_rapi()
 
@@ -102,13 +103,14 @@ class Shell(cmd.Cmd):
 
     def do_liquidbot(self,arg):
         """incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
+        #make a pair of orders 30 cents below/above the 2nd highest/lowest bid/ask (safer, but less likely to work)
         def liquidthread(firstarg,stop_event):
+            buyorderids = []
+            sellorderids = []
             while(not stop_event.is_set()):
                 entirebook = refreshbook()
                 onaskbookprice = []
                 onbidbookprice = []
-                buyorderids = []
-                sellorderids = []
                 typedict = {0:"Buy",1:"Sell"}
                 for ask in entirebook.asks:
                     onaskbookprice.append(float(ask.price))
@@ -120,12 +122,12 @@ class Shell(cmd.Cmd):
                     targetbid -= 0.01
                 while targetask in onaskbookprice:
                     targetask += 0.01
-                if len(buyorderids) == len(sellorderids) and not len(buyorderids) == 10:
+                if len(buyorderids) == len(sellorderids) and not len(buyorderids) == 2:
                     buyorderids += spread('bitfloor',bitfloor,0,1,targetbid)
                     sellorderids += spread('bitfloor',bitfloor,1,1,targetask)
                 else:
                     print "Nothing to do. Waiting on some action."
-                stop_event.wait(60)
+                stop_event.wait(35)
                 orders = bitfloor.orders()
                 allorders = buyorderids + sellorderids
                 for x in allorders:
@@ -136,19 +138,98 @@ class Shell(cmd.Cmd):
                         else:
                             print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
         def secondmethod(firstarg,stop_event):
+            # make a pair of orders within 5 cents of the spread (not changing the spread) (still safe, less profit, more likely to work)
+            buyorderids = []
+            sellorderids = []
             while(not stop_event.is_set()):
                 entirebook = refreshbook()
                 onaskbookprice = []
                 onbidbookprice = []
-                buyorderids = []
-                sellorderids = []
                 typedict = {0:"Buy",1:"Sell"}
                 for ask in entirebook.asks:
                     onaskbookprice.append(float(ask.price))
                 for bid in entirebook.bids:
                     onbidbookprice.append(float(bid.price))
-                targetbid = onbidbookprice[1] - 0.30
-                targetask = onaskbookprice[1] + 0.30
+                targetbid = onbidbookprice[0] - 0.05
+                targetask = onaskbookprice[0] + 0.05
+                while targetbid in onbidbookprice:
+                    targetbid -= 0.01
+                while targetask in onaskbookprice:
+                    targetask += 0.01                
+                if len(buyorderids) < 1:
+                    try:
+                        buyorderids += spread('bitfloor',bitfloor,0,1,targetbid)
+                        sellorderids += spread('bitfloor',bitfloor,1,1,targetask)
+                    except:
+                        traceback.exc_info()
+                        bitfloor.cancel_all()
+                else:
+                    print "Nothing to do. Waiting on some action."
+                    #check spread to see if we can go back to thirdmethod
+                    spread = onaskbookprice[0] - onbidbookprice[0]
+                    if spread >= 0.05:
+                        thirdmethod(None,t1_stop)
+                stop_event.wait(40)
+                orders = bitfloor.orders()
+                allorders = buyorderids + sellorderids
+                for x in allorders:
+                    if not(x in str(orders)):
+                        co = completedorder = bitfloor.order_info(x)
+                        if "error" in co:
+                            print "There was some kind of error retrieving the order information."
+                        else:
+                            print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
+        def thirdmethod(firstarg,stop_event):
+            # make a pair of orders 1 cent ABOVE/BELOW the spread (DOES change the spread)(fairly risky, least profit per run, most likely to work)
+            buyorderids = []
+            sellorderids = []
+            while(not stop_event.is_set()):
+                entirebook = refreshbook()
+                onaskbookprice = []
+                onbidbookprice = []
+                typedict = {0:"Buy",1:"Sell"}
+                for ask in entirebook.asks:
+                    onaskbookprice.append(float(ask.price))
+                for bid in entirebook.bids:
+                    onbidbookprice.append(float(bid.price))
+                spread = onaskbookprice[0] - onbidbookprice[0]                    
+                if spread < 0.05:
+                    print "There is virtually no spread to take advantage of."
+                    print "Trying second method:"
+                    #default to method 2 if the spread fails (idealy we want to come back here and try again sometime.)
+                    secondmethod(None,t1_stop)
+                else:
+                    while spread >= 0.05:
+                        print "The spread was: %s" % spread
+                        targetbid = onbidbookprice[0] + 0.01
+                        targetask = onaskbookprice[0] - 0.01
+                        #start eating into profits to find an uninhabited pricepoint
+                        while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
+                            targetbid += 0.01
+                        while targetask in onaskbookprice and not(targetbid in onaskbookprice):
+                            targetask -= 0.01                
+                        spread = targetask-targetbid
+                        if len(buyorderids) < 1 and spread > 0.03:
+                            try:
+                                buyorderids += spread('bitfloor',bitfloor,0,1,targetbid)
+                                sellorderids += spread('bitfloor',bitfloor,1,1,targetask)
+                            except:
+                                bitfloor.cancel_all()
+                        elif spread < 0.03:
+                            print "Spread was too low(%s) after checking which prices were inhabited by other people's orders." % spread
+                        else:
+                            print "Nothing to do. Waiting on some action."
+                stop_event.wait(20)
+                orders = bitfloor.orders()
+                allorders = buyorderids + sellorderids
+                for x in allorders:
+                    if not(x in str(orders)):
+                        co = completedorder = bitfloor.order_info(x)
+                        if "error" in co:
+                            print "There was some kind of error retrieving the order information."
+                        else:
+                            print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
+                
 
         global t1_stop
         if arg == 'exit':
@@ -156,7 +237,7 @@ class Shell(cmd.Cmd):
             t1_stop.set()
         else:
             t1_stop = threading.Event()
-            thread1 = threading.Thread(target = liquidthread, args=(1,t1_stop)).start()
+            thread1 = threading.Thread(target = thirdmethod, args=(None,t1_stop)).start()
 
 
 

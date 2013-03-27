@@ -192,7 +192,7 @@ class Shell(cmd.Cmd):
             t1_stop.set()
         else:
             t1_stop = threading.Event()
-            thread1 = threading.Thread(target = tickeralert, args=(1,t1_stop)).start()
+            thread1 = threading.Thread(target = tickeralert, args=(None,t1_stop)).start()
 
 
     def do_readtickerlog(self,numlines=15):
