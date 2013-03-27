@@ -104,7 +104,7 @@ class Shell(cmd.Cmd):
         self.use_rawinput = False
         self.onecmd('help')             #print out the possible commands (help) on first run
 
-    
+    #CTRL+C Handling
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
