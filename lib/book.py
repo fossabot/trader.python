@@ -2,7 +2,7 @@
 # will parse any json book in standard form
 
 import decimal
-from decimal import Decimal
+from decimal import Decimal as D
 
 class Order(object):
     def __init__(self, price, size):
@@ -28,16 +28,16 @@ class Book(object):
                     size = str(a[1])
 
                 if isbitfloor:                                    #all bitfloor data starts as 8 decimals
-                    price = Decimal(price).quantize(Decimal('0.01'))        #valid prices are 2 decimals
-                    size = Decimal(size).quantize(Decimal('0.00001'))       #valid sizes are 5 decimals
+                    price = D(price).quantize(D('0.01'))        #valid prices are 2 decimals
+                    size = D(size).quantize(D('0.00001'))       #valid sizes are 5 decimals
                 else:  #every other site
                     if len(price) in (2,4):            #if the price is too short (ie 47 or 47.1)  then
-                        price = Decimal(price).quantize(Decimal('0.01'))    #pad it to 2 decimals
+                        price = D(price).quantize(D('0.01'))    #pad it to 2 decimals
                     else:
-                        price = Decimal(price)                          
+                        price = D(price)                          
                     if '.' not in size:                 #if the size is an integer and has no dot, then
-                        size = Decimal(size).quantize(Decimal('0.1'))       #pad it to 1 decimal
-                    size = Decimal(size)
+                        size = D(size).quantize(D('0.1'))       #pad it to 1 decimal
+                    size = D(size)
                 orders.append(Order(price,size))        #generate this side of the book as a class Order object
             return orders                               #and return it
 
@@ -55,9 +55,9 @@ class Book(object):
 
     def flatten(self, increment):
         def floor_inc(n):
-            return (Decimal(str(n))/Decimal(increment)).quantize(Decimal('1'), rounding=decimal.ROUND_DOWN)*Decimal(increment)
+            return (D(str(n))/D(increment)).quantize(D('1'), rounding=decimal.ROUND_DOWN)*D(increment)
         def ceil_inc(n):
-            return (Decimal(str(n))/Decimal(increment)).quantize(Decimal('1'), rounding=decimal.ROUND_UP)*Decimal(increment)
+            return (D(str(n))/D(increment)).quantize(D('1'), rounding=decimal.ROUND_UP)*D(increment)
 
         bids = {}
         asks = {}

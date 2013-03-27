@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from decimal import Decimal
+from decimal import Decimal as D
 import cjson
 import sys
 import time
@@ -32,7 +32,7 @@ class JsonParser:
 
 class DepthParser(object):
     def __init__(self, currencyDecimals, args = []):
-        self._cPrec = Decimal(1) / 10 ** currencyDecimals
+        self._cPrec = D(1) / 10 ** currencyDecimals
         self.__sides = ("asks","bids")
         try:
             for arg,value in (arg.split("=") for arg in args):
@@ -84,7 +84,7 @@ class DepthParser(object):
     @low.setter
     def low(self, value):
         if value:
-            self._minPrice = Decimal(value)
+            self._minPrice = D(value)
         else:
             self._minPrice = None
 
@@ -98,7 +98,7 @@ class DepthParser(object):
     @high.setter
     def high(self, value):
         if value:
-            self._maxPrice = Decimal(value)
+            self._maxPrice = D(value)
         else:
             self._maxPrice = None
 
@@ -112,7 +112,7 @@ class DepthParser(object):
     @amount.setter
     def amount(self, value):
         if value:
-            self._maxAmount = Decimal(value)
+            self._maxAmount = D(value)
         else:
             self._maxAmount = None
         
@@ -126,7 +126,7 @@ class DepthParser(object):
     @value.setter
     def value(self, value):
         if value:
-            self._maxValue = Decimal(value)
+            self._maxValue = D(value)
         else:
             self._maxValue = None
         
@@ -297,7 +297,7 @@ class DepthParser(object):
         iv        = self.iv
         # Get the decimal precision for currency
         cPrec    = self._cPrec
-        bPrec    = Decimal("0.00000001")
+        bPrec    = D("0.00000001")
         # Setup empty table
         gen      = (i for i in json.iteritems() if i[0] not in ("asks","bids"))
         table    = dict(( (key, value) for key, value in gen ))
@@ -522,25 +522,25 @@ class DepthParser(object):
             iv         = False):
         u"Update existing order with new data such as price, amount or value."
         #print "AMOUNT IS: ",amount_int, "BTC and PRICE IS: $",price_int
-        bPrec = Decimal("0.00000001")
+        bPrec = D("0.00000001")
         if not any([price_int, amount_int, stamp, precision, iv]):
             return order
         if price_int:
             if precision:
                 # Converting price to decimal with proper length
-                price = Decimal(price_int).quantize(precision)
+                price = D(price_int).quantize(precision)
                 # Saving as float for cjson encoding
                 order[0] = float(price)
             else:
                 raise AttributeError("precision")
         if amount_int:
             # Converting amount to decimal with proper length
-            amount = Decimal(amount_int).quantize(bPrec)
+            amount = D(amount_int).quantize(bPrec)
             # Saving as float for cjson encoding
             order[1] = float(amount)
         if iv:
             value = iv
-            value = float(Decimal(value).quantize(precision))
+            value = float(D(value).quantize(precision))
             order.append(value)
         return order
 
@@ -558,8 +558,8 @@ class DepthParser(object):
 def goxnewcalc(mtgox,args):
 # 	u"Takes arguments: (bid|ask), (btc|usd), amount, price=optional"
     decimals=5
-    bPrec = Decimal("0.00000001")
-    cPrec = Decimal(Decimal(1) / 10 ** decimals)
+    bPrec = D("0.00000001")
+    cPrec = D(D(1) / 10 ** decimals)
     if len(args.split()) > 3:
         kind,opts,amount,price = args.split()  
     else: 
@@ -568,9 +568,9 @@ def goxnewcalc(mtgox,args):
             kind,opts,amount = args.split()
         except ValueError:
             raise InputError("Expected 3 or 4 arguments, got %s" % len(args.split()))
-    amount = Decimal(amount)
+    amount = D(amount)
     if price:
-        price = Decimal(price)
+        price = D(price)
         # Create order with specified price and amount
         if opts == 'usd':
             # Convert amount specified in currency (value) to BTC
@@ -599,8 +599,8 @@ def goxnewcalc(mtgox,args):
             orders = orders["return"][side]
             for order in orders:
                 # Count amount of all orders up to the last one.
-                totalprice += Decimal(order[2])
-                totalamount  += Decimal(order[1])
+                totalprice += D(order[2])
+                totalamount  += D(order[1])
                 # Take price and the rest of the amount that's needed.
             avgprice  = totalprice / totalamount
     #amount, price = str(amount), str(price)

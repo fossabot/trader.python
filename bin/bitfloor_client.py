@@ -8,7 +8,7 @@
 import bitfloor     #args was phased out and get_rapi() was moved to bitfloor and config.json moved to data/
 import cmd
 import time
-from decimal import Decimal
+from decimal import Decimal as D    #got annoyed at having to type Decimal every time.
 from common import *
 from book import *
 import threading
@@ -58,7 +58,7 @@ def markettrade(bookside,action,amount,lowest,highest,waittime=0):
 
     depthprice(bookside,amount,lowest,highest)
 
-    #time.sleep(Decimal(waittime))
+    #time.sleep(D(waittime))
 
 #some ideas
 # if trying to buy start from lowerprice, check ask order book, buy if an order on order book is lower than lowerprice
@@ -208,78 +208,98 @@ class Shell(cmd.Cmd):
             sellorderids = []
             allorders = []
             initialrun = True
+            maintaining = False
+            totalnumsold,totalnumbought = 0,0
+            typedict = {0:"Buy",1:"Sell"}
             print "Trying third method:"
             while(not stop_event.is_set()):
                 entirebook = refreshbook()
                 onaskbookprice = []
-                onbidbookprice = []
-                typedict = {0:"Buy",1:"Sell"}
+                onbidbookprice = []                
+                bookdict = {0:onbidbookprice,1:onaskbookprice}
+                iddicts = {0:buyorderids,1:sellorderids}
                 for ask in entirebook.asks:
-                    onaskbookprice.append(float(ask.price))
+                    onaskbookprice.append(ask.price)
                 for bid in entirebook.bids:
-                    onbidbookprice.append(float(bid.price))
-                spr = onaskbookprice[0] - onbidbookprice[0]                    
-                if spr < 0.04:
-                    print "There is virtually no spread to take advantage of. Spread was: %s" % spr
-                    if initialrun == False and len(allorders) < 2:
-                        if len(buyorderids) < 2:
-                            bitfloor.cancel_all()
-                            print "Cancelling leftover buy order."
-                            buyorderids = []
-                            initialrun == True
+                    onbidbookprice.append(bid.price)
+                spr = onaskbookprice[0] - onbidbookprice[0]
+
+                
+                for x in allorders:
+                    co = bitfloor.order_info(x)
+                    if co["status"]=='open':
+                        if D(str(co["price"])) != bookdict[co["side"]][1] or D(str(co["price"])) != bookdict[co["side"]][0]:
+                            #print "Order ID %s Cancelled. Was superceded..." % x
+                            bitfloor.order_cancel(x)
+                            allorders.remove(x)
+                            iddicts[co["side"]].remove(x)
+                            maintaining = True
+                     
+                if initialrun == False:
+                    if spr < D('0.04'):                    
+                        print "Spread too low: %s" % spr
+                        if len(allorders) == 1:
+                            if len(buyorderids) == 1:
+                                bitfloor.cancel_all()
+                                print "Cancelling leftover buy order."
+                                buyorderids = []
+                                initialrun = True
                     #default to method 2 if the spread fails (ideally we want to come back here and try again sometime.)
                     #was creating too many loops in loops that wouldnt exit properly
                     #secondmethod(None,t1_stop)
-                else:
-                    print "The spread was: %s" % spr
-                    targetbid = onbidbookprice[0] + 0.01
-                    targetask = onaskbookprice[0] - 0.01
+                if spr > D('0.04'):
+                    #print "The spread was: %s" % spr
+                    targetbid = onbidbookprice[1] + D('0.01')
+                    targetask = onaskbookprice[1] - D('0.01')
                     #start eating into profits to find an uninhabited pricepoint
                     while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
-                        targetbid += 0.01
+                        targetbid += D('0.01')
                     while targetask in onaskbookprice and not(targetbid in onaskbookprice):
-                        targetask -= 0.01                
+                        targetask -= D('0.01')                
                     spr = targetask-targetbid
                     #print "Number of order pairs: %s" % len(buyorderids)
-                    if len(buyorderids) < 1 and spr > 0.04:
+                    if len(buyorderids) < 1 and spr > D('0.04') :
                         try:
-                            buyorderids += spread('bitfloor',bitfloor,0,0.229,targetbid)
+                            buyorderids += spread('bitfloor',bitfloor,0,0.229,targetbid,silent=True)
+                            if not(maintaining):
+                                print "Placed buy @ $%s" % targetbid
+                                maintaining = False
+                            totalnumbought += 1 
                             initialrun = False
                         except:
-                            bitfloor.cancel_all()
-                            print "Resetting order ids"
-                            buyorderids = []
-                            sellorderids = []
-                    if len(sellorderids) < 1 and spr > 0.04:
+                            print buyorderids[-1]
+                    if len(sellorderids) < 1 and spr > D('0.04') and totalnumbought >= totalnumsold:
                         try:
-                            sellorderids += spread('bitfloor',bitfloor,1,0.229,targetask)
+                            sellorderids += spread('bitfloor',bitfloor,1,0.229,targetask,silent=True)
+                            if not(maintaining):
+                                print "Placed sell @ $%s" % targetask
+                                maintaining = False
+                            totalnumsold += 1
                             initialrun = False
                         except:
-                            bitfloor.cancel_all()
-                            print "Resetting order ids"
-                            buyorderids = []
-                            sellorderids = []
-                    elif spr < 0.04:
-                        print "Spread was too low(%s) after checking which prices were inhabited by other people's orders." % spr
-                    elif len(buyorderids) ==1 and len(sellorderids) == 1:
-                        pass
-                        #print "Order pair is still valid. Waiting. Watching."                                                        
-                stop_event.wait(15)
+                            print sellorderids[-1]
+                    elif spr < D('0.04'):
+                        print "Spread of %s too low. after checking which prices were inhabited by other people's orders." % spr
+                stop_event.wait(30)
                 orders = bitfloor.orders()
                 allorders = buyorderids + sellorderids
-                #print "All orders list: ", allorders
+                #Check on orders and maintain them....
                 for x in allorders:
+                    co = bitfloor.order_info(x)
                     if not(x in str(orders)):
-                        co = bitfloor.order_info(x)
                         if "error" in co:
                             print "There was some kind of error retrieving the order information."
                         else:
-                            print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
+                            #print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
+                            if co["status"]=='filled':
+                                print "%s success!! @ $%s" % (typedict[co["side"]],co["price"])       
+                            #print "%s @ $%s - %s" % (typedict[co["side"]],co["price"],co["status"])
                             if co["side"] == 0:
                                 buyorderids.remove(co["order_id"])
                             elif co["side"] == 1:
                                 sellorderids.remove(co["order_id"])
                             allorders = buyorderids + sellorderids
+
                 
         global t1_stop
         if arg == 'exit':

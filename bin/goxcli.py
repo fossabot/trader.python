@@ -3,7 +3,7 @@ import os,sys
 
 from datetime import datetime
 from functools import partial
-from decimal import Decimal,InvalidOperation
+from decimal import Decimal as D,InvalidOperation
 from optparse import OptionParser,OptionGroup
 
 # Regular expression-support
@@ -909,7 +909,7 @@ class MtGoxAPI(object):
 
 class DepthParser(object):
     def __init__(self, currencyDecimals, args = []):
-        self._cPrec = Decimal(1) / 10 ** currencyDecimals
+        self._cPrec = D(1) / 10 ** currencyDecimals
         self.__sides = ("asks","bids")
         try:
             for arg,value in (arg.split("=") for arg in args):
@@ -961,7 +961,7 @@ class DepthParser(object):
     @low.setter
     def low(self, value):
         if value:
-            self._minPrice = Decimal(value)
+            self._minPrice = D(value)
         else:
             self._minPrice = None
 
@@ -975,7 +975,7 @@ class DepthParser(object):
     @high.setter
     def high(self, value):
         if value:
-            self._maxPrice = Decimal(value)
+            self._maxPrice = D(value)
         else:
             self._maxPrice = None
 
@@ -989,7 +989,7 @@ class DepthParser(object):
     @amount.setter
     def amount(self, value):
         if value:
-            self._maxAmount = Decimal(value)
+            self._maxAmount = D(value)
         else:
             self._maxAmount = None
         
@@ -1003,7 +1003,7 @@ class DepthParser(object):
     @value.setter
     def value(self, value):
         if value:
-            self._maxValue = Decimal(value)
+            self._maxValue = D(value)
         else:
             self._maxValue = None
         
@@ -1080,7 +1080,7 @@ class DepthParser(object):
         iv        = self.iv
         # Get the decimal precision for currency
         cPrec    = self._cPrec
-        bPrec    = Decimal("0.00000001")
+        bPrec    = D("0.00000001")
         # Setup empty table
         gen      = (i for i in json.iteritems() if i[0] not in ("asks","bids"))
         table    = dict(( (key, value) for key, value in gen ))
@@ -1457,14 +1457,14 @@ class DepthParser(object):
             precision  = False,
             iv         = False):
         u"Update existing order with new data such as price, amount or value."
-        bPrec = Decimal("0.00000001")
+        bPrec = D("0.00000001")
         if not any([price_int, amount_int, stamp, precision, iv]):
             return order
         if price_int:
             # Converting price integer to decimal with proper length
             if precision:
                 # Converting amount integer to decimal with proper length
-                price = Decimal(price_int) * precision
+                price = D(price_int) * precision
                 price = price.quantize(precision)
                 # Saving as float for cjson encoding
                 order["price"]     = float(price)
@@ -1473,7 +1473,7 @@ class DepthParser(object):
                 raise AttributeError("precision")
         if amount_int:
             # Converting amount integer to decimal with proper length
-            amount = Decimal(amount_int) * bPrec
+            amount = D(amount_int) * bPrec
             amount = amount.quantize(bPrec)
             # Saving as float for cjson encoding
             order["amount"]     = float(amount)
@@ -1753,19 +1753,19 @@ class ActionHandler(object):
         u"called by sell- and buy-action."
         currency = opts.currency.upper() if opts.currency else self.standard
         decimals = self.xml.currency(currency)[0]
-        bPrec = Decimal("0.00000001")
-        cPrec = Decimal(Decimal(1) / 10 ** decimals)
+        bPrec = D("0.00000001")
+        cPrec = D(D(1) / 10 ** decimals)
         if args:
             try:
                 amount,price = args if len(args) > 1 else (args[0],None)
             except ValueError:
                 raise InputError("Expected 1 or 2 arguments, got %s" % len(args))
             else:
-                amount = Decimal(amount)
+                amount = D(amount)
         else:
             raise InputError("Expected 1 or 2 arguments, got %s" % len(args))
         if price:
-            price = Decimal(price)
+            price = D(price)
             # Create order with specified price and amount
             if opts.asbtc:
                 # "If user applied amount in BTC", convert amount to int
@@ -2021,7 +2021,7 @@ class ActionHandler(object):
                     if v.lower() in ("btc","dwolla","lr","paxum", "coupon"):
                         destination = v
                 elif k == "amount":
-                    amount = Decimal(v)
+                    amount = D(v)
                 elif k == "account":
                     account = str(v)
                 elif k == "green":
@@ -2722,7 +2722,7 @@ class ShellHandler(ActionHandler):
         print self.colorText(header,"shell_self")
         print dLine
         if all((json["return"]["bids"],json["return"]["asks"])):
-            lower = Decimal(json["return"]["gap"]["lower"])
+            lower = D(json["return"]["gap"]["lower"])
             lower = format(lower, pForm)
             lower = lower.rjust(11)[:11]
             print self.colorText(
@@ -2743,7 +2743,7 @@ class ShellHandler(ActionHandler):
                     try:
                         upper = format(json["return"]["gap"]["upper"], pForm)
                         lower = format(json["return"]["gap"]["lower"], pForm)
-                        price = str(Decimal(upper) - Decimal(lower))
+                        price = str(D(upper) - D(lower))
                     except KeyError:
                         print self.colorText(line, "separators")
                     else:
@@ -2945,7 +2945,7 @@ class ShellHandler(ActionHandler):
         dLine
         for i in reversed(trades):
             kind  = i["Type"]
-            value = Decimal(i["Value"]["value"])
+            value = D(i["Value"]["value"])
             if kind == "fee":
                 info   = i["Info"].split()[-2] + ")"
                 value *= -1
@@ -2963,7 +2963,7 @@ class ShellHandler(ActionHandler):
             value = format(value, pForm)
             value = str(value).rjust(13)[:13]
             value = self.colorText(value, color)
-            balance = Decimal(i["Balance"]["value"])
+            balance = D(i["Balance"]["value"])
             balance = format(balance, pForm)
             balance = str(balance).rjust(13)[:13]
             balance = self.colorText(balance, "history_balance")
@@ -3132,8 +3132,8 @@ class ShellHandler(ActionHandler):
                     cry,kind,amount,price,date,status = old
                 else:
                     cry      = "   "
-                    amount   = Decimal( order[u"amount"]["value"] )
-                    price    = Decimal( order[u"price"]["value"]  )
+                    amount   = D( order[u"amount"]["value"] )
+                    price    = D( order[u"price"]["value"]  )
                     kind     = order[u"type"]
                     kColor   = "order_%s" % kind.lower() 
                     status   = order[u"status"]
@@ -3170,8 +3170,8 @@ class ShellHandler(ActionHandler):
         currency = order[u"currency"]
         pForm    = ".%sf" % self.xml.currencies[currency]["decimals"]
         kind     = {1: u"ask", 2: u"bid"}[order[u"type"]]
-        amount   = Decimal( order[u"amount"] )
-        price    = Decimal( order[u"price"]  )
+        amount   = D( order[u"amount"] )
+        price    = D( order[u"price"]  )
         date     = int(order[u"date"])
         date     = datetime.fromtimestamp(date).strftime( "%Y-%m-%d %H:%M:%S" )
         status   = order[u"real_status"]
@@ -3186,9 +3186,9 @@ class ShellHandler(ActionHandler):
             raise InputError("Expected 1 argument, got %s" % len(args))
         json  = self.api.info()
         json  = JsonParser.parse(json)
-        fee   = Decimal(json["return"][u"Trade_Fee"])/100
-        cPrec = (Decimal(1) / 10) ** self.xml.currencies[opts.currency]["decimals"]
-        price = Decimal(args[0])
+        fee   = D(json["return"][u"Trade_Fee"])/100
+        cPrec = (D(1) / 10) ** self.xml.currencies[opts.currency]["decimals"]
+        price = D(args[0])
         if price < 0:
             raise InputError( u"Invalid price: %s" % price,
                               kind = "price" , arg = price )
@@ -3242,19 +3242,19 @@ class ShellHandler(ActionHandler):
         json   = JsonParser.parse(json)
         ticker = json["return"]
         pForm  = ".%sf" % self.xml.currencies[self.opts.currency]["decimals"]
-        high   = Decimal( ticker[u"high"]["value"] )
+        high   = D( ticker[u"high"]["value"] )
         high   = format(high, pForm).rjust(10)
-        buy    = Decimal( ticker[u"buy"]["value"] )
+        buy    = D( ticker[u"buy"]["value"] )
         buy    = format(buy, pForm).rjust(10)
-        sell   = Decimal( ticker[u"sell"]["value"] )
+        sell   = D( ticker[u"sell"]["value"] )
         sell   = format(sell, pForm).rjust(10)
-        last   = Decimal( ticker[u"last"]["value"] )
+        last   = D( ticker[u"last"]["value"] )
         last   = format(last, pForm).rjust(10)
-        low    = Decimal( ticker[u"low"]["value"] )
+        low    = D( ticker[u"low"]["value"] )
         low    = format(low, pForm).rjust(10)
-        avg    = Decimal( ticker[u"avg"]["value"] )
+        avg    = D( ticker[u"avg"]["value"] )
         avg    = format(avg, pForm).rjust(10)
-        vol    = Decimal( ticker[u"vol"]["value"] )
+        vol    = D( ticker[u"vol"]["value"] )
         vol    = format(vol, '.5f').rjust(10)[0:10]
         print u"{0}{1}".format(self.colorText(u"High: ","shell_self" ),
                                self.colorText(  high,   "ticker_high") )
@@ -3340,12 +3340,12 @@ class ShellHandler(ActionHandler):
         print line
         trades = json["return"]
         try:
-            pPrice = Decimal(trades[0][u"price"])
+            pPrice = D(trades[0][u"price"])
         except IndexError:
             empty = "Mt.Gox returned empty table".center(63)
             print self.colorText(empty, "shell_self")
         for trade in trades:
-            price = Decimal(trade[u"price"])
+            price = D(trade[u"price"])
             if price < pPrice:
                 color = "trades_down"
             elif price > pPrice:
@@ -3357,7 +3357,7 @@ class ShellHandler(ActionHandler):
             kind   = self.colorText(kind, "shell_self")
             price  = format(price, pForm).rjust(11)[:11]
             price  = self.colorText(price,color)
-            amount = Decimal(trade[u"amount"])
+            amount = D(trade[u"amount"])
             amount = format(amount, '.8f').rjust(18)[:18]
             amount = self.colorText(amount, "shell_self")
             date   = int(trade[u"date"])

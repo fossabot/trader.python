@@ -7,7 +7,7 @@ import math
 import time
 import bitfloor
 import decimal
-from decimal import Decimal
+from decimal import Decimal as D
 import cmd
 import readline
 import sys

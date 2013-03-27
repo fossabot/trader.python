@@ -171,7 +171,7 @@ class Shell(cmd.Cmd):
                 while(not stop_event.is_set()):
                     ticker =mtgox.get_ticker2()
                     last = float(ticker['last']['value'])
-                    svrtime = float(Decimal(float(ticker["now"]) / 1E6).quantize(Decimal("0.001")))
+                    svrtime = float(D(float(ticker["now"]) / 1E6).quantize(D("0.001")))
                     text = json.dumps({"time":svrtime,"lastprice":last})
                     f.write(text)
                     f.write("\n")
@@ -358,7 +358,7 @@ class Shell(cmd.Cmd):
         """Print the entire ticker out or use one of the following options:\n""" \
         """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
         ticker = mtgox.get_ticker2()
-        svrtime = float(Decimal(float(ticker["now"]) / 1E6).quantize(Decimal("0.001")))
+        svrtime = float(D(float(ticker["now"]) / 1E6).quantize(D("0.001")))
         if not arg:
             print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
                 "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s, 24 hour avg: %s" % \

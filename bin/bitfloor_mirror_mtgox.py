@@ -6,7 +6,7 @@ import urllib
 import json
 import json_ascii
 import decimal
-from decimal import Decimal
+from decimal import Decimal as D
 import sys
 
 from book import Book, Order
@@ -24,7 +24,7 @@ def get_funds():
     pos = {}
     bpositions = bitfloor.accounts()
     for p in bpositions:
-        pos[p['currency']] = Decimal(str(p['amount']))
+        pos[p['currency']] = D(str(p['amount']))
     return pos
 
 def get_our_book():
@@ -41,8 +41,8 @@ def get_our_book():
     }
 
     for o in orders:
-        size = Decimal(str(o['size']))
-        price = Decimal(str(o['price']))
+        size = D(str(o['size']))
+        price = D(str(o['price']))
         order = Order(size, price)
         order.id = o['order_id'] # TODO: hacky
         tup = (str(price), str(size))
@@ -85,7 +85,7 @@ def run():
 
     # get the total remaining area needed to fill
     # find which factor of it we can fill with our total funds
-    sumb = sum(o.price*o.size for o in mbook.bids if o.size > 0)*Decimal('1.04')
+    sumb = sum(o.price*o.size for o in mbook.bids if o.size > 0)*D('1.04')
     bfactor = min(1, funds['USD']/sumb) if sumb > 0 else 1
     suma = sum(o.size for o in mbook.asks if o.size > 0)
     afactor = min(1, funds['BTC']/suma) if suma > 0 else 1
@@ -98,11 +98,11 @@ def run():
     for o in mbook.bids:
         if o.size > 0:
             o.size *= bfactor
-            o.size = o.size.quantize(Decimal('0.00000001'), rounding=decimal.ROUND_DOWN)
+            o.size = o.size.quantize(D('0.00000001'), rounding=decimal.ROUND_DOWN)
     for o in mbook.asks:
         if o.size > 0:
             o.size *= afactor
-            o.size = o.size.quantize(Decimal('0.00000001'), rounding=decimal.ROUND_DOWN)
+            o.size = o.size.quantize(D('0.00000001'), rounding=decimal.ROUND_DOWN)
 
     # now, get the difference between what we need to provide and what we have
     mbook.subtract(our_book2)
