@@ -43,6 +43,13 @@ def main():
       
     logwriter = LogWriter(gox)
     gox.start()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt as e:
+        print "Exiting..."
+
+
       # conwin = WinConsole(stdscr, gox)
     # bookwin = WinOrderBook(stdscr, gox)
     # statuswin = WinStatus(stdscr, gox)

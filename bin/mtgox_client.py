@@ -63,6 +63,7 @@ class Feesubroutine(cmd.Cmd):
         self.prompt = 'Fees CMD>'
         self.use_rawinput = False
         self.onecmd('help')
+
     def do_balance(self,arg):
         """Calculate how much fees will cost if you sold off your entire BTC Balance"""
         btcbalance,totalfees,last = calc_fees()
@@ -102,6 +103,19 @@ class Shell(cmd.Cmd):
         #now it does store a history but we lose tab completion. This is what use_rawinput = false means.
         self.use_rawinput = False
         self.onecmd('help')             #print out the possible commands (help) on first run
+
+    
+    def cmdloop(self):
+        try:
+            cmd.Cmd.cmdloop(self)
+        except KeyboardInterrupt as e:
+            print "Press CTRL+C again to exit, or ENTER to continue."
+            try:
+                wantcontinue = raw_input()
+            except KeyboardInterrupt:
+                return self.do_exit(self)
+            self.cmdloop()
+               
 
     #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
     try:
@@ -436,16 +450,16 @@ class Shell(cmd.Cmd):
         """Exits the program"""
         try:
             t1_stop.set()
-            print "\nShutting down threads..."
+            print "Shutting down threads..."
         except:
-            print "\nNo background threads to shut down."
-        print 'Session Terminating.......'
-        print 'Exiting......'
+            pass             
+        print "\n"
+        print "Session Terminating......."
+        print "Exiting......"           
         return True
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
-        self.do_exit(arg)
-        return True
+        return self.do_exit(arg)
     def help_help(self):
         print 'Prints the help screen'
         

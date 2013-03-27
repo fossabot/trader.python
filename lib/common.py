@@ -249,21 +249,22 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
         if exchangename == 'bitfloor':
             print '%sing... Chunk #%s = %s BTC @ $%s' % (sidedict[side],x+1,randomchunk,loop_price)
             result = exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
-            if not("error" in result):
-                print "Order submitted. orderID is: %s" % result["order_id"]
-                orderids.append(result["order_id"])
-            elif "error" in result:
-                print "Order was submitted but failed because: %s" % result["error"]
 
         elif exchangename == 'mtgox':
             print '%sing... Chunk #%s = %s BTC @ $%s' % (sidedict[side],x+1,randomchunk,loop_price)
-            print exchangename,' submitting order.'
-            goxdict = {'buy':exchangeobject.buy_btc,'sell':exchangeobject.sell_btc}[side](amount=randomchunk, price=loop_price)
+            result = {'buy':exchangeobject.buy_btc,'sell':exchangeobject.sell_btc}[side](amount=randomchunk, price=loop_price)            
+
+        mapdict = {"bitfloor":"order_id","mtgox":"oid"}
+        
+        if not("error" in result):
+            print "Order submitted. orderID is: %s" % result[mapdict[exchangename]]
+            orderids.append(result[mapdict[exchangename]])
+        elif "error" in result:
+            print "Order was submitted but failed because: %s" % result["error"]
 
         loop_price += float(price_chunk)
 
-    if exchangename == 'bitfloor':
-        return orderids
+    return orderids
         
 def ppdict(d):
     #pretty print a dict

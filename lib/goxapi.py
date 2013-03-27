@@ -54,7 +54,7 @@ import unlock_api_key
 
 input = raw_input # pylint: disable=W0622,C0103
 
-FORCE_PROTOCOL = "socketio-beta"
+FORCE_PROTOCOL = "socketio"
 FORCE_NO_FULLDEPTH = False
 FORCE_NO_HISTORY = False
 FORCE_HTTP_API = False
@@ -103,7 +103,7 @@ def http_request(url):
 def start_thread(thread_func):
     """start a new thread to execute the supplied function"""
     thread = threading.Thread(target=thread_func)
-    #thread.daemon = True
+    thread.daemon = True
     thread.start()
     return thread
 
@@ -482,9 +482,9 @@ class BaseClient(BaseObject):
 
     def start(self):
         """start the client"""
-        self._recv_thread_func()
-        #self._recv_thread = start_thread(self._recv_thread_func)
-        #self._http_thread = start_thread(self._http_thread_func)
+        #self._recv_thread_func()
+        self._recv_thread = start_thread(self._recv_thread_func)
+        self._http_thread = start_thread(self._http_thread_func)
 
     def stop(self):
         """stop the client"""
@@ -788,55 +788,54 @@ class SocketIOClient(BaseClient):
         use_ssl = self.config.get_bool("gox", "use_ssl")
         wsp = {True: "wss://", False: "ws://"}[use_ssl]
         while not self._terminating: #loop 0 (connect, reconnect)
-            #try:
-            self.debug("*** Hint: connection problems? try: use_plain_old_websocket=True")
-            
-            self.debug("trying Socket.IO: %s%s ..." % (wsp,self.hostname))
+            try:
+                self.debug("*** Hint: connection problems? try: use_plain_old_websocket=True")
+                
+                self.debug("trying Socket.IO: %s%s ..." % (wsp,self.hostname))
 
-            self.debug("starting to open socket")
+                self.debug("starting to open socket")
 
-            self.socket = SocketIO()
-            self.debug("socket opened")
-            self.socket.connect(wsp + self.hostname + "/socket.io/1",
-                query="Currency=" + self.currency)
+                self.socket = SocketIO()
+                self.debug("socket opened")
+                self.socket.connect(wsp + self.hostname + "/socket.io/1",
+                    query="Currency=" + self.currency)
 
-            self.connected = True
-            self.debug("connected")
-            self.debug("subscribing to channels")
-            #self.socket.send("1::/")
-            
-            self.socket.send("1::/mtgox")
-            self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))
-            self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))
+                self.connected = True
+                self.debug("connected")
+                self.debug("subscribing to channels")
+                
+                self.socket.send("1::/mtgox")
+                self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))
+                self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))
 
-            self.debug(self.socket.recv())
-            self.debug(self.socket.recv())
-           
-            #self.channel_subscribe()
+                self.debug(self.socket.recv())
+                self.debug(self.socket.recv())
+               
+                #self.channel_subscribe()
 
-            self.debug("waiting for data...")
-            while not self._terminating: #loop1 (read messages)
-                msg = self.socket.recv()
-                self._time_last_received = time.time()
-                if msg == "2::":
-                    self.debug("### ping -> pong")
-                    self.socket.send("2::")
-                    continue
-                prefix = msg[:10]
-                if prefix == "4::/mtgox:":
-                    str_json = msg[10:]
-                    if str_json[0] == "{":
-                        #print str_json
-                        self.signal_recv(self, (str_json))
+                self.debug("waiting for data...")
+                while not self._terminating: #loop1 (read messages)
+                    msg = self.socket.recv()
+                    self._time_last_received = time.time()
+                    if msg == "2::":
+                        self.debug("### ping -> pong")
+                        self.socket.send("2::")
+                        continue
+                    prefix = msg[:10]
+                    if prefix == "4::/mtgox:":
+                        str_json = msg[10:]
+                        if str_json[0] == "{":
+                            #print str_json
+                            self.signal_recv(self, (str_json))
 
-            # except Exception as exc:
-            #     self.connected = False
-            #     if not self._terminating:
-            #         self.debug(exc.__class__.__name__, exc, \
-            #             "reconnecting in 5 seconds...")
-            #         if self.socket:
-            #             self.socket.close()
-            #         time.sleep(5)
+            except Exception as exc:
+                self.connected = False
+                if not self._terminating:
+                    self.debug(exc.__class__.__name__, exc, \
+                        "reconnecting in 5 seconds...")
+                    if self.socket:
+                        self.socket.close()
+                    time.sleep(5)
 
     def send(self, json_str):
         """send a string to the websocket. This method will prepend it

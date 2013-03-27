@@ -12,6 +12,7 @@ from decimal import Decimal
 from common import *
 from book import *
 import threading
+import signal
 import traceback
 
 bitfloor = bitfloor.get_rapi()
@@ -88,6 +89,19 @@ class Shell(cmd.Cmd):
         self.prompt = 'Bitfloor CMD>'   # The prompt for a new user input command
         self.use_rawinput = False
         self.onecmd('help')
+        
+    def cmdloop(self):
+        try:
+            cmd.Cmd.cmdloop(self)
+        except KeyboardInterrupt as e:
+            print "Press CTRL+C again to exit, or ENTER to continue."
+            try:
+                wantcontinue = raw_input()
+            except KeyboardInterrupt:
+                return self.do_exit(self)
+            self.cmdloop()
+               
+
     #start out by printing the order book and the instructions
     printorderbook()
     #give a little user interface
@@ -105,8 +119,8 @@ class Shell(cmd.Cmd):
         """incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
         #make a pair of orders 30 cents below/above the 2nd highest/lowest bid/ask (safer, but less likely to work)
         def liquidthread(firstarg,stop_event):
-            buyorderids = []
-            sellorderids = []
+            print "Trying first method:"
+            buyorderids = sellorderids = []
             while(not stop_event.is_set()):
                 entirebook = refreshbook()
                 onaskbookprice = []
@@ -139,8 +153,8 @@ class Shell(cmd.Cmd):
                             print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
         def secondmethod(firstarg,stop_event):
             # make a pair of orders within 5 cents of the spread (not changing the spread) (still safe, less profit, more likely to work)
-            buyorderids = []
-            sellorderids = []
+            buyorderids = sellorderids = []
+            print "Trying second method:"
             while(not stop_event.is_set()):
                 entirebook = refreshbook()
                 onaskbookprice = []
@@ -161,13 +175,14 @@ class Shell(cmd.Cmd):
                         buyorderids += spread('bitfloor',bitfloor,0,1,targetbid)
                         sellorderids += spread('bitfloor',bitfloor,1,1,targetask)
                     except:
-                        traceback.exc_info()
+                        traceback.print_exc()
                         bitfloor.cancel_all()
+                        buyorderids = sellorderids = []
                 else:
                     print "Nothing to do. Waiting on some action."
                     #check spread to see if we can go back to thirdmethod
-                    spread = onaskbookprice[0] - onbidbookprice[0]
-                    if spread >= 0.05:
+                    spr = onaskbookprice[0] - onbidbookprice[0]
+                    if spr >= 0.05:                        
                         thirdmethod(None,t1_stop)
                 stop_event.wait(40)
                 orders = bitfloor.orders()
@@ -179,10 +194,11 @@ class Shell(cmd.Cmd):
                             print "There was some kind of error retrieving the order information."
                         else:
                             print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
+                        buyorderids = sellorderids = []
         def thirdmethod(firstarg,stop_event):
             # make a pair of orders 1 cent ABOVE/BELOW the spread (DOES change the spread)(fairly risky, least profit per run, most likely to work)
-            buyorderids = []
-            sellorderids = []
+            buyorderids = sellorderids = []
+            print "Trying third method:"
             while(not stop_event.is_set()):
                 entirebook = refreshbook()
                 onaskbookprice = []
@@ -192,15 +208,14 @@ class Shell(cmd.Cmd):
                     onaskbookprice.append(float(ask.price))
                 for bid in entirebook.bids:
                     onbidbookprice.append(float(bid.price))
-                spread = onaskbookprice[0] - onbidbookprice[0]                    
-                if spread < 0.05:
+                spr = onaskbookprice[0] - onbidbookprice[0]                    
+                if spr < 0.05:
                     print "There is virtually no spread to take advantage of."
-                    print "Trying second method:"
                     #default to method 2 if the spread fails (idealy we want to come back here and try again sometime.)
                     secondmethod(None,t1_stop)
                 else:
-                    while spread >= 0.05:
-                        print "The spread was: %s" % spread
+                    while spr >= 0.05:
+                        print "The spread was: %s" % spr
                         targetbid = onbidbookprice[0] + 0.01
                         targetask = onaskbookprice[0] - 0.01
                         #start eating into profits to find an uninhabited pricepoint
@@ -208,18 +223,23 @@ class Shell(cmd.Cmd):
                             targetbid += 0.01
                         while targetask in onaskbookprice and not(targetbid in onaskbookprice):
                             targetask -= 0.01                
-                        spread = targetask-targetbid
-                        if len(buyorderids) < 1 and spread > 0.03:
+                        spr = targetask-targetbid
+                        if len(buyorderids) < 1 and spr > 0.03:
                             try:
                                 buyorderids += spread('bitfloor',bitfloor,0,1,targetbid)
-                                sellorderids += spread('bitfloor',bitfloor,1,1,targetask)
+                                sellorderids += spread('bitfloor',bitfloor,1,1,targetask)                                
                             except:
+                                traceback.print_exc()
                                 bitfloor.cancel_all()
-                        elif spread < 0.03:
-                            print "Spread was too low(%s) after checking which prices were inhabited by other people's orders." % spread
+                                buyorderids = sellorderids = []
+                        elif spr < 0.03:
+                            print "Spread was too low(%s) after checking which prices were inhabited by other people's orders." % spr
                         else:
                             print "Nothing to do. Waiting on some action."
-                stop_event.wait(20)
+                            entirebook = refreshbook()
+                            spr = float(entirebook.asks[0].price) - float(entirebook.bids[0].price)
+                            stop_event.wait(10)
+                stop_event.wait(10)
                 orders = bitfloor.orders()
                 allorders = buyorderids + sellorderids
                 for x in allorders:
@@ -229,7 +249,7 @@ class Shell(cmd.Cmd):
                             print "There was some kind of error retrieving the order information."
                         else:
                             print "%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"])
-                
+                        buyorderids = sellorderids = []
 
         global t1_stop
         if arg == 'exit':
@@ -238,7 +258,6 @@ class Shell(cmd.Cmd):
         else:
             t1_stop = threading.Event()
             thread1 = threading.Thread(target = thirdmethod, args=(None,t1_stop)).start()
-
 
 
     def do_buy(self, arg):
@@ -362,12 +381,18 @@ class Shell(cmd.Cmd):
 #exit out if Ctrl+Z is pressed
     def do_exit(self,arg):      #standard way to exit
         """Exits the program"""
-        print '\nSession Terminating.......'
-        print 'Exiting......'
+        try:
+            t1_stop.set()
+            print "Shutting down threads..."
+        except:
+            pass
+        print "\n"
+        print "Session Terminating......."
+        print "Exiting......"
         return True
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
-        return True
+        return self.do_exit(arg)
     def help_help(self):
         print 'Prints the help screen'
 
