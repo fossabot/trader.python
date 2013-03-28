@@ -148,7 +148,8 @@ class Client:
                 if e.fp:
                     datastring = e.fp.read()
                     if "error" in datastring:
-                        data = json.loads(datastring,object_hook=json_ascii.decode_dict)
+                        #data = json.loads(datastring,object_hook=json_ascii.decode_dict)
+                        print "Error: %s" % datastring
                         print "Error: %s" % (data["error"])
             except urllib2.URLError as e:
                 print "URL Error:", e 
