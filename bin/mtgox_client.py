@@ -146,6 +146,7 @@ class Shell(cmd.Cmd):
     print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
 
     def do_stoplossbot(self,args):
+        #started work on this didnt finish.
         def stoploss(side,size,price,percent):
             entirebook = refreshbook()
             ticker = mtgox.get_ticker2()

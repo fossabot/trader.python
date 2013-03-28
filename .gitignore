@@ -1,7 +1,10 @@
 *.pyc
 
 keys/*
+data/*
 tradeshistory.txt
 pyinstaller.bat
-data/*
-bin/goxtool.log
+bin/*.xml
+bin/*.ini
+bin/*.txt
+bin/*.log

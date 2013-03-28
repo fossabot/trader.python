@@ -7,15 +7,15 @@ def serialize(obj):
 def deserialize(msg):
     return cjson.decode(msg)
 
-# CHANNELS = {
-#     "dbf1dee9-4f2e-4a08-8cb7-748919a71b21": "trades",
-#     "d5f06780-30a8-4a48-a2f8-7ed181b4a13f": "ticker",
-#     "24e67e0d-1cad-4cc0-9e7a-f8523ef460fe": "depth",
-# }
-
 CHANNELS = {
-    "dbf1dee9-4f2e-4a08-8cb7-748919a71b21": "trades"
+    "dbf1dee9-4f2e-4a08-8cb7-748919a71b21": "trades",
+    "d5f06780-30a8-4a48-a2f8-7ed181b4a13f": "ticker",
+    "24e67e0d-1cad-4cc0-9e7a-f8523ef460fe": "depth",
 }
+
+# CHANNELS = {
+#     "dbf1dee9-4f2e-4a08-8cb7-748919a71b21": "trades"
+# }
 def on_message(ws, message):
     data = deserialize(message)
     channel = CHANNELS.get(data.get('channel'))

@@ -274,7 +274,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
             else:
                 return ["Error"]
 
-            loop_price += float(price_chunk)
+        loop_price += float(price_chunk)
 
     return orderids
         
