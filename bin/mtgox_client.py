@@ -21,7 +21,8 @@ import datetime
 from decimal import Decimal as D    #renamed to D for simplicity.
 
 mtgox = mtgoxhmac.Client()
-
+cPrec = D('0.00001')
+bPrec = D('0.00000001')
 
 # data partial path directory
 datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
@@ -117,7 +118,6 @@ class Shell(cmd.Cmd):
             except KeyboardInterrupt:
                 return self.do_exit(self)
             self.cmdloop()
-               
 
     #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
     try:
@@ -145,8 +145,34 @@ class Shell(cmd.Cmd):
     print 'sample trade example: '
     print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
 
+    
+    def do_balancenotifier(self,args):
+        """Check your balance every 30 seconds and BEEP and print something out when you receive the funds (either btc or usd)"""
+        def bn(firstarg,notifier_stop):
+            while(not notifier_stop.is_set()):
+                balance = mtgox.get_balance()
+                btcnew,usdnew = (D(balance['btcs']),D(balance['usds']))
+                if btcnew > btc or usdnew > usd:
+                    last = float(mtgox.get_ticker2()['last']['value'])
+                    print 'Your balance is %s BTC and $%s USD ' % (btcnew,usdnew)
+                    print 'Last BTC Price of %.2f' % (last)
+                    for x in range(2,25):
+                        winsound.Beep(x*100,45)  #frequency(Hz),duration(ms)
+                        winsound.Beep(x*100,45)
+                    notifier_stop.set()
+                notifier_stop.wait(30)
+        global notifier_stop
+        btc,usd = 0,0
+        if args == 'exit':
+            print "Shutting down background thread..."
+            notifier_stop.set()
+        else:
+            notifier_stop = threading.Event()
+            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop)).start()
+
     def do_stoplossbot(self,args):
         #started work on this didnt finish.
+        """Not done, do not use"""
         def stoploss(side,size,price,percent):
             entirebook = refreshbook()
             ticker = mtgox.get_ticker2()
@@ -338,19 +364,24 @@ class Shell(cmd.Cmd):
                 total += (bid["amount"] * bid["price"])
         print "There are currently %.8g bitcoins demanded at or %s %s USD, worth %.2f USD in total."  % (n_coins,response,pricetarget, total)
 
-# pass arguments back to spread() function in common.py
-# adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
+
+
     def do_buy(self, arg):
         """(market order): buy size \n""" \
         """(limit order): buy size price \n""" \
         """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
         try:
             args = arg.split()
             newargs = tuple(floatify(args))
             if len(newargs) == 1:
                 mtgox.buy_btc(*newargs)
+            elif "usd" in newargs:
+                buyprice = mtgox.get_ticker()["buy"]
+                amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
+                mtgox.buy_btc(amt.quantize(bPrec),buyprice) #goes as a market order (can be limit also if buyprice omitted.)
             elif not(len(newargs) == 3):
-                spread('mtgox',mtgox,'buy', *newargs)
+                spread('mtgox',mtgox,'buy', *newargs)   # pass arguments back to spread() function in common.py
             else:
                 raise UserError
         except Exception as e:
@@ -368,6 +399,10 @@ class Shell(cmd.Cmd):
             newargs = tuple(floatify(args))
             if len(newargs) == 1:
                 mtgox.sell_btc(*newargs)
+            elif "usd" in newargs:
+                sellprice = mtgox.get_ticker()["sell"]
+                amt = D(newargs[0]) / D(sellprice)       #convert USD to BTC.
+                mtgox.sell_btc(amt.quantize(bPrec),sellprice) #goes as a market order (can be limit also if buyprice omitted.)                
             elif not(len(newargs) == 3):
                 spread('mtgox',mtgox,'sell', *newargs)
             else:
@@ -456,9 +491,10 @@ class Shell(cmd.Cmd):
     def do_balance(self,arg):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
         balance = mtgox.get_balance()
+        btc,usd = (balance['btcs'],balance['usds'])
         last = float(mtgox.get_ticker2()['last']['value'])
-        print 'Your balance is %r BTC and $%.2f USD ' % (balance['btcs'],balance['usds'])
-        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance['btcs']*last+balance['usds'],last)
+        print 'Your balance is %r BTC and $%.2f USD ' % (btc,usd)
+        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (btc*last+usd,last)
     def do_btchistory(self,arg):
         """Prints out your entire history of BTC transactions"""
         btchistory=mtgox.get_history_btc()

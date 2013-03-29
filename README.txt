@@ -1,4 +1,4 @@
-trader.python customized by genBTC (trades on mtgox, bitfloor, btce)-working on bitstamp. (hard coded for USD)
+trader.python customized by genBTC (trades on mtgox, bitfloor, btce,bitstamp). (hard coded for USD)
 Some instructions are included in the source code(as docstrings, and by typing "help command")
 
 
@@ -79,10 +79,14 @@ encrypt_apikey.py:  	You need to generate encrypted keys beforehand with the enc
 	Use bitfloor as the site name for Bitfloor
 	Use mtgox as the site name for Mt. Gox	
 	Use btc-e as the site name for BTC-E
+	Use bitstamp as the site name for Bitstamp
 	Where it says "Enter an encryption password: (This is the password required to execute trades)"
 		-For bitfloor this is your passphrase that you entered on the website.
-		-For mtgox You can create your own password, just make sure to remember it.
-		-For btce You can create your own password, just make sure to remember it.
+		-For mtgox you Create your own password, just be sure to remember it.
+		-For btce you Create your own password, just be sure to remember it.
+		-For bitstamp, there is no API Key or Secret. Use your user ID in place of "API Key" and 
+			Password in place of "API Secret" . You should provide an entirely different password 
+			to access the encrypted password. (to add a layer of security)
 
 
 INSTRUCTIONS:
@@ -118,7 +122,8 @@ bin/
 -goxcli (taken from Trasp/GoxCLI) on github - NOT USED directly. -goxcli.xml datafile for goxcli - NOT USED
 
 
-
+example/
+-readbitfloorcsv - Fee reports. 1) Download the CSV of your account history statement.(havent automated this part) 2) This program will go through the file, turn it into a properly formatted list of dictionaries, Scan it for all the fees, and print out the Fee Report. sample at http://pastebin.ca/2344564
 
 
 lib/
@@ -137,6 +142,7 @@ lib/
 -mtgox2.py - an alternate Mt.gox framework
 -goxapi (taken from prof7bit's goxtool) on github - NOT USED directly. 
 -websocket.py (websocket-client-0.10.0) included so this package is not required.
+-bitstamp.py
 
 data/
 config.json  - stores the hostname and port of the bitfloor API interface. thats it.
@@ -144,7 +150,7 @@ nonce_state_btce - required for the btce framework to generate a nonce(Saving th
 mtgox_entiretrades.txt - written when you call tradehist24 (downloads the 24 hour trading history of mtgox)
 
 keys/
-{exchange}_key.txt and {exchange}_salt.txt   = this is what is written by encrypt_api_key and what is used to unlock your API keys to access the trading console
+{exchange}_key.txt and {exchange}_salt.txt   = this is what is written by encrypt_apikey and what is used to unlock your API keys to access the trading console
 
 
 +) Programming Functions: (Common.py)

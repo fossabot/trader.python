@@ -5,6 +5,8 @@ import urllib2
 import sys
 import datetime
 import time
+import io
+import gzip
 __app_version__ = "0.03"
 
 print """
@@ -31,7 +33,15 @@ except:
     pass
 print "Downloading mtgox historic data..."
 link = link.replace('{START_TIME}',str(start_time))
-data = urllib2.urlopen(link).read()
+req = urllib2.Request(link)
+req.add_header('Accept-encoding', 'gzip')
+resp = urllib2.urlopen(req)
+# Un-Gzip the response
+if resp.info().get('Content-Encoding') == 'gzip':
+    print "Used GZIP encoding for a fast download."
+    buf = io.BytesIO(resp.read())
+    resp = gzip.GzipFile(fileobj=buf)
+data = resp.read()
 f = open("../data/download_mtgoxUSD.csv",'a')
 if data:
     f.write('\n')

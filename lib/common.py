@@ -256,7 +256,6 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                 result = {'buy':exchangeobject.buy_btc,'sell':exchangeobject.sell_btc}[side](amount=randomchunk, price=loop_price)            
 
 
-
             if not("error" in result):
                 print "Order submitted. orderID is: %s" % result[mapdict[exchangename]]
                 orderids.append(result[mapdict[exchangename]])

@@ -52,7 +52,7 @@ class Client:
     def __init__(self, enc_password=""):
         #This is part of my encrypt_api_key and unlock_api_key file.
         #without these, set self.key and self.secret to your API Key/Secret in " " 
-        self.key,self.secret,enc_password = unlock_api_key.unlock("mtgox")
+        self.key,self.secret,_ = unlock_api_key.unlock("mtgox")
         
         self.buff = ""
         self.timeout = 5
@@ -133,9 +133,7 @@ class Client:
                                 print ServerError(data["error"])
                     except ValueError as e:
                         print "JSON Error: %s. Most likely BLANK Data. Still trying to figure out what happened here." % e
-                        data = "dummy"
-                        unchobj = resp
-                        print unchobj.read()
+                        continue
                 else:
                     data = resp.read()
                 return data
@@ -150,15 +148,16 @@ class Client:
                     if "error" in datastring:
                         #data = json.loads(datastring,object_hook=json_ascii.decode_dict)
                         print "Error: %s" % datastring
-                        print "Error: %s" % (data["error"])
+                        #print "Error: %s" % (data["error"])
             except urllib2.URLError as e:
                 print "URL Error:", e 
             except ssl.SSLError as e:
                 print "SSL Error: %s." % e  #Read error timeout. (Removed timeout variable)
             except Exception as e:
                 print "General Error: %s" % e
+            else:
             #print this before going back up to the While Loop and running this entire function over again
-            print "Retrying Connection...."
+                print "Retrying Connection...."
 
 
     def request(self, path, params,JSON=True,API_VERSION=0,GZIP=True,GET=False):

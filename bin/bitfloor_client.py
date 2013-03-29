@@ -19,6 +19,8 @@ import sys
 
 
 bitfloor = bitfloor.get_rapi()
+cPrec = '0.01'
+bPrec = '0.00001'
 
 class UserError(Exception):
     def __init__(self, errmsg):
@@ -152,16 +154,19 @@ class Shell(cmd.Cmd):
             # print "This is how I redirect and redisplay stdout to the logfile."
             # sys.stdout = sys.__stdout__
                               #inits section.....
-            TRADEAMOUNT = 1.50           #<--------- number of bitcoins to buy in each go.
+            TRADEAMOUNT = D('0.20')          #<--------- number of bitcoins to buy in each go.
+            BUYMAXPRICE = D('90.0')           #<------max price for buys 
+            SELLMINPRICE = D('91.0')          #<------min price for sells
             buyorderids = []
             sellorderids = []
-            allorders = []            
+            allorders = []
+            pair = ""
             initcountbuys,initcountsells = 0,0       #   <------------------modified that from previous run!!!!!! dont forget!!!!!!!!!!!!!!!!!!!!!!!!
             countbuys,countsells = 0,0
             amtbought,amtsold = 0,0
-            #numbought,numsold = 0,0
+            numbought,numsold = 0,0
             countcycles = 0
-            numbought,numsold = initcountbuys,initcountsells       # <--------- replace this with the line above it. 
+            #numbought,numsold = initcountbuys,initcountsells       # <--------- replace this with the line above it. 
             typedict = {0:"Buy",1:"Sell"}
             logging.info("Liquidbot started.")
             #TRADEAMOUNT = raw_input("How much do you want the bot to trade per order:  ")
@@ -188,12 +193,12 @@ class Shell(cmd.Cmd):
                         v0 = D(str(co["price"]))
                         v1 = bookdict[co["side"]][0]
                         s = co["side"]
-                        if (s==0 and v0<v1) or (s==1 and v0>v1):
+                        if (s==0 and v0<v1) or (s==1 and v0>v1):        #shorthand to Check that we have the best bid/ask
                             sys.stdout = sl
                             logging.debug(bitfloor.order_cancel(x))
                             logging.debug("Order ID Listed above = CANCELLED")
                             countbuys = initcountbuys+numbought
-                            countsells = initcountsells+numsold              #<----------modified again......
+                            countsells = initcountsells+numsold
                             sys.stdout = sys.__stdout__
                             allorders.remove(x)
                             iddicts[co["side"]].remove(x)
@@ -203,7 +208,7 @@ class Shell(cmd.Cmd):
                         elif "status" in co:
                             if co["status"]=='filled':
                                 print "\n"
-                                logging.info("Success!! %s %s @ $%s <><<<<<<<<<<<<<><><><><><<<<<<<<<<<<<<<<<<<" % (typedict[co["side"]],co["status"],co["price"]))
+                                logging.info("Success!! %s %s @ $%s <<<<<<<<<<<<<<<<<><-><>>>>>>>>>>>>>>>>>>>>>" % (typedict[co["side"]],co["status"],co["price"]))
                                 if co["side"]==0:
                                     numbought += 1
                                     amtbought += D(co["size"])
@@ -214,26 +219,26 @@ class Shell(cmd.Cmd):
                             logging.debug("%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"]))
                             iddicts[co["side"]].remove(co["order_id"])
                             allorders = buyorderids + sellorderids                
-                     
-                # if len(allorders) == 1:
-                #     if spr < D('0.04'):                    
-                #         logging.debug("Spread too low: %s" % spr)
-                #         sys.stdout = sl
-                #         logging.debug(bitfloor.cancel_all())
-                #         sys.stdout = sys.__stdout__
-                #         logging.debug("Cancelling leftover orders...")
-                #         buyorderids=[]
-                #         sellorderids=[]
                 countcycles +=1 
                 logging.debug("The spread is now: %s...NEW ORDERING CYCLE starting: # %s" % (spr,countcycles))
-                if spr > D('0.04'):
+                if spr > D('0.04') and (highbid <= BUYMAXPRICE  or lowask >= SELLMINPRICE):
+                    #set the target prices of the order pair to 1 cent higher or lower than the best order book prices
                     targetbid = highbid + D('0.01')
                     targetask = lowask - D('0.01')
+                    if targetbid <= BUYMAXPRICE:
+                        logging.debug("EXCEEDED BUYMAXPRICE of: %s" % BUYMAXPRICE)
+                        targetask = D('0')
+                        targetbid = D('0')
+                    if targetask >= SELLMINPRICE:
+                        logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)
+                        targetbid = D('0')
+                        targetask = D('0')
                     #start eating into profits to find an uninhabited pricepoint
+                    #do not exceed values specified by BUYMAXPRICE or SELLMINPRICE
                     while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
                         targetbid += D('0.01')
-                    while targetask in onaskbookprice and not(targetbid in onaskbookprice):
-                        targetask -= D('0.01')                
+                    while targetask in onaskbookprice and not(targetask in onbidbookprice):
+                        targetask -= D('0.01')
                     spr = targetask-targetbid
                     #logging.debug("Number of order pairs: %s" % len(buyorderids))
                     if len(buyorderids) < 1 and spr > D('0.04') and numsold >= numbought:
@@ -242,7 +247,6 @@ class Shell(cmd.Cmd):
                             buyorderids += spread('bitfloor',bitfloor,0,TRADEAMOUNT,targetbid)
                             sys.stdout = sys.__stdout__
                             countbuys += 1
-
                         except:
                             logging.error(traceback.print_exc())
                     if len(sellorderids) < 1 and spr > D('0.04') and numbought >= numsold:
@@ -253,13 +257,13 @@ class Shell(cmd.Cmd):
                             countsells += 1
                         except:
                             logging.error(traceback.print_exc())
-                if spr < D('0.04'):
+                else:
+                    logging.debug("EXCEEDED PRICE LIMITS: %s-%s" % (BUYMAXPRICE,SELLMINPRICE))
+                if spr < D('0.04') and not(spr == D('0')):
                     logging.debug("Spread of %s too low after checking order book." % spr)
-
                 #restart the loop from the top.
                 stop_event.wait(7)
                 
-
                 
         global t1_stop
         if arg == 'exit':
