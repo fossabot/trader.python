@@ -5,14 +5,14 @@
 import random
 import math
 import time
-import bitfloor
+import bitfloorapi
 import decimal
 from decimal import Decimal as D
 import cmd
 import readline
 import sys
 
-bitfloor = bitfloor.get_rapi()
+bitfloor = bitfloorapi.Client()
 
 olatency = [] # order latency
 clatency = [] # cancel latency

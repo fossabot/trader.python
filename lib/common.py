@@ -14,10 +14,12 @@ import decimal
 from decimal import Decimal as D
 import random
 
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\data\\')
 
 #write the FULL depth to a log file
 def writedepth(mtgox):
-    with open('../data/mtgox_fulldepth.txt','w') as f:
+    with open(os.path.join(partialpath + "mtgox_fulldepth.txt"),'w') as f:
         print "Starting to download fulldepth from mtgox....",
         fulldepth = mtgox.get_fulldepth()
         depthvintage = str(time.time())
@@ -28,7 +30,7 @@ def writedepth(mtgox):
         print "Finished."
     return depthvintage,fulldepth
 def readdepth():            
-    with open('../data/mtgox_fulldepth.txt','r') as f:
+    with open(os.path.join(partialpath + "mtgox_fulldepth.txt"),'r') as f:
         everything = f.readlines()
     depthvintage = everything[0]
     fulldepth = json.loads(everything[1])
@@ -160,10 +162,9 @@ def obip(mtgox,amount,isUSD='BTC'):
     obip = (obips+obipb)/2.0 
     if isUSD=='USD':
         print "The ask side was: %s BTC. The bid side was %s BTC." % (sbtc,bbtc)
+    print "The ask side OBIP was: $%.5f. The bid side OBIP was: $%.5f" % (obips,obipb)
     print "The weighted average price(OBIP) of BTC, %s %s up and down from the spread is:" % (amount,isUSD),
     print "$%.5f USD. Data vintage: %.2f seconds."  % (obip,(time.time() - float(depthvintage)))
-    print "The ask side OBIP was: $%.5f. The bid side OBIP was: $%.5f" % (obips,obipb)
-
 
 #calculate and print the total BTC between price A and B
 def depthsumrange (bookside,lowest=1,highest=100):

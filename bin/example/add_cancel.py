@@ -4,9 +4,9 @@
 import random
 import math
 
-import bitfloor
+import bitfloorapi
 
-bitfloor = bitfloor.get_rapi()
+bitfloor = bitfloorapi.Client()
 
 count = 0
 while True:

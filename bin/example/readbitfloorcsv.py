@@ -1,8 +1,12 @@
 import csv
 import json
 from decimal import Decimal as D 
+import os
 
-csvfile = open('../../data/bitfloor-2013-3.csv', 'rb')
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\..\\data\\')
+
+csvfile = open(os.path.join(partialpath + 'bitfloor-2013-3.csv'), 'rb')
 spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
 
 #keys = ["time","currency","entry","value","total","tid"]

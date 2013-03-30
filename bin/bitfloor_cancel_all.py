@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # cancels all the user's orders
 
-import bitfloor
+import bitfloorapi
 
-bitfloor = bitfloor.get_rapi()
+bitfloor = bitfloorapi.Client()
 
 bitfloor.cancel_all()

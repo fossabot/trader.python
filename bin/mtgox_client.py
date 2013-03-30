@@ -19,13 +19,15 @@ import winsound         #plays beeps for alerts
 import threading        #for subthreads
 import datetime
 from decimal import Decimal as D    #renamed to D for simplicity.
+import os
 
 mtgox = mtgoxhmac.Client()
 cPrec = D('0.00001')
 bPrec = D('0.00000001')
 
 # data partial path directory
-datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\data\\')
 
 
 def refreshbook(maxage=180):
@@ -125,7 +127,7 @@ class Shell(cmd.Cmd):
         pass
     except IOError as e:
         try:
-            with open(os.path.join(datapartialpath + 'mtgox_fulldepth.txt'),'w') as f:
+            with open(os.path.join(partialpath + 'mtgox_fulldepth.txt'),'w') as f:
                 f.flush()
                 f.close()
             print "Attempting to write full depth to log file for the first time....."
@@ -217,7 +219,7 @@ class Shell(cmd.Cmd):
                 return
             #Log lastprice to the ticker log file
             txfee = get_tradefee()
-            with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'a') as f:
+            with open(os.path.join(partialpath + 'mtgox_last.txt'),'a') as f:
                 while(not stop_event.is_set()):
                     ticker =mtgox.get_ticker()
                     last = float(ticker['last'])
@@ -263,7 +265,7 @@ class Shell(cmd.Cmd):
         """Prints the last X lines of the ticker log file"""
         try:
             numlines = int(numlines)
-            with open(os.path.join(datapartialpath + 'mtgox_last.txt'),'r') as f:
+            with open(os.path.join(partialpath + 'mtgox_last.txt'),'r') as f:
                 s = tail(f,numlines)
             print s
             l = s.splitlines()
@@ -362,7 +364,7 @@ class Shell(cmd.Cmd):
             if f(bid["price"], pricetarget):
                 n_coins += bid["amount"]
                 total += (bid["amount"] * bid["price"])
-        print "There are currently %.8g bitcoins demanded at or %s %s USD, worth %.2f USD in total."  % (n_coins,response,pricetarget, total)
+        print "There are %.11g bitcoins demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,pricetarget, total)
 
 
 
@@ -465,7 +467,7 @@ class Shell(cmd.Cmd):
         """Download the entire trading history of mtgox for the past 24 hours. Write it to a file"""
         print "Starting to download entire trade history from mtgox....",
         eth = mtgox.entire_trade_history()
-        with open(os.path.join(datapartialpath + 'mtgox_entiretrades.txt'),'w') as f:
+        with open(os.path.join(partialpath + 'mtgox_entiretrades.txt'),'w') as f:
             depthvintage = str(time.time())
             f.write(depthvintage)
             f.write('\n')

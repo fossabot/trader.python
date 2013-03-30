@@ -1,6 +1,0 @@
-{
-    "host": "api.bitfloor.com",
-    "data_port": 443,
-    "order_port": 443,
-    "version": 1
-}

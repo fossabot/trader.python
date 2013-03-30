@@ -16,16 +16,26 @@ import hmac
 import time
 import unlock_api_key
 
-
+class ServerError(Exception):
+    def __init__(self, ret):
+        self.ret = ret
+    def __str__(self):
+        return "Server error: %s" % self.ret
+class UserError(Exception):
+    def __init__(self, errmsg):
+        self.errmsg = errmsg
+    def __str__(self):
+        return self.errmsg
 class BTCEError(Exception):
     def __init__(self, msg):
         self.msg = msg
     def __str__(self):
         return repr(self.msg)
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\data\\')
 
-#must already have this nonce file in ../data/
+#must already have this nonce file in ..\data\
 def nonce_generator():
-    partialpath=os.path.join('../data/')
     fd = open(os.path.join(partialpath + 'nonce_state_btce'),'r')
     nonce = int(fd.read())
     fd.close()

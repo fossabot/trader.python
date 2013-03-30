@@ -10,7 +10,7 @@ Limit Orders & Market orders.  (TODO: Market order on bitfloor)
 "Buy/Sell" Simple - X amount of BTC    (TODO: Specify buy/sell amounts in USD also )
 "Buy/Sell" Spread - X amount of BTC between price A and price B of equally sized specified # of chunks (use with the word 'random' to randomize this a bit)
 "Orders" - List your orders
-"Cancelall" Cancel ALL orders at once (or a single one)	TODO: (Specify a cancel range somehow)
+"Cancelall" Cancel ALL orders at once (or a single one)	TODO:(Specify a cancel range somehow)
 "Balance" - Display account balance (of BTC and USD) and USD value of BTC+USD
 "Ticker" - Display ticker (sell,buy,last,vol,vwap,high,low,avg)	the time frame for high, low, vol, avg, vwap ... is sliding 24 hours
 "Updown" - Log the ticker to a file (and check or print it out later)
@@ -44,7 +44,7 @@ Analyze the trading history (High/low/vwap/total/amounts/times) = "readtradehist
 "Liquidbot" - a bot on bitfloor to add liquidity to the market by surfing the spread To take advantage of bitfloor's 0.1% prodiver bonus therefor won't incur any trading fees 
 
 
-# Includes frameworks (libs) for Mt.Gox, Bitfloor, BTCE (working on bitstamp) 
+# Includes frameworks (libs) for Mt.Gox, Bitfloor, BTC-E, Bitstamp
 # All scripts located in bin/
 # API Framework located in lib/
 # Simple Example files in example/
@@ -53,7 +53,7 @@ Analyze the trading history (High/low/vwap/total/amounts/times) = "readtradehist
 Old Description:
 FEATURES:
 +) Diversify your position into "chunks" of a specified size between price A and B. WORKS GREAT!  #spread trade function including Chunk Trade spread logic & Confirmation#
-	( todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification)
+	( todo: check market conditions, use VWAP to pick, select desired patience level or 	instant gratification)
 +) Print the order books out to X length
 +) For Market Orders
 #Checks exact price (total and per bitcoin) @ Market prices
@@ -61,9 +61,7 @@ FEATURES:
 #   and alerts you if cannot be filled immediately, and lets you place a limit order instead
 +) Bitcoin Functions:
 #calculate and print the total BTC between price A and B
-#match any order to the opposite site of the order book (ie: if buying find a seller) - market order
-	given the amount of BTC and price range check to see if it can be filled as a market order
-	calculate the total price of the order and the average weighted price of each bitcoin 
+#match any order to the opposite site of the order book (ie: if buying find a seller) - market 	order given the amount of BTC and price range check to see if it can be filled as a 		market order calculate the total price of the order and the average weighted price of 	each bitcoin 
 
 
 TO BEGIN:
@@ -73,20 +71,18 @@ Python Instructions (and Windows instructions) are located at the bottom of this
 
 Create a new API key on each website. If using Bitfloor, use the API password you assigned on the website. It will be required to use your API key.
 
-encrypt_apikey.py:  	You need to generate encrypted keys beforehand with the encrypt_apikey.py command
-			*Sometimes the generation does not work (just re-run this script - it can take up to 3 times until it is verified)*
+encrypt_apikey.py:  	You need to generate encrypted keys beforehand with this command
+			*Sometimes the generation does not work (just re-run this script -				it can take up to 3 times until it is verified)*
 
 	Use bitfloor as the site name for Bitfloor
 	Use mtgox as the site name for Mt. Gox	
 	Use btc-e as the site name for BTC-E
 	Use bitstamp as the site name for Bitstamp
-	Where it says "Enter an encryption password: (This is the password required to execute trades)"
+	Where it says "Enter an encryption password: (This is the password required to 	execute trades)"
 		-For bitfloor this is your passphrase that you entered on the website.
 		-For mtgox you Create your own password, just be sure to remember it.
 		-For btce you Create your own password, just be sure to remember it.
-		-For bitstamp, there is no API Key or Secret. Use your user ID in place of "API Key" and 
-			Password in place of "API Secret" . You should provide an entirely different password 
-			to access the encrypted password. (to add a layer of security)
+		-For bitstamp, there is no API Key or Secret. Use your user ID in place of 			"API Key" and Password in place of "API Secret" . You should provide an 		entirely different password to access the encrypted password. (to add a layer 		of security)
 
 
 INSTRUCTIONS:
@@ -179,13 +175,13 @@ copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.in
 
 (NOT implemented)
 Websocket(SocketIO) for streaming updates.
-Abort commands with SIGINT (ctrl-c on *nix) without exiting, if Mt. Gox is being slow (soon)
-Withdraw bitcoins
+Abort commands with SIGINT (ctrl-c on *nix) without exiting, f Mt. Gox is being slow (soon)
+(doesn't exit when NOT busy but will exit if in the middle of a single transaction like a buy)
+Withdraw bitcoins (available on bitstamp only)
 Sequence multiple commands using semicolons
 Tab completion of commands
 Calculate profitable short/long prices from an initial price
-Sample trader implementation in Python, for Bitfloor and Mt.Gox & some BTC-e!
-Asynchronus HTTP Implementation to pipeline web requests
+Asynchronus HTTP Implementation to pipeline web requests (using twisted.web)
 Stop Loss Bot.
 Modifying strategy.
 optional trade Wait time (default to instant gratification) 

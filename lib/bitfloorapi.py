@@ -10,28 +10,26 @@ import copy
 import decimal
 from decimal import Decimal as D
 import os
-import common
 import unlock_api_key
 
-def get_rapi():
-    key,secret,passphrase = unlock_api_key.unlock("bitfloor")
-    return RAPI(1,key,secret,passphrase) #the 1 means "product_ID" is USD
-    
-with open(os.path.join(os.path.dirname(__file__), '../data/config.json')) as f:
-    config = json.load(f, object_hook=json_ascii.decode_dict)
-    
-if config['data_port'] == 443 and config['order_port'] == 443:
-    HTTPConn = httplib.HTTPSConnection
-else:
-    HTTPConn = httplib.HTTPConnection # for local testing only
 
-class RAPI(object):
-    def __init__(self, product_id, key, secret, passphrase):
+config = {
+    "host": "api.bitfloor.com",
+    "data_port": 443,
+    "order_port": 443,
+    "version": 1
+    }
+
+HTTPConn = httplib.HTTPSConnection
+
+class Client(object):
+    def __init__(self):
+        key,secret,passphrase = unlock_api_key.unlock("bitfloor")
         self._key = key
         self._secret = secret
-        self._product_id = product_id
         self._passphrase = passphrase
-        self._inc = D('0.01') # TODO: get from bitfloor
+        self._product_id = 1    #the 1 means "product_ID" is USD (currently our only option anyway)
+        self._inc = D('0.01')   # TODO: get from bitfloor
 
     def book(self, level=1):
         url = '/book/L{1}/{0}'.format(self._product_id, level)

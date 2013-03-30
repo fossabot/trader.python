@@ -11,9 +11,9 @@ import sys
 
 from book import Book, Order
 
-import bitfloor
+import bitfloorapi
 
-bitfloor = bitfloor.get_rapi()
+bitfloor = bitfloorapi.Client()
 SIZE_LIMIT = 0.01
 
 def get_mtgox():

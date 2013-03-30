@@ -13,6 +13,17 @@ import unlock_api_key
 import io
 import gzip
 
+class ServerError(Exception):
+    def __init__(self, ret):
+        self.ret = ret
+    def __str__(self):
+        return "Server error: %s" % self.ret
+class UserError(Exception):
+    def __init__(self, errmsg):
+        self.errmsg = errmsg
+    def __str__(self):
+        return self.errmsg
+        
 APIURL="https://www.bitstamp.net/api/"
 
 class Client:

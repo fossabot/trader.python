@@ -10,13 +10,13 @@ import winsound
 import unlock_api_key 
 import os
 
-
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\data\\')
 BTC_api_key,BTC_api_secret,unused = unlock_api_key.unlock("btc-e") 
 
-#you must have a nonce_state_btce file located in your ../data/ directory with an integer number inside the file  
+#you must have a nonce_state_btce file located in your ..\data\ directory with an integer number inside the file  
 def nonce_generator():
-    partialpath=os.path.join('../data/')
-    fd = open(os.path.join(partialpath + 'nonce_state_btce'),'r')
+    fd = open(os.path.join(partialpath + 'nonce_state_btce') ,'r')
     nonce = int(fd.read())
     fd.close()
     while (True):

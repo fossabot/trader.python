@@ -132,7 +132,9 @@ class Client:
                             else:
                                 print ServerError(data["error"])
                     except ValueError as e:
-                        print "JSON Error: %s. Most likely BLANK Data. Still trying to figure out what happened here." % e
+                        print "JSON Error: %s. Most likely BLANK Data." % e
+                        resp.seek(0)
+                        print resp.read()
                         continue
                 else:
                     data = resp.read()

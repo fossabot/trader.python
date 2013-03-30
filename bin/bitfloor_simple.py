@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # adds a single order
 
-import bitfloor
+import bitfloorapi
 import cmd
 
-bitfloor = bitfloor.get_rapi()
+bitfloor = bitfloorapi.Client()
 
 def trade(side, arg):
     try:

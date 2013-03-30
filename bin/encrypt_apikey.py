@@ -12,6 +12,8 @@ import os
 import getpass
 import base64
 
+
+
 def lock():
     print "\n\nga-bitbot API Key Encryptor v0.3"
     print "-" * 30
@@ -33,7 +35,8 @@ def lock():
     print "\nGenerating the random salt..."
     salt = os.urandom(32)                   #requires Python 2.4  = 32 bytes or 256 bits of randomness
     """salt = hashlib.sha512(pre_salt).digest()    #hashing does not add any new randomness """
-    partialpath=os.path.join(os.path.dirname(__file__) + '../keys/' + site)
+    fullpath = os.path.dirname(os.path.realpath(__file__))
+    partialpath=os.path.join(fullpath + '\\..\\keys\\' + site)
     f = open(os.path.join(partialpath + '_salt.txt'),'w')
     f.write(salt)
     f.close()

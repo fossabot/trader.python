@@ -336,7 +336,7 @@ class Secret:
     # pylint: disable=R0201
     def prompt_encrypt(self):
         """ask for key, secret and password on the command line,
-        then encrypt the secret and store it in the ../data/ directory"""
+        then encrypt the secret and store it in the ..\data\ directory"""
         try:
             encrypt_apikey.lock()
             return 1

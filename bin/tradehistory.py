@@ -11,6 +11,9 @@ import time
 import datetime
 import math
 
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\data\\')
+
 #all it does is a simple "mean" calculation
 def movavg(trades):
     #movingavg = sum(map(lambda x: x['price'], trades)) / len(trades)
@@ -32,9 +35,7 @@ def mean(l):
 
 def readhist24():
     filetoopen = raw_input("Enter the filename in the data/ directory to open: ")
-    #datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
-    datapartialpath = "../data/"
-    with open(os.path.join(datapartialpath + filetoopen),'r') as f:
+    with open(os.path.join(partialpath + filetoopen),'r') as f:
         everything = f.readlines()
 
 
@@ -70,9 +71,7 @@ def readhist24():
 
 def readdepth():
     filetoopen = raw_input("Enter the filename in the data/ directory to open: ")
-    #datapartialpath=os.path.join(os.path.dirname(__file__) + '../data/')
-    datapartialpath = "../data/"
-    with open(os.path.join(datapartialpath + filetoopen),'r') as f:
+    with open(os.path.join(partialpath + filetoopen),'r') as f:
         everything = f.readlines()
 
     everything[0],everything[1] = everything[1],everything[0]       #then by default its a history file

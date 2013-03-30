@@ -16,8 +16,9 @@ def unlock(site,enc_password=""):
             print '{}: Enter your API key file encryption password.'.format(site)
             enc_password = getpass.getpass()#raw_input()
 
-        try:	
-            partialpath=os.path.join('../keys/' + site)
+        try:
+            fullpath = os.path.dirname(os.path.realpath(__file__))
+            partialpath=os.path.join(fullpath + '\\..\\keys\\' + site)
             f = open(os.path.join(partialpath + '_salt.txt'),'r')
             salt = f.read()
             f.close()

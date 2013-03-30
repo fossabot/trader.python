@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # must be run with Side (0=buy,1=sell), Size, Price as arguments on the command line
 
-import bitfloor
+import bitfloorapi
 import cmd
 import sys
 import time
 
-bitfloor = bitfloor.get_rapi()
+bitfloor = bitfloorapi.Client()
 
 side,size,price = sys.argv[1:]
 

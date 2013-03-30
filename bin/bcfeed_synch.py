@@ -7,6 +7,7 @@ import datetime
 import time
 import io
 import gzip
+import os
 __app_version__ = "0.03"
 
 print """
@@ -21,8 +22,12 @@ link = """http://bitcoincharts.com/t/trades.csv?symbol=mtgoxUSD&start={START_TIM
 start_time = 0 		
 auto_move_output = 1
 begintiming = time.time()
+
+fullpath = os.path.dirname(os.path.realpath(__file__))
+partialpath=os.path.join(fullpath + '\\..\\data\\')
+
 try:
-    for line in open('../data/download_mtgoxUSD.csv'):pass
+    for line in open(os.path.join(partialpath + 'download_mtgoxUSD.csv')):pass
     line = line.split(',')[0]
     line = line.split('.')[0]
     start_time = int(line) + 1
@@ -42,7 +47,7 @@ if resp.info().get('Content-Encoding') == 'gzip':
     buf = io.BytesIO(resp.read())
     resp = gzip.GzipFile(fileobj=buf)
 data = resp.read()
-f = open("../data/download_mtgoxUSD.csv",'a')
+f = open(os.path.join(partialpath + "download_mtgoxUSD.csv"),'a')
 if data:
     f.write('\n')
     f.write(data)
@@ -50,7 +55,7 @@ f.close()
 
 print "Download complete."
 
-f = open("../data/download_mtgoxUSD.csv",'r')
+f = open(os.path.join(partialpath + "download_mtgoxUSD.csv"),'r')
 d = f.readlines()
 f.close()
 
@@ -89,7 +94,7 @@ for r in d:
 print "Writing output file..."
 print "Updating the data directory directly...no need to manualy move the output file"
 
-f = open('../data/bcfeed_mtgoxUSD_1min.csv','w')
+f = open(os.path.join(partialpath + "bcfeed_mtgoxUSD_1min.csv"),'w')
 
 for t,p,v in one_min:
     f.write(",".join(map(str,[t,p,v])) + '\n')
