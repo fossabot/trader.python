@@ -187,10 +187,9 @@ class Client:
         return self.post(url)    #Returns your bitcoin deposit address.
 
 
-    def get_tradefee(self,timedelta=2592000):
-        timedelta=2592000       #the past 30 days (what the fee is based off)
+    def get_tradefee(self,timedelta=2592000):	#the past 30 days (what the fee is based off)
         data = self.get_usertransactions(timedelta)
-        totalamount = sum(D(x["amount"]) for x in data)
+        totalamount = sum((D(x["amount"])*D(x["price"])) for x in data)
         feedict = {
             500:0.50,
             1000:0.48,
@@ -221,8 +220,7 @@ class Client:
 #Will flesh out to become client
 if __name__ == "__main__":
     bitstamp = Client()
-    print "Total amount is: %s Your trade fee is: %s " %(bitstamp.get_tradefee())
-    
+    print "Total amount is: %s Your trade fee is: %s " %(bitstamp.get_tradefee())    
     #data = bitstamp.get_transactions(int(howmany)) not working
     #print "If the entire site was a person, its trade_fee would be: " % (data)
     # earliestdate = min(D(x["date"]) for x in data)
@@ -237,5 +235,7 @@ if __name__ == "__main__":
     from common import *
 
     howmany = raw_input("How many orders do you want to print out?: ")
-    printbothbooks(entirebook.asks,entirebook.bids,int(howmany))
+    howmany = int(howmany)
+    
+	printbothbooks(entirebook.asks,entirebook.bids,int(howmany))
  
