@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+#analyzes the liquidbotlog.txt file to find out total price of all that were bought/sold
+#this should no longer be needed because i added a new file that the bot will write only successes to in a special format
+
 
 #filetoopen = raw_input("Enter the filename in the data/ directory to open: ")
 # filetoopen = "liquidbotlog.txt"
@@ -9,13 +12,11 @@
 #     	if "filled" in line:
 #     		filled.write(line)
 # filled.close()
-filled = open("filled.txt",'r') 
-#buysell = open("filled2.txt",'w') 
 
+filled = open("filled.txt",'r') 
 buylinelist = []
 selllinelist = []
 for line in filled:
-	#print line.split()
 	if "Buy" in line and "order" in line:
 		wordlist = line.split()
 		buybtc = float(wordlist[5])
@@ -27,9 +28,6 @@ for line in filled:
 		sellprice = float(wordlist[8][1:])
 		selllinelist.append([sellbtc,sellprice])
 	
-
-#print buylinelist
-#print selllinelist
 totalbuy = 0
 totalsell = 0
 for x in buylinelist:
