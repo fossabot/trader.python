@@ -34,7 +34,10 @@ def mean(l):
         raise TypeError()
 
 def readhist24():
-    filetoopen = raw_input("Enter the filename in the data/ directory to open: ")
+    print "Enter the filename in the data/ directory to open: "
+    filetoopen = raw_input("Leave blank for default: ")
+    if not(filetoopen):
+        filetoopen = "mtgox_entiretrades.txt"
     with open(os.path.join(partialpath + filetoopen),'r') as f:
         everything = f.readlines()
 
@@ -43,7 +46,15 @@ def readhist24():
 
     new = json.loads(everything[0])
     newnew = common.floatify(new["data"])
-
+    print "Do you want to enter a timeframe?(in secs): "
+    timeframe = raw_input("Leave blank for default: ")
+    if timeframe:
+        starttime = (newnew[-1]['tid']/1E6) - float(timeframe)
+        templist = []
+        for a in newnew:
+            if (a['tid']/1E6) > starttime:
+                templist.append(a)
+        newnew = templist
     [earliesttime],[latesttime] = [[func(x[thing] for x in newnew) for thing in ['tid']] for func in [min,max]]
 
     #rewritten with list comprehension somehow (see below)
@@ -68,6 +79,7 @@ def readhist24():
     print "Highest Amount: %f BTC & Lowest Amount: %f BTC" % (highestamount,lowestamount)
     print "Earliest time is: %s" % (datetime.datetime.fromtimestamp(earliesttime/1E6))
     print "Latest time is: %s" % (datetime.datetime.fromtimestamp(latesttime/1E6))
+
 
 def readdepth():
     filetoopen = raw_input("Enter the filename in the data/ directory to open: ")

@@ -20,6 +20,7 @@ import threading        #for subthreads
 import datetime
 from decimal import Decimal as D    #renamed to D for simplicity.
 import os
+import re
 
 mtgox = mtgoxhmac.Client()
 cPrec = D('0.00001')
@@ -29,6 +30,23 @@ bPrec = D('0.00000001')
 fullpath = os.path.dirname(os.path.realpath(__file__))
 partialpath=os.path.join(fullpath + '\\..\\data\\')
 
+def validatenum(strng):
+    search=re.compile(r'[^0-9. ]').search
+    return not bool(search(strng))
+
+def validatechar(strng):
+    search=re.compile(r'[^a-zA-Z ]').search
+    return not bool(search(strng))
+
+def validateboth(strng):
+    search = re.compile(r'[^a-zA-Z0-9. ]').search
+    return not bool(search(strng))
+
+def stripoffensive(strng):
+    pattern = r'[^a-zA-Z0-9. ]'
+    new = re.sub(pattern, '', strng)
+    return new
+
 
 def refreshbook(maxage=180):
     #get the FULL depth (current trade order) (API 2,gzip)
@@ -37,7 +55,9 @@ def refreshbook(maxage=180):
     entirebook.sort()      #sort it
     return entirebook
 def printorderbook(size=15,maxage=120):
-    entirebook = refreshbook(maxage)
+    #entirebook = refreshbook(maxage)		#the full depth book was inaccurate from lag or something
+    entirebook = Book.parse(mtgox.get_depth())
+    entirebook.sort()
     #start printing part of the order book (first 15 asks and 15 bids)
     printbothbooks(entirebook.asks,entirebook.bids,size)   #otherwise use the size from the arguments
 def bal():
@@ -65,10 +85,10 @@ class Feesubroutine(cmd.Cmd):
         self.prompt = 'Fees CMD>'
         self.use_rawinput = False
         self.onecmd('help')
-    def do_getfee(self,arg):
+    def do_getfee(self,args):
         """Print out the current trade fee"""
-        print "Your current trading fee is: %s%" % (get_tradefee()*100)
-    def do_balance(self,arg):
+        print "Your current trading fee is: %s%%" % (get_tradefee()*100)
+    def do_balance(self,args):
         """Calculate how much fees will cost if you sold off your entire BTC Balance"""
         btcbalance,totalfees,last = calc_fees()
         print_calcedfees(btcbalance,last,totalfees)
@@ -84,15 +104,15 @@ class Feesubroutine(cmd.Cmd):
         except Exception as e: 
             self.onecmd('help calc')
             print "Invalid Args. Expected: amount"
-    def do_back(self,arg):
+    def do_back(self,args):
         """Exits out of the fee menu and goes back to the main level"""
         print '\nGoing back a level...'
         return True
-    def do_exit(self,arg):
+    def do_exit(self,args):
         """Exits out of the fee menu and goes back to the main level"""
         print '\nReturning to the main level...'
         return True
-    def do_EOF(self,arg):
+    def do_EOF(self,args):
         """Exits out of the fee menu and goes back to the main level"""
         self.do_exit(self)
     def help_help(self):
@@ -168,31 +188,45 @@ class Shell(cmd.Cmd):
         if args == 'exit':
             print "Shutting down background thread..."
             notifier_stop.set()
-        else:
+        else:   
             notifier_stop = threading.Event()
             notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop)).start()
 
     def do_stoplossbot(self,args):
-        #started work on this didnt finish.
-        """Not done, do not use"""
-        def stoploss(side,size,price,percent):
-            entirebook = refreshbook()
-            ticker = mtgox.get_ticker2()
-            last = D(ticker["last"]["value"])
-            percent = D(percent) / D('100')
-            price = D(price)
-            if price*percent < last:
-                spread('mtgox',mtgox,side,size,price)
-                orders = mtgox.get_orders()
-                for order in orders:
-                    print order["oid"]
-
+        """Not done, do not use.started work on this didnt finish."""
+        def stoploss(firstarg,stop_event,side,size,price,percent):
+            while(not stop_event.is_set()):
+                #entirebook = refreshbook()
+                #ticker = mtgox.get_ticker2()
+                #last = D(ticker["last"]["value"])
+                entirebook = Book.parse(mtgox.get_depth())
+                entirebook.sort()
+                lowask = entirebook.asks[0].price
+                percent = D(percent) / D('100')
+                price = D(price)
+                if price*percent < last:
+                    orders = spread('mtgox',mtgox,'sell',size,price)
+                    for order in orders:
+                        print order["oid"]
+                stop_event.wait(60)
+        
         try:
+            args = stripoffensive(args)
             args = args.split()
             newargs = tuple(floatify(args))
             stoploss(*newargs)
         except Exception as e:
             traceback.print_exc()
+
+
+        global stopbot_stop
+        if args == 'exit':
+            print "Shutting down background thread..."
+            stopbot_stop.set()
+        else:
+            stopbot_stop = threading.Event()
+            thread1 = threading.Thread(target = tickeralert, args=(None,stopbot_stop)).start()
+
 
 
     def do_new(self,args):
@@ -201,9 +235,8 @@ class Shell(cmd.Cmd):
             depthparser.goxnewcalc(mtgox,args)
         except Exception as e:
             print "Was expecting 3-4 arguments: (bid|ask), (btc|usd), amount, price=optional"
-            return
 
-    def do_updown(self,arg):
+    def do_updown(self,args):
         """Logs ticker to file, spits out an alert and beeps if last price is above or below the range given\n""" \
         """Range window is modified and readjusted\n""" \
         """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!\n""" \
@@ -211,7 +244,7 @@ class Shell(cmd.Cmd):
         """Shutdown: updown exit  """
         def tickeralert(firstarg,stop_event):
             try:
-                low, high = floatify(arg.split())
+                low, high = floatify(args.split())
             except Exception as e:
                 #traceback.print_exc()
                 #raise depthparser.InputError("You need to give a high and low range: low high")
@@ -252,8 +285,9 @@ class Shell(cmd.Cmd):
                         print "New range is: %s-%s" % (low,high)
                     stop_event.wait(40)
 
+        args = stripoffensive(args)
         global t1_stop
-        if arg == 'exit':
+        if args == 'exit':
             print "Shutting down background thread..."
             t1_stop.set()
         else:
@@ -264,6 +298,7 @@ class Shell(cmd.Cmd):
     def do_readtickerlog(self,numlines=15):
         """Prints the last X lines of the ticker log file"""
         try:
+            numlines = stripoffensive(numlines)
             numlines = int(numlines)
             with open(os.path.join(partialpath + 'mtgox_last.txt'),'r') as f:
                 s = tail(f,numlines)
@@ -276,13 +311,13 @@ class Shell(cmd.Cmd):
             print "Current time is:",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         except ValueError as e:
             self.onecmd('help readtickerlog')
-            return
 
     def do_depth(self,args):
         """Shortcut for the 3 depth functions in common.py"""
 
         try:
             entirebook = refreshbook(maxage=180)
+            args = stripoffensive(args)
             args = args.split()
             mydict = {"buy":entirebook.bids,"bids":entirebook.bids,"bid":entirebook.bids,"sell":entirebook.asks,"ask":entirebook.asks,"asks":entirebook.asks}
             for x in mydict.keys():
@@ -304,22 +339,29 @@ class Shell(cmd.Cmd):
         """Calculate the "order book implied price", by finding the weighted\n""" \
         """average price of coins <width> BTC up and down from the spread.\n""" \
         """Usage: <width> optional:(BTC/USD) """
+        args = stripoffensive(args)
         args = args.split()
         newargs = tuple(floatify(args))
         
         obip(mtgox,*newargs)
 
-    def do_asks(self,arg):
+    def do_asks(self,args):
         """Calculate the amount of bitcoins for sale at or under <pricetarget>.\n""" \
         """If 'over' option is given, find coins or at or over <pricetarget>."""
         #right now this is using the FULL DEPTH data so we call update which will update if necessary
-        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
+
+        args = stripoffensive(args)
         try:
-            pricetarget = float(arg)
+            pricetarget = float(args)
             response = 'under'
         except:
-            response, pricetarget = arg.split()
-            pricetarget = float(pricetarget)
+            try:
+                response, pricetarget = args.split()
+                pricetarget = float(pricetarget)
+            except:
+                self.onecmd('help asks')
+                return
+        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
         if response == 'over':
             f = lambda price,pricetarget: price >= pricetarget
         else:
@@ -338,16 +380,22 @@ class Shell(cmd.Cmd):
                 total += (ask["amount"] * ask["price"])
         print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, pricetarget, total)
     
-    def do_bids(self,arg):
+    def do_bids(self,args):
         """Calculate the amount of bitcoin demanded at or over <pricetarget>.\n""" \
         """If 'under' option is given, find coins or at or under <pricetarget>"""
-        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
+
+        args = stripoffensive(args)
         try:
-            pricetarget = float(arg)
+            pricetarget = float(args)
             response = 'over'
         except:
-            response, pricetarget = arg.split()
-            pricetarget = float(pricetarget)
+            try:
+                response, pricetarget = args.split()
+                pricetarget = float(pricetarget)
+            except:
+                self.onecmd('help bids')
+                return
+        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)          
         if response == 'under':
             f = lambda price,pricetarget: price <= pricetarget
         else:
@@ -368,13 +416,14 @@ class Shell(cmd.Cmd):
 
 
 
-    def do_buy(self, arg):
+    def do_buy(self, args):
         """(market order): buy size \n""" \
         """(limit order): buy size price \n""" \
         """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
         try:
-            args = arg.split()
+            args = stripoffensive(args)
+            args = args.split()
             newargs = tuple(floatify(args))
             if len(newargs) == 1:
                 mtgox.buy_btc(*newargs)
@@ -390,14 +439,14 @@ class Shell(cmd.Cmd):
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help buy')
-            return
 
-    def do_sell(self, arg):
+    def do_sell(self, args):
         """(market order): sell size \n""" \
         """(limit order): sell size price \n""" \
         """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
-            args = arg.split()
+            args = stripoffensive(args)
+            args = args.split()
             newargs = tuple(floatify(args))
             if len(newargs) == 1:
                 mtgox.sell_btc(*newargs)
@@ -413,14 +462,14 @@ class Shell(cmd.Cmd):
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help sell')
-            return
 
-    def do_ticker(self,arg):
+    def do_ticker(self,args):
         """Print the entire ticker out or use one of the following options:\n""" \
         """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
+        args = stripoffensive(args)
         ticker = mtgox.get_ticker2()
         svrtime = float(D(float(ticker["now"]) / 1E6).quantize(D("0.001")))
-        if not arg:
+        if not args:
             print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
                 "24 hour volume: %s, 24 hour low: %s, 24 hour high: %s, 24 hour vwap: %s, 24 hour avg: %s" % \
                 (ticker['buy']['value'], ticker['sell']['value'], \
@@ -431,25 +480,31 @@ class Shell(cmd.Cmd):
             print "Time of ticker: ", datetime.datetime.fromtimestamp(svrtime).strftime("%Y-%m-%d %H:%M:%S"), "Ticker Lag: %.3f" % (time.time()-svrtime)
         else:
             try:
-                print "BTCUSD ticker | %s = %s" % (arg,ticker[arg])
+                print "BTCUSD ticker | %s = %s" % (args,ticker[args])
             except:
                 print "Invalid args. Expecting a valid ticker subkey."
                 self.onecmd('help ticker')
 
-    def do_spread(self,arg):
+    def do_spread(self,args):
         """Print out the bid/ask spread"""
-        print mtgox.get_spread()
+        try:
+            print "The spread is: %f" % mtgox.get_spread()
+        except:
+            self.onecmd('help spread')
 
     def do_book(self,size):
         """Download and print the order book of current bids and asks of depth $size"""
         try:
+            size = stripoffensive(size)
             size = int(size)
             printorderbook(size,maxage=1)
         except:
             printorderbook(maxage=1) 
-    def do_orders(self,arg):
+
+    def do_orders(self,args):
         """Print a list of all your open orders, including pending and lacking enough funds"""
-        try:    
+        try:
+            args = stripoffensive(args)
             time.sleep(1)
             orders = mtgox.get_orders()['orders']
             for order in orders:
@@ -463,7 +518,7 @@ class Shell(cmd.Cmd):
         except Exception as e:
             return
 
-    def do_tradehist24(self,arg):
+    def do_tradehist24(self,args):
         """Download the entire trading history of mtgox for the past 24 hours. Write it to a file"""
         print "Starting to download entire trade history from mtgox....",
         eth = mtgox.entire_trade_history()
@@ -474,7 +529,8 @@ class Shell(cmd.Cmd):
             json.dump(eth,f)
             f.close()
             print "Finished."
-    def do_readtradehist24(self,arg):
+
+    def do_readtradehist24(self,args):
         """reading trade history data from a file and gathering stats on it"""
         import tradehistory
         print "Is this a Trade History file (not a full depth file)?"
@@ -482,33 +538,40 @@ class Shell(cmd.Cmd):
         if not(isdepthfile):
             tradehistory.readhist24()
         else:
-            tradehistory.readdepth()        
-    def do_cancelall(self,arg):
+            tradehistory.readdepth()
+
+    def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
         mtgox.cancelall()
-    def do_lag(self,arg):
+
+    def do_lag(self,args):
         """Shows the current Mt.Gox trading engine lag time"""
         lag = mtgox.lag()
         print 'Current order lag is %r' % (lag['lag_secs'])
-    def do_balance(self,arg):
+
+    def do_balance(self,args):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
         balance = mtgox.get_balance()
         btc,usd = (balance['btcs'],balance['usds'])
         last = float(mtgox.get_ticker2()['last']['value'])
         print 'Your balance is %r BTC and $%.2f USD ' % (btc,usd)
-        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (btc*last+usd,last)
-    def do_btchistory(self,arg):
+        print 'Account Value: $%.2f @ Last BTC Price of %s' % (btc*last+usd,last)
+
+    def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions"""
         btchistory=mtgox.get_history_btc()
         print btchistory
-    def do_usdhistory(self,arg):
+
+    def do_usdhistory(self,args):
         """Prints out your entire trading history of USD transactions"""
         usdhistory=mtgox.get_history_usd()
         print usdhistory
-    def do_fees(self,arg):
+
+    def do_fees(self,args):
         """Loads the fee module to calculate fees"""
         Feesubroutine().cmdloop()
-    def do_exit(self,arg):      #standard way to exit
+
+    def do_exit(self,args):      #standard way to exit
         """Exits the program"""
         try:
             t1_stop.set()
@@ -519,9 +582,11 @@ class Shell(cmd.Cmd):
         print "Session Terminating......."
         print "Exiting......"           
         return True
-    def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
+
+    def do_EOF(self,args):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
-        return self.do_exit(arg)
+        return self.do_exit(args)
+
     def help_help(self):
         print 'Prints the help screen'
         

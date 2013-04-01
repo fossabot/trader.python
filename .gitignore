@@ -8,3 +8,4 @@ bin/*.xml
 bin/*.ini
 bin/*.txt
 bin/*.log
+bin/test/*

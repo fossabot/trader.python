@@ -1,4 +1,5 @@
 import websocket # websocket-client>=0.4.1 (included, otherwise downloadble)
+import socket
 import cjson
 import time
 
@@ -14,17 +15,17 @@ CHANNELS["d5f06780-30a8-4a48-a2f8-7ed181b4a13f"] = "ticker"
 CHANNELS["85174711-be64-4de1-b783-0628995d7914"] = "lag"
 #CHANNELS["24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"] = "depth"
 
-
 CURRENCY = "USD"
+
 
 def int2str(value_int, CURRENCY):
     """return currency integer formatted as a string"""
     if CURRENCY == "BTC":
-        return ("%6.8g" % (value_int / 100000000.0))
+        return ("%s" % (value_int / 1E8))
     if CURRENCY == "JPY":
-        return ("%12.3g" % (value_int / 1000.0))
+        return ("%s" % (value_int / 1E3))
     else:
-        return ("%7.5g" % (value_int / 100000.0))
+        return ("%s" % (value_int / 1E5))
 
 def on_op_private_ticker(msg):
     """handle incoming ticker message (op=private, private=ticker)"""
@@ -61,9 +62,9 @@ def on_op_private_trade(msg):
     price = int(msg["price_int"])
     volume = int(msg["amount_int"])
 
-    print "TRADE: ", typ+":", int2str(price, CURRENCY),"vol:", int2str(volume, "BTC")
+    print "TRADE: ", typ+":", int2str(price, CURRENCY),"\tvol:", int2str(volume, "BTC")
 
-def on_message(ws, message):
+def on_message(message):
     data = deserialize(message)
     channel = CHANNELS.get(data.get('channel'))
     if channel == "trades":
@@ -72,42 +73,55 @@ def on_message(ws, message):
         on_op_private_depth(data)
     elif channel == "ticker":
         now = float(data["ticker"]["now"]) / 1E6
-        if now - ws.LASTTICKER > 25:    #only show the ticker every 25 seconds.
+        if now - ws.LASTTICKER > 30:    #only show the ticker every 30 seconds.
             ws.LASTTICKER = now
             on_op_private_ticker(data)
     elif channel == "lag":
         now = float(data["lag"]["stamp"]) / 1E6
-        if now - ws.LASTLAG > 25:
+        if now - ws.LASTLAG > 30:
             ws.LASTLAG = now
             lag = str(float(data["lag"]["age"] / 1E6))
             print " LAG: ",lag, "seconds"
-    else:
-        pass
 
-def on_error(ws, error):
+
+def on_error(error):
     print error
-
 def on_close(ws):
-    print "#### closed ####"
-
-def on_open(ws):
+    ws.close()
+    print "####  closed  ####"
+def on_open():
     print "#### connected ####"
+def on_reconnect():
+    print "#### reconnecting... ####"
+    time.sleep(15)      #wait 15 seconds before trying to reconnect.
 
 if __name__ == "__main__":
-#infinite loop
-    while True:
+    while True:                     #infinite loop  
         websocket.enableTrace(False)
-        
         url = 'ws://websocket.mtgox.com/mtgox'
         ws = websocket.WebSocket()
-        ws.LASTTICKER = time.time() - 25       #sets the last ticker 25 seconds prior to now to show it once at the start.
-        ws.LASTLAG = time.time() - 25
-        ws.connect(url)
-        on_open(ws)
-        subscribetolag = serialize({"op":"mtgox.subscribe", "type":"lag"})        
-        ws.send(subscribetolag)
-        while True:
-            data = ws.recv()
-            on_message(ws,data)
-        ws.close()
-        time.sleep(8)      #wait 8 seconds before retrying after a dropped connection
+        ws.LASTTICKER = time.time() - 30        #sets the last ticker 30 seconds prior to now, so it shows up on first run.
+        ws.LASTLAG = time.time() - 30           #same for the lag counter
+        try:
+            ws.connect(url)         #try to connect
+        except socket.error as error:
+            on_error(error)
+            on_reconnect()
+            continue
+        on_open()
+        subscribeto = serialize({"op":"mtgox.subscribe", "type":"lag"})        
+                     #serialize({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"})
+        ws.send(subscribeto)
+        
+        try:
+            while True:
+                data = ws.recv()    #start receiving data
+                on_message(data)
+        except KeyboardInterrupt:
+        	on_close(ws)
+        	return
+        except Exception as error:
+            on_error(error)
+        finally:
+            on_close(ws)
+            on_reconnect()           #try to reconnect
