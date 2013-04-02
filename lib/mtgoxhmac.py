@@ -52,7 +52,7 @@ class Client:
     def __init__(self, enc_password=""):
         #This is part of my encrypt_api_key and unlock_api_key file.
         #without these, set self.key and self.secret to your API Key/Secret in " " 
-        self.key,self.secret,_ = unlock_api_key.unlock("mtgox")
+        self.key,self.secret,self.enc_password = unlock_api_key.unlock("mtgox")
         
         self.buff = ""
         self.timeout = 5
@@ -264,7 +264,11 @@ class Client:
         #to do: check how the system responds to instant orders and partialy filled orders.
         if amount < 0.01:
             print "Minimum amount is 0.01btc"
-            return 0
+            return None
+        if amount > 100.0:
+            yesno = raw_input("You are about to buy >100 BTC. Continue?\n")
+            if not(yesno):
+                return None
         if price:
             params = {"amount":str(amount), "price":str(price)}
         else:
@@ -290,7 +294,11 @@ class Client:
         #omit the price to place a market order
         if amount < 0.01:
             print "Minimum amount is 0.01btc"
-            return 0
+            return None
+        if amount > 100.0:
+            yesno = raw_input("You are about to sell >100 BTC. Continue?\n")
+            if not(yesno):
+                return None            
         if price:
             params = {"amount":str(amount), "price":str(price)}
         else:

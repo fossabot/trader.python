@@ -35,8 +35,9 @@ def on_op_private_ticker(msg):
     ask = int(msg["sell"]["value_int"])
     bid = int(msg["buy"]["value_int"])
 
-    print " tick:  BID:", int2str(bid, CURRENCY)
-    print "        ASK:", int2str(ask, CURRENCY)
+    print "\nBid:", int2str(bid, CURRENCY)
+    print "Ask:", int2str(ask, CURRENCY)
+    print " "
 
 
 def on_op_private_depth(msg):
@@ -64,7 +65,7 @@ def on_op_private_trade(msg):
 
     print "TRADE: ", typ+":", int2str(price, CURRENCY),"\tvol:", int2str(volume, "BTC")
 
-def on_message(message):
+def on_message(ws,message):
     data = deserialize(message)
     channel = CHANNELS.get(data.get('channel'))
     if channel == "trades":
@@ -78,7 +79,7 @@ def on_message(message):
             on_op_private_ticker(data)
     elif channel == "lag":
         now = float(data["lag"]["stamp"]) / 1E6
-        if now - ws.LASTLAG > 30:
+        if now - ws.LASTLAG > 15:
             ws.LASTLAG = now
             lag = str(float(data["lag"]["age"] / 1E6))
             print " LAG: ",lag, "seconds"
@@ -95,12 +96,12 @@ def on_reconnect():
     print "#### reconnecting... ####"
     time.sleep(15)      #wait 15 seconds before trying to reconnect.
 
-if __name__ == "__main__":
+def main():
     while True:                     #infinite loop  
         websocket.enableTrace(False)
         url = 'ws://websocket.mtgox.com/mtgox'
         ws = websocket.WebSocket()
-        ws.LASTTICKER = time.time() - 30        #sets the last ticker 30 seconds prior to now, so it shows up on first run.
+        ws.LASTTICKER = time.time() - 15        #sets the last ticker 30 seconds prior to now, so it shows up on first run.
         ws.LASTLAG = time.time() - 30           #same for the lag counter
         try:
             ws.connect(url)         #try to connect
@@ -116,12 +117,12 @@ if __name__ == "__main__":
         try:
             while True:
                 data = ws.recv()    #start receiving data
-                on_message(data)
-        except KeyboardInterrupt:
+                on_message(ws,data)
+        except KeyboardInterrupt as e:
         	on_close(ws)
         	return
         except Exception as error:
             on_error(error)
-        finally:
             on_close(ws)
-            on_reconnect()           #try to reconnect
+            on_reconnect()                       #try to reconnect
+main()

@@ -414,9 +414,12 @@ class Shell(cmd.Cmd):
         """Print a list of all your open orders"""
         time.sleep(1)
         orders = bitfloor.orders()
+        orders = sorted(orders, key=lambda x: x['price'])
         for order in orders:
+            uuid = order['order_id']
+            shortuuid = uuid[:8]+'-?-'+uuid[-12:]
             ordertype="Sell" if order['side']==1 else "Buy"
-            print ordertype,'order %r  Price $%.5f @ Amount: %.5f' % (str(order['timestamp']),float(order['price']),float(order['size']))
+            print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         bitfloor.cancel_all()
