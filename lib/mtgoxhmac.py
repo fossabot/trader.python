@@ -1,8 +1,8 @@
 """
-MtGoxHMAC v0.2
+MtGoxHMAC v0.3
 
 Copyright 2011 Brian Monkaba
-Modified 3/21/2013 by genBTC 
+Modified 4/2/2013 by genBTC 
 
 This file *was* part of ga-bitbot. It was modified heavily and is now part of genBTC's program.
 
@@ -36,6 +36,12 @@ import unlock_api_key
 import ssl
 import gzip
 import io
+from decimal import Decimal as D
+
+CURRENCY = "USD"
+PRODUCT = "BTC"     #maybe future litecoin implementations can work off this
+PAIR = PRODUCT + CURRENCY
+
 
 class ServerError(Exception):
     def __init__(self, ret):
@@ -55,13 +61,19 @@ class Client:
         self.key,self.secret,self.enc_password = unlock_api_key.unlock("mtgox")
         
         self.buff = ""
-        self.timeout = 5
+        self.timeout = 3
         self.__url_parts = "https://data.mtgox.com/api/"
         self.clock_last = time.time()
         self.clock = time.time()
         self.query_count = 0
-        self.query_limit_per_time_slice = 10
-        self.query_time_slice = 10
+        self.query_limit_per_time_slice = 9
+        self.query_time_slice = 6
+        
+        self.cPrec = D('0.00001')
+        self.bPrec = D('0.00000001')
+
+        self.orders = []
+        self.fulldepth = []
 
     def throttle(self):
         self.clock = time.time()
@@ -148,9 +160,9 @@ class Client:
                 if e.fp:
                     datastring = e.fp.read()
                     if "error" in datastring:
-                        #data = json.loads(datastring,object_hook=json_ascii.decode_dict)
                         print "Error: %s" % datastring
-                        #print "Error: %s" % (data["error"])
+                        if "Order not found" in datastring:
+                            return json.loads(datastring)
             except urllib2.URLError as e:
                 print "URL Error:", e 
             except ssl.SSLError as e:
@@ -210,29 +222,39 @@ class Client:
     def lag(self):
         return self.request('generic/order/lag',None,API_VERSION=1,GET=True)["return"]
     def get_history_btc(self):
-        return self.request('history_BTC.csv',None,JSON=False)
+        return self.request('history_' + PRODUCT + '.csv',None,JSON=False)
     def get_history_usd(self):
-        return self.request('history_USD.csv',None,JSON=False)
+        return self.request('history_' + CURRENCY + '.csv',None,JSON=False)
     def get_info(self):
         return self.request('generic/info',None,API_VERSION=1)["return"]
     def get_ticker2(self):
-        return self.request("BTCUSD/money/ticker",None,API_VERSION=2,GET=True)["data"]
+        return self.request(PAIR + "/money/ticker",None,API_VERSION=2,GET=True)["data"]
     def get_ticker(self):
         return self.request("ticker.php",None,GET=True)["ticker"]
     def get_depth(self):
-        return self.request("data/getDepth.php", {"Currency":"USD"})
+        return self.request("data/getDepth.php", {"Currency":CURRENCY})
     def get_fulldepth(self):
-        return self.request("BTCUSD/money/depth/full",None,JSON=True,API_VERSION=2,GET=True)
+        return self.request(PAIR + "/money/depth/full",None,JSON=True,API_VERSION=2,GET=True)
     def get_trades(self):
         return self.request("data/getTrades.php",None,GET=True)
     def get_balance(self):
         info = self.get_info()["Wallets"]
-        balance = { "usds":float(info["USD"]["Balance"]["value"]), "btcs":float(info["BTC"]["Balance"]["value"]) }
+        balance = { "usds":float(info[CURRENCY]["Balance"]["value"]), "btcs":float(info[PRODUCT]["Balance"]["value"]) }
         return balance
-    def get_orders(self):
-        return self.request("getOrders.php",None)
     def entire_trade_history(self):
-        return self.request("BTCUSD/money/trades/fetch",None,JSON=True,API_VERSION=2,GET=True)
+        return self.request(PAIR + "/money/trades/fetch",None,JSON=True,API_VERSION=2,GET=True)
+
+    def get_spread(self):
+        depth = self.get_depth()
+        lowask = depth["asks"][0][0]
+        highbid = depth["bids"][-1][0]
+        spread = lowask - highbid
+        return spread
+
+    def get_orders(self):
+        self.orders = self.request("getOrders.php",None)
+        return self.orders
+        
     def last_order(self):
         try:
             orders = self.get_orders()['orders']
@@ -245,120 +267,98 @@ class Client:
         except:
             print 'no orders found'
             return
-
-    def get_spread(self):
-        depth = self.get_depth()
-        lowask = depth["asks"][0][0]
-        highbid = depth["bids"][-1][0]
-        spread = lowask - highbid
-        return spread
-
-    def buy_btc(self, amount, price=None):
-        #omit the price to place a market order
-        #
-        #new mtgox market orders begin in a pending state
-        #so we have to make a second delayed call to verify the order was actually accepted
-        #there is a risk here that the mtgox system will not be able to verify the order before
-        #the second call so it could reported as still pending. 
-        #In this case, the host script will need to verify the order at a later time.
-        #to do: check how the system responds to instant orders and partialy filled orders.
+    
+    def order_new(self, typ, amount, price=None):
         if amount < 0.01:
             print "Minimum amount is 0.01btc"
             return None
         if amount > 100.0:
-            yesno = raw_input("You are about to buy >100 BTC. Continue?\n")
+            print "You are about to %s >100 %s. Continue?\n" % (typ,PRODUCT)
+            yesno = raw_input()
             if not(yesno):
                 return None
+        amount_int = int(D(amount) * (1/self.bPrec))
+        params = {"type":str(typ),
+                "amount_int":amount_int
+                }
         if price:
-            params = {"amount":str(amount), "price":str(price)}
-        else:
-            params = {"amount":str(amount)}
-        buy = self.request("buyBTC.php", params)
-        oid = buy['oid']
-        #check the response for the order
-        for order in buy['orders']:
-            if order['oid'] == oid:
-                return order
-        #if it wasn't reported yet...check again
-        time.sleep(2)
-        orders = self.get_orders()['orders']
-        for order in orders:
-            if order['oid'] == oid:
-                return order
+            price_int = int(D(price) * (1/self.cPrec))
+            params["price_int"] = price_int
+        result = self.request(PAIR + "/money/order/add", params, API_VERSION=2)
+        if result["result"] == "success":
+            return result
         else:
             return None
-        
 
-
-    def sell_btc(self, amount, price=None):
-        #omit the price to place a market order
-        if amount < 0.01:
-            print "Minimum amount is 0.01btc"
-            return None
-        if amount > 100.0:
-            yesno = raw_input("You are about to sell >100 BTC. Continue?\n")
-            if not(yesno):
-                return None            
-        if price:
-            params = {"amount":str(amount), "price":str(price)}
+    def cancel_one(self,oid):
+        params = {"oid":str(oid)}
+        result = self.request(PAIR + "/money/order/cancel", params, API_VERSION=2)
+        if result["result"] == "success":
+            print 'OID: %s Successfully Cancelled!' % (oid)
         else:
-            params = {"amount":str(amount)}
-        sell = self.request("sellBTC.php", params)
-        oid = sell['oid']
-        #check the response for the order
-        for order in sell['orders']:
-            if order['oid'] == oid:
-                return order
-        #if it wasn't reported yet...check again
-        time.sleep(2)
-        orders = self.get_orders()['orders']
-        for order in orders:
-            if order['oid'] == oid:
-                return order
-        else:
-            return None
-        
-    def cancel_buy_order(self, oid):
-        params = {"oid":str(oid), "type":str(2)}
-        return self.request("cancelOrder.php", params)
+            print "Order not found!!"
+        return self.orders
 
-    def cancel_sell_order(self, oid):
-        params = {"oid":str(oid), "type":str(1)}
-        return self.request("cancelOrder.php", params)
-        
-    def cancelall(self):
+    def cancel_all(self):
         orders = self.get_orders()
         for order in orders['orders']:
-            type = order['type']
+            typ = order['type']
+            ordertype="Sell" if typ == 1 else "Buy"
             oid = order['oid']
-            params = {"oid":str(oid), "type":str(type)}
-            self.request("cancelOrder.php", params)
-            print 'OID: %s Successfully Cancelled!' % (oid)
+            params = {"oid":str(oid)}
+            result = self.request(PAIR + "/money/order/cancel", params, API_VERSION=2)
+            print '%s OID: %s Successfully Cancelled!' % (ordertype,oid)
         if orders['orders']:
             print "All Orders have been Cancelled!!!!!"
+            self.orders = result
         else:
             print "No Orders found!!"
-        
-if __name__ == "__main__":
-    print "\nMTGoxHMAC module test"
-    print "**warning: running this script will initiate then cancel an order on the MtGox exchange.**"
+        return self.orders
 
-    print "\ndownloaded examples of the MtGox json format will be stored in the test_data folder."
-    c = Client()
-    """
-    b = ppdict(pwdict(c.buy_btc(1.5,0.25),'./test_data/mg_buy.txt'))
-    s = ppdict(pwdict(c.sell_btc(1.0,100.00),'./test_data/mg_sell.txt'))
-    ppdict(pwdict(c.get_info(),'./test_data/mg_info.txt'))
-    ppdict(pwdict(c.get_ticker(),'./test_data/mg_ticker.txt'))
-    ppdict(pwdict(c.get_depth(),'./test_data/mg_depth.txt'))
-    ppdict(pwdict(c.get_balance(),'./test_data/mg_balance.txt'))	
-    ppdict(pwdict(c.get_orders(),'./test_data/mg_orders.txt'))
-    ppdict(pwdict(c.cancel_buy_order(b['oid']),'./test_data/mg_cancel_buy.txt'))
-    ppdict(pwdict(c.cancel_sell_order(s['oid']),'./test_data/mg_cancel_sell.txt'))
-    ppdict(pwdict(c.get_history_btc(),'./test_data/mg_history_btc.txt'))
-    ppdict(pwdict(c.get_history_usd(),'./test_data/mg_history_usd.txt'))
-    ppdict(pwdict(c.get_bid_history(b['oid']),'./test_data/mg_bid_history.txt'))
-    ppdict(pwdict(c.get_ask_history(s['oid']),'./test_data/mg_ask_history.txt'))
-    print "done."
-    """
+#EXPERIMENTAL API
 
+#(barely useful in testing)
+#puts in a "bid/ask"(typ) order of the specified amount and tells you the total as if it were making a market order
+    def order_quote(self,typ,amount,price=""):
+        params = {"type":str(typ),
+                "amount":amount
+                }
+        if price:
+            #price = int(D(price) * (1/self.cPrec))
+            params["price"] = price
+        result = self.request(PAIR + "/money/order/quote", params, API_VERSION=2)
+        if result["result"] == "success":
+            print 'The result was ' % (result)
+            return result["data"]
+        else:
+            print "Error!! %s" % result["result"]        
+
+#not tested yet.
+    def bitcoin_address(self,desc=""):
+#gets a bitcoin address linked to your account
+#a new description creates a new address
+        if desc:
+            params = {"description":str(desc)}
+        else 
+            params = None
+        result = self.request("generic/bitcoin/address",params,API_VERSION=1)["return"]
+        if result["result"] == "success":
+            return result["addr"]
+        else:
+            print "Error!! %s" % result["result"]        
+
+#not tested yet.
+    def bitcoin_withdraw(self,address,amount_int,fee_int="",no_instant=False,green=False):
+    #string, int, (int, bool, bool)are optional
+
+        params = {"address":str(address),
+                "amount_int":int(amount_int),
+                "fee_int":int(fee_int),
+                "no_instant":no_instant,
+                "green":green
+                }
+        result = self.request("generic/bitcoin/send_simple",params,API_VERSION=1)["return"]
+        if result["result"] == "success":
+            return result
+        else:
+            print "Error!! %s" % result["result"]        

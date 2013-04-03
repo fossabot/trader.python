@@ -542,7 +542,7 @@ class Shell(cmd.Cmd):
 
     def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
-        mtgox.cancelall()
+        mtgox.cancel_all()
 
     def do_lag(self,args):
         """Shows the current Mt.Gox trading engine lag time"""

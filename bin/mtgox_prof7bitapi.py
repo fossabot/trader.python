@@ -97,14 +97,34 @@ def http_request(url):
     request = URLRequest(url)
     request.add_header('Accept-encoding', 'gzip')
     data = ""
-    with contextlib.closing(urlopen(request)) as response:
-        if response.info().get('Content-Encoding') == 'gzip':
-            with io.BytesIO(response.read()) as buf:
-                with gzip.GzipFile(fileobj=buf) as unzipped:
-                    data = unzipped.read()
-        else:
-            data = response.read()
-    return data
+    try:
+        with contextlib.closing(urlopen(request)) as response:
+            if response.info().get('Content-Encoding') == 'gzip':
+                with io.BytesIO(response.read()) as buf:
+                    with gzip.GzipFile(fileobj=buf) as unzipped:
+                        data = unzipped.read()
+            else:
+                data = response.read()
+        return data
+    except urllib2.HTTPError as e:
+        #HTTP Error ie: 500/502/503 etc #these should be split.
+        print 'HTTP Error %s: %s' % (e.code, e.msg)
+        print "URL: %s" % (e.filename)
+        if e.fp:
+            datastring = e.fp.read()
+            if "error" in datastring:
+                print "Error: %s" % datastring
+                if "Order not found" in datastring:
+                    return datastring
+    except urllib2.URLError as e:
+        print "URL Error:", e 
+    except ssl.SSLError as e:
+        print "SSL Error: %s." % e  #Read error timeout. (Removed timeout variable)
+    except Exception as e:
+        print "General Error: %s" % e
+    else:
+    #print this before going back up to the While Loop and running this entire function over again
+        print "Retrying Connection...."
 
 def start_thread(thread_func):
     """start a new thread to execute the supplied function"""
@@ -1231,6 +1251,7 @@ class OrderBook(BaseObject):
         self.gox = gox
 
         self.signal_changed = Signal()
+#added to delay startup of main program until its downloaded and this variable is True.
         self.fulldepth_downloaded = False
 
         gox.signal_ticker.connect(self.slot_ticker)
@@ -1239,14 +1260,18 @@ class OrderBook(BaseObject):
         gox.signal_userorder.connect(self.slot_user_order)
         gox.signal_fulldepth.connect(self.slot_fulldepth)
 
-        self.bids = [] # list of Order(), lowest ask first
-        self.asks = [] # list of Order(), highest bid first
+        self.bids = [] # list of Order(), highest bid first
+        self.asks = [] # list of Order(), lowest ask first
         self.owns = [] # list of Order(), unordered list
 
         self.bid = 0
         self.ask = 0
         self.total_bid = 0
         self.total_ask = 0
+#added/then commented out
+    # def sort(self):
+    #     self.bids.sort(key=lambda o: o.price)
+    #     self.asks.sort(key=lambda o: o.price, reverse=True)
 
     def slot_ticker(self, dummy_sender, data):
         """Slot for signal_ticker, incoming ticker message"""
@@ -1321,6 +1346,7 @@ class OrderBook(BaseObject):
                     self.owns.pop(i)
                     break
         else:
+#what is this "found" doing?
             found = False
             for order in self.owns:
                 if order.oid == oid:
@@ -1330,6 +1356,7 @@ class OrderBook(BaseObject):
                         "price", int2str(price, self.gox.currency),
                         "volume:", int2str(volume, "BTC"),
                         "status:", status)
+#added a bunch                    
                     order.price = price
                     order.volume = volume
                     order.typ = typ
@@ -1372,6 +1399,7 @@ class OrderBook(BaseObject):
 
         self.bid = self.bids[0].price
         self.ask = self.asks[0].price
+#added this        
         self.fulldepth_downloaded = True
         self.signal_changed(self, ())
 
@@ -1420,6 +1448,8 @@ class OrderBook(BaseObject):
             lnew = Order(price, total_vol, "ask")
             self.asks.append(lnew)
             self._update_total_ask(total_vol)
+#added this        
+            self.ask = self.asks[0].price
 
     def _update_bids(self, price, total_vol):
         """update volume at this price level, remove entire level
@@ -1447,6 +1477,8 @@ class OrderBook(BaseObject):
             lnew = Order(price, total_vol, "ask")
             self.bids.append(lnew)
             self._update_total_bid(total_vol, price)
+#added this
+            self.bid = self.bids[0].price
 
     def _update_total_ask(self, volume):
         """update total BTC on the ask side"""

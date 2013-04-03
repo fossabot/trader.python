@@ -13,26 +13,34 @@ mtgox = mtgoxhmac.Client()
 class Shell(cmd.Cmd):
     def emptyline(self):
         pass
-    print 'Last Mt.Gox Open order: ', mtgox.last_order()
-    print mtgox.get_info()
+    #print 'Last Mt.Gox Open order: ', mtgox.last_order()
+    #print mtgox.get_info()
     prompt = '(buy|sell size price) '
     def do_sell(self, arg):
-        size, price = arg.split()
-        mtgox.sell_btc(size,price)
+         size, price = arg.split()
+         size = float(size)
+         price = float(price)
+         mtgox.order_new('ask',size,price)
 
     def do_buy(self, arg):
-       size, price = arg.split()
-       mtgox.buy_btc(size,price)
+        size, price = arg.split()
+        size = float(size)
+        price = float(price)
+        mtgox.order_new('bid',size,price)
 
     def do_orders(self,arg):
-        orders = mtgox.get_orders()
+        orders = mtgox.get_orders()['orders']
         try:
-            print orders['order_id']
+            for order in orders:
+                print order['oid']
         except:
             return
-        
-    def do_EOF(self, arg):
+
+    def do_exit(self,arg):
         print "Session Terminating......."
+        return True
+    def do_EOF(self, arg):
+        do_exit(self)
         return True
 
 

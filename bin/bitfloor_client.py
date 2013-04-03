@@ -416,10 +416,28 @@ class Shell(cmd.Cmd):
         orders = bitfloor.orders()
         orders = sorted(orders, key=lambda x: x['price'])
         for order in orders:
+            buytotal,selltotal = 0,0
+            numbuys,numsells = 0,0
+            amtbuys,amtsells = 0,0
+            buyavg,sellavg = 0,0
             uuid = order['order_id']
             shortuuid = uuid[:8]+'-?-'+uuid[-12:]
             ordertype="Sell" if order['side']==1 else "Buy"
             print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
+            if order['type'] == 0:
+                buytotal += D(order['price'])*D(order['size'])
+                numbuys += D('1')
+                amtbuys += D(order['size'])
+            elif order['type'] == 1:
+                selltotal += D(order['price'])*D(order['size'])
+                numsells += D('1')
+                amtsells += D(order['size'])
+        if amtbuys:
+            buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
+        if amtsells:
+            sellavg = D(selltotal/amtsells).quantize(D(cPrec))
+        print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
+        print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         bitfloor.cancel_all()

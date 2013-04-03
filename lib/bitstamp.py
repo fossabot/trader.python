@@ -140,7 +140,7 @@ class Client:
     #limit order
         url = "sell/"
         params = {"amount":amount,
-            "price":price}
+                "price":price}
         return self.post(url,params) #Json dict. Keys: id - order id, datetime - date and time, type - buy or sell (0 - buy; 1 - sell), price - price, amount - amount
 
     def create_bitstampcode(self,usd=None,btc=None):

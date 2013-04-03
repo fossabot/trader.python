@@ -6,17 +6,20 @@ Some instructions are included in the source code(as docstrings, and by typing "
 Secure Authentication via password using 256-bit AES Encryption of your API-key and API-secret. (see Usage->Login with API-key/secret)
 Buy and sell bitcoins. (manually)
 Limit Orders & Market orders.  (TODO: Market order on bitfloor)
+Automatic Dynamic Streaming Updates via the websocket(Socket.IO)
 ##Commands (" " is the command name, but in the program you have to use lowercase)
-"Buy/Sell" Simple - X amount of BTC    (TODO: Specify buy/sell amounts in USD also )
+"Buy/Sell" Simple - X amount of BTC   (or in USD - put usd on the command)
 "Buy/Sell" Spread - X amount of BTC between price A and price B of equally sized specified # of chunks (use with the word 'random' to randomize this a bit)
-"Orders" - List your orders
-"Cancelall" Cancel ALL orders at once (or a single one)	TODO:(Specify a cancel range somehow)
+"Orders" - List your orders (TODO: upgrade to API 2)
+"Cancel" - Cancel a single order (or a range (ie order #1-#20)) - sorted by price and numbered for convenience. no need to use order_id UUID.
+"Cancelall" - Cancel ALL orders at once.
 "Balance" - Display account balance (of BTC and USD) and USD value of BTC+USD
-"Ticker" - Display ticker (sell,buy,last,vol,vwap,high,low,avg)	the time frame for high, low, vol, avg, vwap ... is sliding 24 hours
-"Updown" - Log the ticker to a file (and check or print it out later)
+"Ticker" - Display ticker (sell,buy,last,vol,vwap,high,low,avg)	"the time frame for high, low, vol, avg, vwap ... is sliding 24 hours"-mtgox.
+"Updown" - Log the ticker to a file; Rising/Falling Beep Tones Sequences on boundary threshhold change. (also can check logs later)
 "Spread" - Display the bid/ask spread 
 "Lag" - Show the current Mt.Gox Lag (trading lag)
 "Book"- Print the order books out to howmany length you want (Display depth) (current order book of bids/asks) = printorderbook()
+	- Automatically updated with the freshest possible date by websocket(Socket.IO)
 
 ###Depth Functions
 "Obip- Calculate the "order book implied price", by finding the weighted average price of coins <width> BTC up and down from the spread.

@@ -85,8 +85,10 @@ def validateboth(strng):
     search = re.compile(r'[^a-zA-Z0-9. ]').search
     return not bool(search(strng))
 
-def stripoffensive(strng):
+def stripoffensive(strng,additional=""):
     pattern = r'[^a-zA-Z0-9. ]'
+    if additional:
+        pattern = pattern[:-1] + additional + ']'
     new = re.sub(pattern, '', strng)
     return new
 
@@ -98,7 +100,7 @@ def refreshbook(maxage=180):
     entirebook.sort()      #sort it
     return entirebook
 def printorderbook(size=15,maxage=120):
-    #entirebook = refreshbook(maxage)		#the full depth book was inaccurate from lag or something
+    #entirebook = refreshbook(maxage)       #the full depth book was inaccurate from lag or something
     entirebook = Book.parse(mtgox.get_depth())
     entirebook.sort()
     #start printing part of the order book (first 15 asks and 15 bids)
@@ -185,31 +187,6 @@ class Shell(cmd.Cmd):
                 return self.do_exit(self)
             self.cmdloop()
 
-
-#===> old book method.
-
-    #Grab the full_depth from mtgox at initial startup if its been more than 720 seconds since last grab.
-    # try:
-    #     depthvintage,fulldepth = updatedepthdata(mtgox,maxage=720)
-    #     pass
-    # except IOError as e:
-    #     try:
-    #         with open(os.path.join(partialpath + 'mtgox_fulldepth.txt'),'w') as f:
-    #             f.flush()
-    #             f.close()
-    #         print "Attempting to write full depth to log file for the first time....."
-    #         print "Download full depth and Create the full depth file? Y/n: "
-    #         response = raw_input("N/No or Leave blank for Yes(default)")
-    #         if not(response):
-    #             depthvintage,fulldepth = writedepth(mtgox)
-    #     except:
-    #         traceback.print_exc()
-    #         print "Something went wrong. IO Error trying to READ, then could not initially CREATE the fulldepth file."
-
-    #start out by printing the order book and the instructions
-    
-    #printorderbook()
-    
     #give a little user interface       
     print 'Type exit to exit gracefully or Ctrl+Z or Ctrl+C to force quit'
     print 'Type help to show the available commands'
@@ -224,8 +201,8 @@ class Shell(cmd.Cmd):
             printOrderBooks(socketbook.asks,socketbook.bids,size)
         except:
             printOrderBooks(socketbook.asks,socketbook.bids)
-        
-    
+
+
     def do_balancenotifier(self,args):
         """Check your balance every 30 seconds and BEEP and print something out when you receive the funds (either btc or usd)"""
         def bn(firstarg,notifier_stop):
@@ -286,13 +263,19 @@ class Shell(cmd.Cmd):
             thread1 = threading.Thread(target = tickeralert, args=(None,stopbot_stop)).start()
 
 
-
     def do_new(self,args):
         """New function to test out new depth functions"""
         try:
             depthparser.goxnewcalc(mtgox,args)
         except Exception as e:
             print "Was expecting 3-4 arguments: (bid|ask), (btc|usd), amount, price=optional"
+    
+    def do_functest(self,args):
+        """test function to test out high/low"""
+        print "High Bid is: ", socketbook.bid/1E5
+        print "Low ask is: ", socketbook.ask/1E5
+        mtgox.order_quote("bid",1000,socketbook.bid/1E5)
+
 
     def do_updown(self,args):
         """Logs ticker to file, spits out an alert and beeps if last price is above or below the range given\n""" \
@@ -396,12 +379,46 @@ class Shell(cmd.Cmd):
     def do_obip(self, args):
         """Calculate the "order book implied price", by finding the weighted\n""" \
         """average price of coins <width> BTC up and down from the spread.\n""" \
-        """Usage: <width> optional:(BTC/USD) """
+        """Order book implied price. Weighted avg price of BTC <width> up and down from the spread.\n""" \
+        """Usage: <width> optional:(BTC/USD) \n""" \
+        """usage: obip amount "USD"/"BTC"(optional) \n"""
+        def obip(amount,isBTCUSD="BTC"):
+            amount = float(amount)
+            def calc_obip(l,amount,isBTCUSD="BTC"):
+                totalBTC, totalprice = 0,0
+                if isBTCUSD.upper()=='BTC':
+                    for x in l:
+                        if totalBTC < amount:
+                            totalBTC+=(x.volume/1E8)
+                            totalprice+=(x.price/1E5) * (x.volume/1E8)
+                            if totalBTC >= amount:
+                                totalprice-=(totalBTC-amount) * (x.price/1E5)
+                                totalBTC=amount
+                                obip=(totalprice/totalBTC)
+                else:
+                    for x in l:
+                        if totalprice < amount:
+                            totalBTC+=(x.volume/1E8)
+                            totalprice+=(x.price/1E5) * (x.volume/1E8)
+                            if totalprice >= amount:
+                                overBTC = (totalprice-amount) / (x.price/1E5)
+                                totalBTC -= overBTC
+                                totalprice -= (x.price/1E5) * overBTC
+                                obip=(totalprice/totalBTC)
+                return obip,totalBTC
+
+            obips,sbtc = calc_obip(socketbook.asks,amount,isBTCUSD)
+            obipb,bbtc = calc_obip(socketbook.bids,amount,isBTCUSD)
+            obip = (obips+obipb)/2.0
+            if isBTCUSD.upper()=='USD':
+                print "The ask side was: %s BTC. The bid side was %s BTC." % (sbtc,bbtc)
+            print "The ask side OBIP was: $%.5f. The bid side OBIP was: $%.5f" % (obips,obipb)
+            print "The VWAP(OBIP) of BTC, %s %s up and down from the spread is: $%.5f USD." % (amount,isBTCUSD,obip)
+
         args = stripoffensive(args)
         args = args.split()
-        newargs = tuple(floatify(args))
-        
-        obip(mtgox,*newargs)
+        newargs = tuple(args)
+        obip(*newargs)
 
     def do_asks(self,args):
         """Calculate the amount of bitcoins for sale at or under <pricetarget>.\n""" \
@@ -419,23 +436,17 @@ class Shell(cmd.Cmd):
             except:
                 self.onecmd('help asks')
                 return
-        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)
         if response == 'over':
-            f = lambda price,pricetarget: price >= pricetarget
+            f = lambda price,pricetarget: price >= pricetarget*1E5
         else:
-            f = lambda price,pricetarget: price <= pricetarget
+            f = lambda price,pricetarget: price <= pricetarget*1E5
         n_coins = 0.0
         total = 0.0
-        try:
-            depth = fulldepth
-            asks=depth["data"]["asks"]
-        except KeyError:
-            print "Failure to retrieve order book data. Try again later."
-            return
-        for ask in asks:
-            if f(ask["price"], pricetarget):
-                n_coins += ask["amount"]
-                total += (ask["amount"] * ask["price"])
+
+        for ask in reversed(socketbook.asks):
+            if f(ask.price, pricetarget):
+                n_coins += ask.volume/1E8
+                total += (ask.volume/1E8 * ask.price/1E5)
         print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, pricetarget, total)
     
     def do_bids(self,args):
@@ -453,44 +464,38 @@ class Shell(cmd.Cmd):
             except:
                 self.onecmd('help bids')
                 return
-        depthvintage,fulldepth = updatedepthdata(mtgox,maxage=180)          
         if response == 'under':
-            f = lambda price,pricetarget: price <= pricetarget
+            f = lambda price,pricetarget: price <= pricetarget*1E5
         else:
-            f = lambda price,pricetarget: price >= pricetarget
+            f = lambda price,pricetarget: price >= pricetarget*1E5
         n_coins = 0.0
         total = 0.0
-        try:
-            depth = fulldepth
-            bids=depth["data"]['bids']
-        except KeyError:
-            print "Failure to retrieve order book data. Try again later."
-            return
-        for bid in bids:
-            if f(bid["price"], pricetarget):
-                n_coins += bid["amount"]
-                total += (bid["amount"] * bid["price"])
-        print "There are %.11g bitcoins demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,pricetarget, total)
 
+        for bid in socketbook.bids:
+            if f(bid.price, pricetarget):
+                n_coins += bid.volume/1E8
+                total += (bid.volume/1E8 * bid.price/1E5)
+        print "There are %.11g bitcoins demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,pricetarget, total)
 
 
     def do_buy(self, args):
         """(market order): buy size \n""" \
+        """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
         """(limit order): buy size price \n""" \
         """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
         try:
             args = stripoffensive(args)
             args = args.split()
-            newargs = tuple(floatify(args))
+            newargs = tuple(decimalify(args))
             if len(newargs) == 1:
-                mtgox.buy_btc(*newargs)
+                mtgox.order_new('bid',*newargs)
             elif "usd" in newargs:
                 buyprice = mtgox.get_ticker()["buy"]
                 amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
-                mtgox.buy_btc(amt.quantize(bPrec),buyprice) #goes as a market order (can be limit also if buyprice omitted.)
+                mtgox.order_new('bid',amt.quantize(bPrec),buyprice)  #goes as a limit order (can be market also if you delete buyprice here)           
             elif not(len(newargs) == 3):
-                spread('mtgox',mtgox,'buy', *newargs)   # pass arguments back to spread() function in common.py
+                spread('mtgox',mtgox,'bid', *newargs)   # pass arguments back to spread() function in common.py
             else:
                 raise UserError
         except Exception as e:
@@ -500,20 +505,21 @@ class Shell(cmd.Cmd):
 
     def do_sell(self, args):
         """(market order): sell size \n""" \
+        """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n""" \
         """(limit order): sell size price \n""" \
         """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = stripoffensive(args)
             args = args.split()
-            newargs = tuple(floatify(args))
+            newargs = tuple(decimalify(args))
             if len(newargs) == 1:
-                mtgox.sell_btc(*newargs)
+                mtgox.order_new('ask',*newargs)
             elif "usd" in newargs:
                 sellprice = mtgox.get_ticker()["sell"]
                 amt = D(newargs[0]) / D(sellprice)       #convert USD to BTC.
-                mtgox.sell_btc(amt.quantize(bPrec),sellprice) #goes as a market order (can be limit also if buyprice omitted.)                
+                mtgox.order_new('ask',amt.quantize(bPrec),sellprice) #goes as a limit order (can be market also if you delete buyprice here)
             elif not(len(newargs) == 3):
-                spread('mtgox',mtgox,'sell', *newargs)
+                spread('mtgox',mtgox,'ask', *newargs)
             else:
                 raise UserError
         except Exception as e:
@@ -550,15 +556,6 @@ class Shell(cmd.Cmd):
         except:
             self.onecmd('help spread')
 
-    # def do_book(self,size):
-    #     """Download and print the order book of current bids and asks of depth $size"""
-    #     try:
-    #         size = stripoffensive(size)
-    #         size = int(size)
-    #         printorderbook(size,maxage=1)
-    #     except:
-    #         printorderbook(maxage=1) 
-
     def do_orders(self,args):
         """Print a list of all your open orders, including pending and lacking enough funds"""
         try:
@@ -566,15 +563,38 @@ class Shell(cmd.Cmd):
             time.sleep(1)
             orders = mtgox.get_orders()['orders']
             orders = sorted(orders, key=lambda x: x['price'])
+            buytotal,selltotal = 0,0
+            numbuys,numsells = 0,0
+            amtbuys,amtsells = 0,0
+            buyavg,sellavg = 0,0
+            numorder = 0
             for order in orders:
+                numorder += 1
+                uuid = order['oid']
+                shortuuid = uuid[:8]+'-?-'+uuid[-12:]                
                 ordertype="Sell" if order['type'] == 1 else "Buy"
                 if order['status'] == 1:
-                    print ordertype,'order %r  Price $%s @ Amount: %s' % (str(order['priority']),order['price'],order['amount'])
+                    print '%s = %s | %s | %s BTC @ $%s' % (numorder,ordertype,order['oid'],order['amount'],order['price'])
                 elif order['status'] == 2:
-                    print ordertype,'order %r PENDING - Price $%s @ Amount: %s' % (str(order['priority']),order['price'],order['amount'])
+                    print '%s = %s | %s | %s BTC PENDING @ $%s' % (numorder,ordertype,shortuuid,order['amount'],order['price'])
                 elif order['status'] == 0:
-                    print ordertype,'order %r NOT ENOUGH FUNDS for: %s BTC' % (str(order['priority']),order['amount'])
+                    print '%s = %s | %s OUT OF FUNDS %s BTC @ $%s' % (numorder,ordertype,shortuuid,order['amount'],order['price'])
+                if order['type'] == 2:
+                    buytotal += D(order['price'])*D(order['amount'])
+                    numbuys += D('1')
+                    amtbuys += D(order['amount'])
+                elif order['type'] == 1:
+                    selltotal += D(order['price'])*D(order['amount'])
+                    numsells += D('1')
+                    amtsells += D(order['amount'])
+            if amtbuys:
+                buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
+            if amtsells:
+                sellavg = D(selltotal/amtsells).quantize(D(cPrec))
+            print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
+            print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
+            print e
             return
 
     def do_tradehist24(self,args):
@@ -599,14 +619,64 @@ class Shell(cmd.Cmd):
         else:
             tradehistory.readdepth()
 
+    def do_cancel(self,args):
+        try:
+            orders = mtgox.get_orders()['orders']
+            orders = sorted(orders, key=lambda x: x['price'])
+            numorder = 0
+            numcancelled = 0
+            for order in orders:
+                ordertype="Sell" if order['type'] == 1 else "Buy"
+                numorder += 1
+                if order['status'] == 1:
+                    OPX = 'O'
+                elif order['status'] == 2:
+                    OPX = 'P'
+                elif order['status'] == 0:
+                    OPX = 'X'
+                else:
+                    OPX = '|'
+                print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['oid'],order['amount'],order['price'])
+            print "Use spaces or commas to seperate order numbers: 1,2,3"
+            print "Use a - to specify a range: 1-20. "
+            while True:
+                orderlist = ""
+                useRange=False
+                orderlist = raw_input("Which order numbers would you like to cancel?: [ENTER] quits.\n")
+                if orderlist == "":
+                    break
+                orderlist = stripoffensive(orderlist,',-')
+                if "," in orderlist:
+                    orderlist = orderlist.split(',')
+                if '-' in orderlist:
+                    userange = True
+                    orderlist = orderlist.split('-')
+                else:
+                    orderlist = orderlist.split()
+                numorder = 0
+                for order in orders:
+                    numorder += 1
+                    if userange == True:
+                        if numorder >= int(orderlist[0]) and numorder <= int(orderlist[1]):
+                            result = mtgox.cancel_one(order['oid'])
+                            numcancelled += 1
+                    elif str(numorder) in orderlist:
+                        result = mtgox.cancel_one(order['oid'])
+                        numcancelled += 1
+                if numcancelled > 1:
+                    print "All Orders have been Cancelled!!!!!"
+        except Exception as e:
+            print e
+            return
+
     def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
-        mtgox.cancelall()
+        mtgox.cancel_all()
 
     def do_lag(self,args):
         """Shows the current Mt.Gox trading engine lag time"""
         lag = mtgox.lag()
-        print 'Current order lag is %r' % (lag['lag_secs'])
+        print "Current order lag is %r seconds " % (lag['lag_secs'])
 
     def do_balance(self,args):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
@@ -619,12 +689,12 @@ class Shell(cmd.Cmd):
     def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions"""
         btchistory=mtgox.get_history_btc()
-        print btchistory
+        print "%s" % btchistory.decode('utf-8')
 
     def do_usdhistory(self,args):
         """Prints out your entire trading history of USD transactions"""
         usdhistory=mtgox.get_history_usd()
-        print usdhistory
+        print "%s" % usdhistory.decode('utf-8')
 
     def do_fees(self,args):
         """Loads the fee module to calculate fees"""

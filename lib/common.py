@@ -123,49 +123,6 @@ def stddev(x):
     import math
     return math.sqrt(average(x))
 
-def obip(mtgox,amount,isUSD='BTC'):
-    """Order book implied price. Weighted avg price of BTC <width> up and down from the spread."""
-    """usage: obip(mtgoxobject,amount,"USD"/"BTC"(optional))"""
-    updatedepthdata(mtgox)
-    amount = float(amount)
-    s=fulldepth["data"]['asks']
-    b=fulldepth["data"]['bids']
-    s=floatify(s)
-    b=floatify(b)
-    b.reverse()
-    
-    def do_obip(l,amount,isUSD='BTC'):
-        totalBTC, totalprice = (0,0)
-        if isUSD=='BTC':
-            for x in l:
-                if totalBTC < amount:
-                    totalBTC+=x['amount']
-                    totalprice+=x['price'] * x['amount']
-                    if totalBTC >= amount:
-                        totalprice-=x['price']*(totalBTC-amount)
-                        totalBTC=amount
-                        obip=totalprice/totalBTC
-        else:
-            for x in l:
-                if totalprice < amount:
-                    totalBTC+=x['amount']
-                    totalprice+=x['price'] * x['amount']
-                    if totalprice >= amount:
-                        overBTC = ((totalprice-amount) / x['price'])
-                        totalBTC -= overBTC
-                        totalprice -= x['price'] * overBTC
-                        obip=totalprice/totalBTC
-        return obip,totalBTC
-
-    obips,sbtc = do_obip(s,amount,isUSD)
-    obipb,bbtc = do_obip(b,amount,isUSD)
-    obip = (obips+obipb)/2.0 
-    if isUSD=='USD':
-        print "The ask side was: %s BTC. The bid side was %s BTC." % (sbtc,bbtc)
-    print "The ask side OBIP was: $%.5f. The bid side OBIP was: $%.5f" % (obips,obipb)
-    print "The weighted average price(OBIP) of BTC, %s %s up and down from the spread is:" % (amount,isUSD),
-    print "$%.5f USD. Data vintage: %.2f seconds."  % (obip,(time.time() - float(depthvintage)))
-
 #calculate and print the total BTC between price A and B
 def depthsumrange (bookside,lowest=1,highest=100):
     """Usage is: bookside(Book object) lowest(optional) highest(optional)"""
@@ -243,19 +200,19 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
     """Simple trade also allowed: (buy/sell) amount price"""
     """Added in some optional randomness to it"""
     orderids = []
-    sidedict = {0:"Buy",1:"Sell","buy":"Buy","sell":"Sell"}
-    mapdict = {"bitfloor":"order_id","mtgox":"oid"}
+    sidedict = {0:"Buy",1:"Sell","bid":"Buy","ask":"Sell"}
+    mapdict = {"bitfloor":"order_id","mtgox":"data"}
     randomnesstotal = 0
-    loop_price = float(price_lower)
-    price_range = float(price_upper) - float(price_lower)
+    loop_price = D(price_lower)
+    price_range = D(price_upper) - D(price_lower)
     if exchangename == 'bitfloor':
         cPrec = '0.01'
         bPrec = '0.00001'
     elif exchangename == 'mtgox':
         cPrec = '0.00001'
         bPrec = '0.00000001'
-    price_chunk = D(float(price_range)/ float(chunks)).quantize(D(cPrec))
-    chunk_size = D(float(size) / float(chunks)).quantize(D(bPrec))
+    price_chunk = D(D(price_range)/ D(chunks)).quantize(D(cPrec))
+    chunk_size = D(D(size) / D(chunks)).quantize(D(bPrec))
     for x in range (0, int(chunks)):
         randomchunk = chunk_size
         if dorandom.lower()=='random':
@@ -268,10 +225,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                     randomchunk += randomness
         if silent == False:
             print '%sing... Chunk #%s = %s BTC @ $%s' % (sidedict[side],x+1,randomchunk,loop_price)
-        if exchangename == 'bitfloor':
-            result = exchangeobject.order_new(side=side, size=randomchunk, price=loop_price)
-        elif exchangename == 'mtgox':
-            result = {'buy':exchangeobject.buy_btc,'sell':exchangeobject.sell_btc}[side](amount=randomchunk, price=loop_price)            
+        result = exchangeobject.order_new(side, randomchunk, loop_price)  
         if result:
             if not("error" in result):
                 orderids.append(result[mapdict[exchangename]])
@@ -286,7 +240,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
             else:
                 print "Order failed."
 
-        loop_price += float(price_chunk)
+        loop_price += D(price_chunk)
 
     return orderids
         
