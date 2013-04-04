@@ -93,40 +93,47 @@ class Client(object):
         return self._send_post('/accounts')
 
     def _send_get(self, url, payload={}):
-        body = urllib.urlencode(payload)
-        conn = HTTPConn(config['host'], config['data_port'])
-        conn.request("GET", url, body)
-        resp = conn.getresponse()
-        s = resp.read()
-        conn.close()
-        return json.loads(s, object_hook=json_ascii.decode_dict)
+        try:
+            body = urllib.urlencode(payload)
+            conn = HTTPConn(config['host'], config['data_port'])
+            conn.request("GET", url, body)
+            resp = conn.getresponse()
+            s = resp.read()
+            conn.close()
+            return json.loads(s, object_hook=json_ascii.decode_dict)
+        except Exception as e:
+            print e
 
     def _send_post(self, url, payload={}):
-        payload = copy.copy(payload) # avoid modifying the original dict
+        try:
+            payload = copy.copy(payload) # avoid modifying the original dict
 
-        # add some stuff to the payload
-        payload['nonce'] = int(time.time()*1e6)
+            # add some stuff to the payload
+            payload['nonce'] = int(time.time()*1e6)
 
-        body = urllib.urlencode(payload)
+            body = urllib.urlencode(payload)
 
-        sig = hmac.new(base64.b64decode(self._secret), body, hashlib.sha512).digest()
-        sig_b64 = base64.b64encode(sig)
+            sig = hmac.new(base64.b64decode(self._secret), body, hashlib.sha512).digest()
+            sig_b64 = base64.b64encode(sig)
 
-        headers = {
-            'bitfloor-key': self._key,
-            'bitfloor-sign': sig_b64,
-            'bitfloor-passphrase': self._passphrase,
-            'bitfloor-version': config['version'],
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Content-Length': len(body)
-        }
+            headers = {
+                'bitfloor-key': self._key,
+                'bitfloor-sign': sig_b64,
+                'bitfloor-passphrase': self._passphrase,
+                'bitfloor-version': config['version'],
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': len(body)
+            }
 
-        conn = HTTPConn(config['host'], config['order_port'])
-        conn.request("POST", url, body, headers)
-        resp = conn.getresponse()
-        s = resp.read()
-        conn.close()
-        return json.loads(s, object_hook=json_ascii.decode_dict)
+            conn = HTTPConn(config['host'], config['order_port'])
+            conn.request("POST", url, body, headers)
+            resp = conn.getresponse()
+            s = resp.read()
+            conn.close()
+            return json.loads(s, object_hook=json_ascii.decode_dict)
+        except Exception as e:
+            print e
+
 
     def floor_inc(self, n):
         return (D(str(n))/self._inc).quantize(D('1'), rounding=decimal.ROUND_DOWN)*self._inc

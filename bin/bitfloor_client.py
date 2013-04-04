@@ -16,6 +16,7 @@ import signal
 import traceback
 import logging
 import sys
+import socket
 
 
 bitfloor = bitfloorapi.Client()
@@ -154,9 +155,10 @@ class Shell(cmd.Cmd):
             # print "This is how I redirect and redisplay stdout to the logfile."
             # sys.stdout = sys.__stdout__
 #pre inits
-            TRADEAMOUNT = D('0.888')           #<--------- number of bitcoins to buy in each go.
-            BUYMAXPRICE = D('1000.0')         #<------max price for buys 
-            SELLMINPRICE = D('1.0')          #<------min price for sells
+            TRADEAMOUNT = D('0.88800')           #<--------- number of bitcoins to buy in each go.
+            BUYMAXPRICE = D('200.0')            #<------max price for buys 
+            SELLMINPRICE = D('100.0')          #<------min price for sells
+            TRADESATONCE = 1
             buyorderids = []
             sellorderids = []
             allorders = []
@@ -168,7 +170,7 @@ class Shell(cmd.Cmd):
             typedict = {0:"Buy",1:"Sell"}
             logging.info("Liquidbot started.")
             successes = open("successlog.txt",'a')
-            successes.write("Began at %s" % time.time())
+            successes.write("Began at %s\n" % time.time())
             #TRADEAMOUNT = raw_input("How much do you want the bot to trade per order:  ")
             while(not stop_event.is_set()):
 #loop inits                 
@@ -212,7 +214,7 @@ class Shell(cmd.Cmd):
                                 size = D(co["size"])
                                 price = D(co["price"])
                                 result = size * price
-                                logging.info("Success!! %s %s @ $ %s for %s BTC = %s <<<<<<><-><>>>>>>" % (typedict[co["side"]],co["status"],price,size,result))
+                                logging.info("Success!! %s %s @ $ %.2f for %s BTC = %.7f <<<<<<><-><>>>>>>" % (typedict[co["side"]],co["status"],price,size,result))
                                 if co["side"]==0:
                                     numbought += 1
                                     amtbought += size
@@ -220,55 +222,56 @@ class Shell(cmd.Cmd):
                                     numsold += 1
                                     amtsold += size
                                 logging.debug("Size of all buys: %s . Size of all sells: %s ." % (amtbought,amtsold))
-                                successes.write("%s %s @ %s = %s , %s %s" % (typedict[co["side"]],size,price,result,amtbought,amtsold))
+                                successes.write("%s %s @$ %.2f = %.7f , %s %s\n" % (typedict[co["side"]],size,price,result,amtbought,amtsold))
                                 successes.flush()
                             if co["status"]=='cancelled':
-                                logging.debug("%s order %s for %s BTC @ $%s has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"]))
+                                logging.debug("%s order %s for %s BTC @ $%.2f has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"]))
                             iddicts[co["side"]].remove(co["order_id"])
                             allorders = buyorderids + sellorderids                
                 countcycles +=1 
 #order placement                
                 logging.debug("The spread is now: %s...NEW ORDERING CYCLE starting: # %s" % (spr,countcycles))
 #method 1
-                if spr > D('0.10') and (highbid <= BUYMAXPRICE  or lowask >= SELLMINPRICE):
-                    #set the target prices of the order pair to 1 cent higher or lower than the best order book prices
-                    targetbid = highbid + D('0.01')
-                    targetask = lowask - D('0.01')
-                    #start eating into profits to find an uninhabited pricepoint
-                    #do not exceed values specified by BUYMAXPRICE or SELLMINPRICE
-                    while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
-                        targetbid += D('0.01')
-                    while targetask in onaskbookprice and not(targetask in onbidbookprice):
-                        targetask -= D('0.01')
-                    if len(buyorderids) < 2 and spr > D('0.10') and numsold >= numbought:
-                        if targetbid <= BUYMAXPRICE:
-                            try:
-                                sys.stdout = sl
-                                buyorderids += spread('bitfloor',bitfloor,0,TRADEAMOUNT,targetbid)
-                                sys.stdout = sys.__stdout__
-                                countbuys += 1
-                            except:
-                                logging.error(traceback.print_exc())
-                        else:
-                            logging.debug("EXCEEDED BUYMAXPRICE of: %s" % BUYMAXPRICE)
-                    if len(sellorderids) < 2 and spr > D('0.10') and numbought >= numsold:
-                        if targetask >= SELLMINPRICE:
-                            try:
-                                sys.stdout = sl
-                                sellorderids += spread('bitfloor',bitfloor,1,TRADEAMOUNT,targetask)
-                                sys.stdout = sys.__stdout__
-                                countsells += 1
-                            except:
-                                logging.error(traceback.print_exc())
-                        else:
-                            logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)
+                # if spr > D('0.10') and (highbid <= BUYMAXPRICE  or lowask >= SELLMINPRICE):
+                #     #set the target prices of the order pair to 1 cent higher or lower than the best order book prices
+                #     targetbid = highbid + D('0.01')
+                #     targetask = lowask - D('0.01')
+                #     #start eating into profits to find an uninhabited pricepoint
+                #     #do not exceed values specified by BUYMAXPRICE or SELLMINPRICE
+                #     while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
+                #         targetbid += D('0.01')
+                #     while targetask in onaskbookprice and not(targetask in onbidbookprice):
+                #         targetask -= D('0.01')
+                #     if len(buyorderids) < TRADESATONCE and spr > D('0.10') and numsold >= numbought:
+                #         if targetbid <= BUYMAXPRICE:
+                #             try:
+                #                 sys.stdout = sl
+                #                 buyorderids += spread('bitfloor',bitfloor,0,TRADEAMOUNT,targetbid)
+                #                 sys.stdout = sys.__stdout__
+                #                 countbuys += 1
+                #             except:
+                #                 logging.error(traceback.print_exc())
+                #         else:
+                #             logging.debug("EXCEEDED BUYMAXPRICE of: %s" % BUYMAXPRICE)
+                #     if len(sellorderids) < TRADESATONCE and spr > D('0.10') and numbought >= numsold:
+                #         if targetask >= SELLMINPRICE:
+                #             try:
+                #                 sys.stdout = sl
+                #                 sellorderids += spread('bitfloor',bitfloor,1,TRADEAMOUNT,targetask)
+                #                 sys.stdout = sys.__stdout__
+                #                 countsells += 1
+                #             except:
+                #                 logging.error(traceback.print_exc())
+                #         else:
+                #             logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)
 #method 2
-                if spr < D('0.10'):
+#changes
+                if spr: # > D('0.10'):
                     logging.debug("Starting second method. ")
                     #Try to place order INSIDE the spread.
                     targetbid = onaskbookprice[1]           #gave up and took the second price point
                     targetask = onbidbookprice[1]
-                    if len(buyorderids) < 2 and numsold >= numbought:
+                    if len(buyorderids) < TRADESATONCE and numsold >= numbought:
                         if targetbid <= BUYMAXPRICE:
                             try:
                                 sys.stdout = sl
@@ -279,7 +282,7 @@ class Shell(cmd.Cmd):
                                 logging.error(traceback.print_exc())
                         else:
                             logging.debug("EXCEEDED BUYMAXPRICE of: %s" % BUYMAXPRICE)
-                    if len(sellorderids) < 2 and numbought >= numsold:
+                    if len(sellorderids) < TRADESATONCE and numbought >= numsold:
                         if targetask >= SELLMINPRICE:
                             try:
                                 sys.stdout = sl
@@ -291,7 +294,7 @@ class Shell(cmd.Cmd):
                         else:
                             logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)                                    
 #restart the loop 
-                stop_event.wait(10)
+                stop_event.wait(5)
                 
                 
         global t1_stop
@@ -307,7 +310,7 @@ class Shell(cmd.Cmd):
         """(spread order): buy size price_lower price_upper chunks ("random")"""
         try:
             args = arg.split()
-            newargs = tuple(floatify(args))
+            newargs = tuple(decimalify(args))
             if len(newargs) not in (1,3):
                 spread('bitfloor',bitfloor, 0, *newargs)
             else:
@@ -323,7 +326,7 @@ class Shell(cmd.Cmd):
         """(spread order): sell size price_lower price_upper chunks("random")"""
         try:
             args = arg.split()
-            newargs = tuple(floatify(args))
+            newargs = tuple(decimalify(args))
             if len(newargs) not in (1,3):
                 spread('bitfloor',bitfloor, 1, *newargs)
             else:
@@ -367,19 +370,59 @@ class Shell(cmd.Cmd):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
         """Usage: amount price"""
         args = arg.split()
-        amount,price = tuple(floatify(args))
+        amount,price = tuple(decimalify(args))
         #seed initial balance data so we can check it during first run of the while loop
-        balance = floatify(bitfloor.accounts())
+        balance = decimalify(bitfloor.accounts())
         #seed the last price just in case we have the money already and we never use the while loop
-        last = float(bitfloor.ticker()['price'])
+        last = D(bitfloor.ticker()['price'])
         while balance[0]['amount'] < amount:
-            balance = floatify(bitfloor.accounts())
-            last = float(bitfloor.ticker()['price'])
+            balance = decimalify(bitfloor.accounts())
+            last = D(bitfloor.ticker()['price'])
             print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
             print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
             time.sleep(60)
-        if last > price:
-            spread('bitfloor',bitfloor,1,balance[0]['amount'],last,last+1,2)
+        while balance[0]['amount'] > 6:
+            if last > price+3:
+                bitfloor.cancel_all()
+                spread('bitfloor',bitfloor,1,5,last,last,1)
+            if last > price:
+                if balance > 5:
+                    spread('bitfloor',bitfloor,1,5,price,last+1,3)
+            if price > last:
+                if balance > 5 and price-last < 3:
+                    spread('bitfloor',bitfloor,1,5,last,price,2)
+
+            last = D(bitfloor.ticker()['price'])                    
+            balance = decimalify(bitfloor.accounts())
+            time.sleep(45)
+    def do_sellwhileaway2(self,arg):
+        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
+        """Usage: amount price"""
+        try:
+            args = arg.split()
+            amount,price = tuple(decimalify(args))
+            #seed initial balance data so we can check it during first run of the while loop
+            balance = decimalify(bitfloor.accounts())
+            #seed the last price just in case we have the money already and we never use the while loop
+            last = D(bitfloor.ticker()['price'])
+            while balance[0]['amount'] < amount:
+                balance = decimalify(bitfloor.accounts())
+                last = D(bitfloor.ticker()['price'])
+                print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
+                print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
+                time.sleep(60)
+            sold=False
+            while sold==False:
+                if last > price:
+                    spread('bitfloor',bitfloor,1,balance[0]['amount'],last,last+1,2)
+                else:
+                    spread('bitfloor',bitfloor,1,balance[0]['amount'],((last+price)/2)+0.5,price,2)
+                balance = decimalify(bitfloor.accounts())
+                last = D(bitfloor.ticker()['price'])
+        except:
+            print "Retrying:"
+            self.onecmd(self.do_sellwhileaway2(amount,price))
+
     def do_ticker(self,arg):
         """Print the entire ticker out or use one of the following options:\n""" \
         """[--buy|--sell|--last|--vol|--low|--high]"""
@@ -412,32 +455,39 @@ class Shell(cmd.Cmd):
             printorderbook()        
     def do_orders(self,arg):
         """Print a list of all your open orders"""
-        time.sleep(1)
-        orders = bitfloor.orders()
-        orders = sorted(orders, key=lambda x: x['price'])
-        for order in orders:
+        try:
+            time.sleep(1)
+            orders = bitfloor.orders()
+            orders = sorted(orders, key=lambda x: x['price'])
             buytotal,selltotal = 0,0
             numbuys,numsells = 0,0
             amtbuys,amtsells = 0,0
             buyavg,sellavg = 0,0
-            uuid = order['order_id']
-            shortuuid = uuid[:8]+'-?-'+uuid[-12:]
-            ordertype="Sell" if order['side']==1 else "Buy"
-            print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
-            if order['type'] == 0:
-                buytotal += D(order['price'])*D(order['size'])
-                numbuys += D('1')
-                amtbuys += D(order['size'])
-            elif order['type'] == 1:
-                selltotal += D(order['price'])*D(order['size'])
-                numsells += D('1')
-                amtsells += D(order['size'])
-        if amtbuys:
-            buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
-        if amtsells:
-            sellavg = D(selltotal/amtsells).quantize(D(cPrec))
-        print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
-        print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
+            numorder = 0        
+            for order in orders:
+                numorder += 1
+                uuid = order['order_id']
+                shortuuid = uuid[:8]+'-??-'+uuid[-12:]
+                ordertype="Sell" if order['side']==1 else "Buy"
+                print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
+                if order['side'] == 0:
+                    buytotal += D(order['price'])*D(order['size'])
+                    numbuys += D('1')
+                    amtbuys += D(order['size'])
+                elif order['side'] == 1:
+                    selltotal += D(order['price'])*D(order['size'])
+                    numsells += D('1')
+                    amtsells += D(order['size'])
+            if amtbuys:
+                buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
+            if amtsells:
+                sellavg = D(selltotal/amtsells).quantize(D(cPrec))
+            print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
+            print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
+        except Exception as e:
+            print e
+            return
+
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         bitfloor.cancel_all()

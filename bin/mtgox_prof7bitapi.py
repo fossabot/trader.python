@@ -46,6 +46,7 @@ import traceback
 import threading
 from urllib2 import Request as URLRequest
 from urllib2 import urlopen
+import urllib2
 from urllib import urlencode
 import weakref
 import websocket
@@ -1346,7 +1347,6 @@ class OrderBook(BaseObject):
                     self.owns.pop(i)
                     break
         else:
-#what is this "found" doing?
             found = False
             for order in self.owns:
                 if order.oid == oid:

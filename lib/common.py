@@ -13,6 +13,7 @@ import collections
 import decimal
 from decimal import Decimal as D
 import random
+import re
 
 fullpath = os.path.dirname(os.path.realpath(__file__))
 partialpath=os.path.join(fullpath + '\\..\\data\\')
@@ -203,15 +204,15 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
     sidedict = {0:"Buy",1:"Sell","bid":"Buy","ask":"Sell"}
     mapdict = {"bitfloor":"order_id","mtgox":"data"}
     randomnesstotal = 0
-    loop_price = D(price_lower)
-    price_range = D(price_upper) - D(price_lower)
+    loop_price = D(str(price_lower))
+    price_range = D(str(price_upper)) - D(str(price_lower))
     if exchangename == 'bitfloor':
         cPrec = '0.01'
         bPrec = '0.00001'
     elif exchangename == 'mtgox':
         cPrec = '0.00001'
         bPrec = '0.00000001'
-    price_chunk = D(D(price_range)/ D(chunks)).quantize(D(cPrec))
+    price_chunk = D(price_range/ D(chunks)).quantize(D(cPrec))
     chunk_size = D(D(size) / D(chunks)).quantize(D(bPrec))
     for x in range (0, int(chunks)):
         randomchunk = chunk_size
@@ -240,7 +241,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
             else:
                 print "Order failed."
 
-        loop_price += D(price_chunk)
+        loop_price += price_chunk
 
     return orderids
         
@@ -280,3 +281,22 @@ def getSlope(values):
     if delta == 0:
       return UNDEFINED_SLOPE
     return ((n*sxy)-(sx*sy))/delta
+
+def validatenum(strng):
+    search=re.compile(r'[^0-9. ]').search
+    return not bool(search(strng))
+
+def validatechar(strng):
+    search=re.compile(r'[^a-zA-Z ]').search
+    return not bool(search(strng))
+
+def validateboth(strng):
+    search = re.compile(r'[^a-zA-Z0-9. ]').search
+    return not bool(search(strng))
+
+def stripoffensive(strng,additional=""):
+    pattern = r'[^a-zA-Z0-9. ]'
+    if additional:
+        pattern = pattern[:-1] + additional + ']'
+    new = re.sub(pattern, '', strng)
+    return new

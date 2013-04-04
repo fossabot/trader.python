@@ -160,9 +160,12 @@ class Client:
                 if e.fp:
                     datastring = e.fp.read()
                     if "error" in datastring:
-                        print "Error: %s" % datastring
-                        if "Order not found" in datastring:
+                        if "<!DOCTYPE HTML>" in datastring:
+                            print "Error: Cloudflare - Website Currently Unavailable."
+                        elif "Order not found" in datastring:
                             return json.loads(datastring)
+                        else:
+                            print "Error: %s" % datastring                            
             except urllib2.URLError as e:
                 print "URL Error:", e 
             except ssl.SSLError as e:
@@ -239,7 +242,7 @@ class Client:
         return self.request("data/getTrades.php",None,GET=True)
     def get_balance(self):
         info = self.get_info()["Wallets"]
-        balance = { "usds":float(info[CURRENCY]["Balance"]["value"]), "btcs":float(info[PRODUCT]["Balance"]["value"]) }
+        balance = { "usds":info[CURRENCY]["Balance"]["value"], "btcs":info[PRODUCT]["Balance"]["value"] }
         return balance
     def entire_trade_history(self):
         return self.request(PAIR + "/money/trades/fetch",None,JSON=True,API_VERSION=2,GET=True)
@@ -326,7 +329,7 @@ class Client:
         if price:
             #price = int(D(price) * (1/self.cPrec))
             params["price"] = price
-        result = self.request(PAIR + "/money/order/quote", params, API_VERSION=2)
+        result = self.request(PAIR + "/money/order/quote", params, API_VERSION=2,JSON=True)
         if result["result"] == "success":
             print 'The result was ' % (result)
             return result["data"]
@@ -339,16 +342,16 @@ class Client:
 #a new description creates a new address
         if desc:
             params = {"description":str(desc)}
-        else 
+        else:
             params = None
-        result = self.request("generic/bitcoin/address",params,API_VERSION=1)["return"]
+        result = self.request("generic/private/bitcoin/address",params,API_VERSION=1,JSON=True)["return"]
         if result["result"] == "success":
             return result["addr"]
         else:
             print "Error!! %s" % result["result"]        
 
 #not tested yet.
-    def bitcoin_withdraw(self,address,amount_int,fee_int="",no_instant=False,green=False):
+    def bitcoin_withdraw(self,address,amount_int,fee_int="",no_instant=False,green=False,JSON=True):
     #string, int, (int, bool, bool)are optional
 
         params = {"address":str(address),
@@ -357,7 +360,24 @@ class Client:
                 "no_instant":no_instant,
                 "green":green
                 }
-        result = self.request("generic/bitcoin/send_simple",params,API_VERSION=1)["return"]
+        result = self.request("generic/private/bitcoin/send_simple",params,API_VERSION=1,JSON=True)["return"]
+        if result["result"] == "success":
+            return result
+        else:
+            print "Error!! %s" % result["result"]        
+
+    def bitcoin_withdraw_api0(self,address,amount,fee):
+    #string, int, (int, bool, bool)are optional
+
+        params = {"group1":"BTC",
+                "btca":str(address),
+                "amount":int(amount),
+                "fee":int(fee)#,
+                #"no_instant":no_instant,
+                #"green":green
+                }
+        result = self.request("withdraw.php",params,API_VERSION=0,JSON=True)
+        print result
         if result["result"] == "success":
             return result
         else:
