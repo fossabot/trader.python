@@ -9,3 +9,11 @@ bin/*.ini
 bin/*.txt
 bin/*.log
 bin/test/*
+_build/*
+_static/*
+_templates/*
+html/*
+conf.py
+index.rst
+make.bat
+Makefile

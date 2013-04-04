@@ -20,6 +20,7 @@ Automatic Dynamic Streaming Updates via the websocket(Socket.IO)
 "Lag" - Show the current Mt.Gox Lag (trading lag)
 "Book"- Print the order books out to howmany length you want (Display depth) (current order book of bids/asks) = printorderbook()
 	- Automatically updated with the freshest possible date by websocket(Socket.IO)
+""Withdraw"" - Withdraw bitcoins to an address(needs withdraw API priveleges in your mt.gox API security settings. (Currently available on bitfloor,bitstamp and mt.gox)
 
 ###Depth Functions
 "Obip- Calculate the "order book implied price", by finding the weighted average price of coins <width> BTC up and down from the spread.
@@ -43,9 +44,10 @@ Download the entire trading history of mtgox for the past 24 hours. = "tradehist
 Analyze the trading history (High/low/vwap/total/amounts/times) = "readtradehist24"
 
 ###Automatic Bot
-"Sellwhileaway" - Repeatedly checks your balance and sells X amount at Price A (in case you have to leave the house and you are waiting on bitcoins to confirm)
+"Sellwhileaway" - checks your balance and sells X amount at Price A (in case you have to leave the house and you are waiting on bitcoins to confirm) 
+- Also Sellwhileaway2 (both are works in progress)
 "Liquidbot" - a bot on bitfloor to add liquidity to the market by surfing the spread To take advantage of bitfloor's 0.1% prodiver bonus therefor won't incur any trading fees 
-
+"Balancenotifier" - check balance every 30 seconds and beeps everytime your balance is added to (fully functional, and nice for day trading)
 
 # Includes frameworks (libs) for Mt.Gox, Bitfloor, BTC-E, Bitstamp
 # All scripts located in bin/
@@ -67,6 +69,57 @@ FEATURES:
 #match any order to the opposite site of the order book (ie: if buying find a seller) - market 	order given the amount of BTC and price range check to see if it can be filled as a 		market order calculate the total price of the order and the average weighted price of 	each bitcoin 
 
 
+-------------------------------
+PYTHON ON WINDOWS INFORMATION
+-------------------------------
+
+Are you new to python? It's easy once you know what to do: 
+
+1) Download Python 2.7.3 for Windows from http://www.python.org/download/  
+   Direct Link: http://www.python.org/ftp/python/2.7.3/python-2.7.3.msi
+	(i'm not sure about the X86-64 version, just get the 32 bit one)
+2) Install it (normal dir is C:\python27\)
+3) Download setuptools for Windows from https://pypi.python.org/pypi/setuptools
+   Direct Link: https://pypi.python.org/packages/2.7/s/setuptools/setuptools-0.6c11.win32-py2.7.exe
+4) Install it.
+5) Open a windows command prompt (cmd.exe).
+   You'll need to install some additional modules (supporting programs)
+   Run the following:
+C:\python27\scripts\easy_install.exe python-cjson
+C:\python27\scripts\easy_install.exe websocket-client
+C:\python27\scripts\easy_install.exe requests
+C:\python27\scripts\easy_install.exe pyreadline
+
+6) Download this entire git repository as a ZIP file. 
+   Direct Link: https://github.com/genbtc/trader.python/archive/master.zip
+7) Extract this entire zip file to C:\python27\ (it should create its own subdirectory named trader.python)
+8) Set some environment variables (temporarily):
+
+echo PATH=%PATH%;C:\python27\;C:\Python27\scripts\
+echo PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
+
+These will not persist once you close the command prompt 
+The way to add them permanently is longwinded...:
+	-System Control Panel or Right click My Computer -> Properties...
+	-Advanced System settings (left sidebar)
+	-Environment Variables (button on the bottom).
+	-User Variables
+	-find PATH, Edit... (or New... if it doesnt exist).
+	-Copy the following into the respective edit box for PATH and PYTHONPATH:
+		%PATH%;c:\python27\;C:\Python27\scripts\
+		%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
+	-Note: These will NOT take effect until you restart. 
+		Which is why you must still do the "echo" commands above until you restart.
+
+8) Now you should be ready to run the scripts you want.
+   Run the scripts in the following manner:
+cd \python27\
+python.exe trader.python\mtgox_websockets.py
+
+9) Phew! You're done.
+
+---------------
+
 TO BEGIN:
 ---------------
 Windows binaries are included! (for encrypt_api_key, bitfloor_client, and mtgox_client)
@@ -85,14 +138,14 @@ encrypt_apikey.py:  	You need to generate encrypted keys beforehand with this co
 		-For bitfloor this is your passphrase that you entered on the website.
 		-For mtgox you Create your own password, just be sure to remember it.
 		-For btce you Create your own password, just be sure to remember it.
-		-For bitstamp, there is no API Key or Secret. Use your user ID in place of 			"API Key" and Password in place of "API Secret" . You should provide an 		entirely different password to access the encrypted password. (to add a layer 		of security)
+		-For bitstamp, there is no API Key or Secret. Use your user ID in place of 					"API Key" and Password in place of "API Secret" . You should 
+		provide an entirely different password to access the encrypted password. 
+		(to add a layer of security)
 
 
-INSTRUCTIONS:
---------------------
-
-Call any script by opening a command window (cmd.exe) to the directory:
-	python mtgox_client.py
+----------------
+LIST OF FILES
+----------------
 
 bin/
 -encrypt_api_key - REQUIRED to use this suite, generates an encrypted API key file in keys/ with the site name (see above)
@@ -123,6 +176,8 @@ bin/
 
 example/
 -readbitfloorcsv - Fee reports. 1) Download the CSV of your account history statement.(havent automated this part) 2) This program will go through the file, turn it into a properly formatted list of dictionaries, Scan it for all the fees, and print out the Fee Report. sample at http://pastebin.ca/2344564
+-mtgox_lagalarm - Reads the lag HTTP API and beeps when lag surpasses a certain threshold
+-mtgox_tickeralarm - Reads the ticker streaming websocket and beeps when the ticker crosses a threshhold
 
 
 lib/
@@ -158,29 +213,19 @@ keys/
 #get the mean of an entire list or tuple
 #pretty print and pretty write a dict
 
-PYTHON ON WINDOWS INFORMATION
--------------------------------
-To use on windows some environment variables may be needed:
-(trader.python) is the directory I put this entire project in.
+---------------
+ADDENDUM
+---------------
+(The following solution fails to live up to expectations, but it can't hurt.)
+This command only enables command history INSIDE the python interpreter(which is not what we want).
+	copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.ini" %HOMEPATH%
 
-echo PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
-echo PATH=%PATH%;C:\python27\
-You will also need a bunch of py modules mostlikely:
-###-crypto
--pyreadline
--readline
--requests (1.1.0)
--cjson
-AND PROBABLY MORE,
-To enable command line tab completion inside the scripts :
-copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.ini" %HOMEPATH%
-(tab completion was phased out in favor of command history (on windows))
-
-(NOT implemented)
-Websocket(SocketIO) for streaming updates.
+----------------
+NOT implemented
+----------------
+tab completion was phased out in favor of command history (on windows)
 Abort commands with SIGINT (ctrl-c on *nix) without exiting, f Mt. Gox is being slow (soon)
 (doesn't exit when NOT busy but will exit if in the middle of a single transaction like a buy)
-Withdraw bitcoins (available on bitstamp only)
 Sequence multiple commands using semicolons
 Tab completion of commands
 Calculate profitable short/long prices from an initial price

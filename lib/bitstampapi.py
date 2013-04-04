@@ -1,4 +1,4 @@
-#bitstamp.py
+#bitstampapi.py
 """BitStamp API Library Framework 
 Copyright 3/28/2013 by genBTC
 
@@ -129,6 +129,25 @@ class Client:
         params = {"id":orderid}
         return self.post(url)    #Returns 'True' if found and canceled.
 
+    def cancel_all(self):
+        orders = self.open_orders()
+        for order in orders:
+            x = self.cancel_order(order['id'])
+            print x
+        if orders:
+            print "All Orders have been Cancelled!!!!!"
+        else:
+            print "No Orders found!!"
+
+    def order_new(side,amount,price):
+        if side == 0:
+            #buy
+            result = self.buy(amount,price)
+        elif side == 1:
+            #sell
+            result = self.sell(amount,price)
+        return result
+
     def buy(self,amount,price):
     #limit order
         url = "buy/"
@@ -174,7 +193,7 @@ class Client:
             #amount - amount, status - (0 - open; 1 - in process; 2 - finished; 3 - canceled; 4 - failed)
             #data - additional withdrawal request data (Mt.Gox code, etc.)
 
-    def bitcoin_withdraw(self,amount,address):
+    def bitcoin_withdraw(self,address,amount):
     #bitcoin withdrawal to an address
         url = "bitcoin_withdrawal/"
         params = {"amount":amount,
@@ -185,7 +204,6 @@ class Client:
     #find out your bitcoin deposit address
         url = "bitcoin_deposit_address/"
         return self.post(url)    #Returns your bitcoin deposit address.
-
 
     def get_tradefee(self,timedelta=2592000):	#the past 30 days (what the fee is based off)
         data = self.get_usertransactions(timedelta)
@@ -213,9 +231,6 @@ class Client:
         return totalamount,fee
 
 
-
-
-
 #Test functions for the API
 #Will flesh out to become client
 if __name__ == "__main__":
@@ -237,5 +252,5 @@ if __name__ == "__main__":
     howmany = raw_input("How many orders do you want to print out?: ")
     howmany = int(howmany)
     
-	printbothbooks(entirebook.asks,entirebook.bids,int(howmany))
+    printbothbooks(entirebook.asks,entirebook.bids,int(howmany))
  

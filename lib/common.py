@@ -202,18 +202,21 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
     """Added in some optional randomness to it"""
     orderids = []
     sidedict = {0:"Buy",1:"Sell","bid":"Buy","ask":"Sell"}
-    mapdict = {"bitfloor":"order_id","mtgox":"data"}
+    mapdict = {"bitfloor":"order_id","mtgox":"data","bitstamp":"id"}
     randomnesstotal = 0
     loop_price = D(str(price_lower))
     price_range = D(str(price_upper)) - D(str(price_lower))
     if exchangename == 'bitfloor':
-        cPrec = '0.01'
-        bPrec = '0.00001'
+        cPrec = D('0.01')
+        bPrec = D('0.00001')
     elif exchangename == 'mtgox':
-        cPrec = '0.00001'
-        bPrec = '0.00000001'
-    price_chunk = D(price_range/ D(chunks)).quantize(D(cPrec))
-    chunk_size = D(D(size) / D(chunks)).quantize(D(bPrec))
+        cPrec = D('0.00001')
+        bPrec = D('0.00000001')
+    elif exchangename == 'bitstamp':
+        cPrec = D('0.01')
+        bPrec = D('0.00000001')
+    price_chunk = D(price_range/ D(chunks)).quantize(cPrec)
+    chunk_size = D(D(size) / D(chunks)).quantize(bPrec)
     for x in range (0, int(chunks)):
         randomchunk = chunk_size
         if dorandom.lower()=='random':
@@ -221,7 +224,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                 if x+1 == int(chunks):
                     randomchunk -= randomnesstotal
                 else:
-                    randomness = D((random.random()/100) + (random.random()/100)).quantize(D(bPrec))
+                    randomness = D((random.random()/100) + (random.random()/100)).quantize(bPrec)
                     randomnesstotal += randomness
                     randomchunk += randomness
         if silent == False:
@@ -300,3 +303,17 @@ def stripoffensive(strng,additional=""):
         pattern = pattern[:-1] + additional + ']'
     new = re.sub(pattern, '', strng)
     return new
+
+def prompt(self,prompt,default):
+    y = ("y","yes") 
+    n = ("n","no")
+    defaultcapital = "[YES]/no" if default else "[NO]/yes"
+    a = " "
+    while a.lower() not in (y+n):
+        a = raw_input("%s %s: " % (prompt,defaultcapital)).lower()
+        if a.lower() == "":
+            return default
+    if a.lower() in y:
+        return True
+    elif a.lower() in n:
+        return False

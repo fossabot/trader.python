@@ -26,3 +26,15 @@ mtgoxhmac.py methods
     cancel_buy_order
     cancel_sell_order
     
+
+
+refreshbook
+printorderbook
+bal
+get_tradefee
+calc_fees
+print_calcedfees
+
+class Feesubroutine
+do_getfee
+do_balance

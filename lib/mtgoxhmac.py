@@ -37,6 +37,7 @@ import ssl
 import gzip
 import io
 from decimal import Decimal as D
+import traceback
 
 CURRENCY = "USD"
 PRODUCT = "BTC"     #maybe future litecoin implementations can work off this
@@ -336,49 +337,57 @@ class Client:
         else:
             print "Error!! %s" % result["result"]        
 
-#not tested yet.
+#tested, not 100%, hence the traceback
     def bitcoin_address(self,desc=""):
-#gets a bitcoin address linked to your account
-#a new description creates a new address
-        if desc:
-            params = {"description":str(desc)}
-        else:
-            params = None
-        result = self.request("generic/private/bitcoin/address",params,API_VERSION=1)["return"]
-        if result["result"] == "success":
-            return result["addr"]
-        else:
-            print "Error!! %s" % result["result"]        
+        #gets a bitcoin address linked to your account
+        #a new description creates a new address
+        try:
+            if desc:
+                params = {"description":str(desc)}
+            else:
+                params = None
+            response = self.request("generic/private/bitcoin/address",params,API_VERSION=1)
+            if "error" in response:
+                print "Error!! %s" % response["error"]
+            elif "success" in response:
+                print response["return"]["addr"]
+        except Exception as e:
+            traceback.print_exc()            
 
-#not tested yet.
+#tested, not 100%, hence the traceback
     def bitcoin_withdraw(self,address,amount_int,fee_int="",no_instant=False,green=False):
     #string, int, (int, bool, bool)are optional
+        try:
+            params = {"address":str(address),
+                    "amount_int":int(amount_int),
+                    "fee_int":int(fee_int),
+                    "no_instant":no_instant,
+                    "green":green
+                    }
+            response = self.request("generic/private/bitcoin/send_simple",params,API_VERSION=1)
+            if "error" in response:
+                print "Error!! %s" % response["error"]
+            elif "success" in response:
+                print response
+        except Exception as e:
+            traceback.print_exc()
 
-        params = {"address":str(address),
-                "amount_int":int(amount_int),
-                "fee_int":int(fee_int),
-                "no_instant":no_instant,
-                "green":green
-                }
-        result = self.request("generic/private/bitcoin/send_simple",params,API_VERSION=1)["return"]
-        if result["result"] == "success":
-            return result
-        else:
-            print "Error!! %s" % result["result"]        
-
+#not sure if this one is still allowed
     def bitcoin_withdraw_api0(self,address,amount,fee):
     #string, int, (int, bool, bool)are optional
-
-        params = {"group1":"BTC",
-                "btca":str(address),
-                "amount":int(amount),
-                "fee":int(fee)#,
-                #"no_instant":no_instant,
-                #"green":green
-                }
-        result = self.request("withdraw.php",params,API_VERSION=0)
-        print result
-        if result["result"] == "success":
-            return result
-        else:
-            print "Error!! %s" % result["result"]        
+        try:
+            params = {"group1":"BTC",
+                    "btca":str(address),
+                    "amount":int(amount),
+                    "fee":int(fee)#,
+                    #"no_instant":no_instant,
+                    #"green":green
+                    }
+            response = self.request("withdraw.php",params,API_VERSION=0)
+            print response
+            if "error" in response:
+                print "Error!! %s" % response["error"]
+            else:
+                print response['status']
+        except Exception as e:
+            traceback.print_exc()                

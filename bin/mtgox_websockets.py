@@ -126,7 +126,7 @@ def main():
         	on_close(ws)
         	return
         except Exception as error:
-            traceback.print_exc()
+            #traceback.print_exc()
             on_error(error)
             on_close(ws)
             on_reconnect()                       #try to reconnect
