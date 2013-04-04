@@ -105,7 +105,7 @@ def main():
         ws.LASTLAG = time.time() - 30           #same for the lag counter
         try:
             ws.connect(url)         #try to connect
-        except socket.error as error:
+        except (socket.error,websocket.WebSocketConnectionClosedException) as error:
             on_error(error)
             on_reconnect()
             continue
