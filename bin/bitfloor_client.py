@@ -107,16 +107,14 @@ class Shell(cmd.Cmd):
                 return self.do_exit(self)
             self.cmdloop()
                
-    #start out by printing the order book and the instructions
+    #start out by printing the order book
     printorderbook()
+
     #give a little user interface
-    print 'Press Ctrl+Z to exit gracefully or  Ctrl+C to force quit'
-    print 'Typing book will show the order book again'
-    print 'Typing orders will show your current open orders'
-    print 'Typing cancelall will cancel every single open order'
+    print 'Type exit to exit gracefully or Ctrl+Z or Ctrl+C to force quit'
     print 'Typing help will show you the list of commands'
-    print 'trade example: '
-    print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
+    print 'sample trade example: '
+    print '   buy 2.8 140 145 64 = buys 2.8 BTC between $140 to $145 using 64 chunks'
     print ' '
 
 
@@ -307,7 +305,7 @@ class Shell(cmd.Cmd):
 
     def do_buy(self, arg):
         """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ("random")"""
+        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
@@ -316,14 +314,13 @@ class Shell(cmd.Cmd):
             else:
                 raise UserError
         except Exception as e:
+            traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
-            print "buy size price"
-            print "buy size price_lower price_upper chunks"
-            return
+            self.onecmd('help buy')
             
     def do_sell(self, arg):
         """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks("random")"""
+        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
@@ -332,13 +329,12 @@ class Shell(cmd.Cmd):
             else:
                 raise UserError
         except Exception as e:
-                print "Invalid args given!!! Proper use is:"
-                print "sell size price"
-                print "sell size price_lower price_upper chunks"
-                return
+            traceback.print_exc()
+            print "Invalid args given!!! Proper use is:"
+            self.onecmd('help sell')
 
     def do_marketbuy(self, arg):
-        """working on new markettrade buy function"""
+        """working on new market trade buy function"""
         """usage: amount lowprice highprice"""
         entirebook = refreshbook()
         try:
@@ -347,12 +343,12 @@ class Shell(cmd.Cmd):
             side = entirebook.asks
             markettrade(side,'buy',*newargs)
         except Exception as e:
+            traceback.print_exc()
             print "Invalid args given. Proper use is: "
             self.onecmd('help marketbuy')
-            return
 
     def do_marketsell(self, arg):
-        """working on new markettrade sell function"""
+        """working on new market trade sell function"""
         """usage: amount lowprice highprice"""
         entirebook = refreshbook()
         try:
@@ -362,9 +358,9 @@ class Shell(cmd.Cmd):
             side.reverse()
             markettrade(side,'buy',*newargs)    
         except Exception as e:
+            traceback.print_exc()
             print "Invalid args given. Proper use is: "
             self.onecmd('help marketsell')
-            return
         
     def do_sellwhileaway(self,arg):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
@@ -387,14 +383,17 @@ class Shell(cmd.Cmd):
                 spread('bitfloor',bitfloor,1,5,last,last,1)
             if last > price:
                 if balance > 5:
+                    bitfloor.cancel_all()
                     spread('bitfloor',bitfloor,1,5,price,last+1,3)
             if price > last:
                 if balance > 5 and price-last < 3:
+                    bitfloor.cancel_all()
                     spread('bitfloor',bitfloor,1,5,last,price,2)
 
             last = D(bitfloor.ticker()['price'])                    
             balance = decimalify(bitfloor.accounts())
             time.sleep(45)
+
     def do_sellwhileaway2(self,arg):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
         """Usage: amount price"""
@@ -414,11 +413,14 @@ class Shell(cmd.Cmd):
             sold=False
             while sold==False:
                 if last > price:
+                    bitfloor.cancel_all()
                     spread('bitfloor',bitfloor,1,balance[0]['amount'],last,last+1,2)
                 else:
+                    bitfloor.cancel_all()
                     spread('bitfloor',bitfloor,1,balance[0]['amount'],((last+price)/2)+0.5,price,2)
                 balance = decimalify(bitfloor.accounts())
                 last = D(bitfloor.ticker()['price'])
+                time.sleep(60)
         except:
             print "Retrying:"
             self.onecmd(self.do_sellwhileaway2(amount,price))
@@ -440,12 +442,14 @@ class Shell(cmd.Cmd):
             except:
                 print "Invalid args. Expecting a valid ticker subkey."
                 self.onecmd('help ticker')
+
     def do_balance(self,arg):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
         balance = floatify(bitfloor.accounts())
         last = float(bitfloor.ticker()['price'])
         print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
         print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
+
     def do_book(self,size):
         """Download and print the order book of current bids and asks of depth $size"""
         try:
@@ -453,6 +457,7 @@ class Shell(cmd.Cmd):
             printorderbook(size)
         except:
             printorderbook()        
+
     def do_orders(self,arg):
         """Print a list of all your open orders"""
         try:
@@ -488,9 +493,25 @@ class Shell(cmd.Cmd):
             print e
             return
 
+    def do_withdraw(self,args):
+        """Withdraw Bitcoins to an address"""
+        try:
+            address = raw_input("Enter the address you want to withdraw to: ")
+            amount = raw_input("Enter the amount to withdraw in bitcoins: ")
+            result = bitfloor.bitcoin_withdraw(address,amount)
+            if not("error" in result):
+                print "%s BTC successfully sent to %s" % (amount,address)
+            else:
+                print result["error"]
+        except:
+            traceback.print_exc()
+            print "Unknown error occurred."
+            self.onecmd('help withdraw')
+
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
         bitfloor.cancel_all()
+
 #exit out if Ctrl+Z is pressed
     def do_exit(self,arg):      #standard way to exit
         """Exits the program"""
@@ -503,9 +524,11 @@ class Shell(cmd.Cmd):
         print "Session Terminating......."
         print "Exiting......"
         return True
+
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
         return self.do_exit(arg)
+
     def help_help(self):
         print 'Prints the help screen'
 

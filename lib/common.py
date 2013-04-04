@@ -41,7 +41,7 @@ def updatedepthdata(mtgox,maxage=120):
     global depthvintage
     global fulldepth
     depthvintage,fulldepth = readdepth()
-    if (time.time() - float(depthvintage)) > maxage :   # don't fetch from gox more often than every 2 min
+    if (time.time() - float(depthvintage)) > maxage:   # don't fetch from gox more often than every 2 min
         depthvintage,fulldepth = writedepth(mtgox)
     return depthvintage,fulldepth
 
@@ -194,7 +194,7 @@ def printOrderBooks(asks,bids,howmany=15):
 
 
 # spread trade function including Chunk Trade spread logic & Confirmation
-def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000,chunks=1,dorandom='random',silent=False):
+def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000,chunks=1,dorandom='',silent=False):
     """Sell some BTC between price A and price B of equal sized chunks"""
     """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
     """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
@@ -221,7 +221,7 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
                 if x+1 == int(chunks):
                     randomchunk -= randomnesstotal
                 else:
-                    randomness = D(D(random.random()) / D((random.random()*100))).quantize(D(bPrec))
+                    randomness = D((random.random()/100) + (random.random()/100)).quantize(D(bPrec))
                     randomnesstotal += randomness
                     randomchunk += randomness
         if silent == False:

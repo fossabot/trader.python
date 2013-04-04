@@ -1254,6 +1254,7 @@ class OrderBook(BaseObject):
         self.signal_changed = Signal()
 #added to delay startup of main program until its downloaded and this variable is True.
         self.fulldepth_downloaded = False
+        self.fulldepth_time = 0
 
         gox.signal_ticker.connect(self.slot_ticker)
         gox.signal_depth.connect(self.slot_depth)
@@ -1401,7 +1402,10 @@ class OrderBook(BaseObject):
         self.ask = self.asks[0].price
 #added this        
         self.fulldepth_downloaded = True
+        self.fulldepth_time = time.time()
         self.signal_changed(self, ())
+        time.sleep(0.2)
+        self.fulldepth_downloaded = False
 
     def _repair_crossed_bids(self, bid):
         """remove all bids that are higher that official current bid value,

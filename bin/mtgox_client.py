@@ -159,7 +159,7 @@ class Shell(cmd.Cmd):
         #now it does store a history but we lose tab completion. This is what use_rawinput = false means.
         self.use_rawinput = False
         self.onecmd('help')             #print out the possible commands (help) on first run
-        printOrderBooks(socketbook.asks,socketbook.bids,15)
+        
 
     #CTRL+C Handling
     def cmdloop(self):
@@ -173,11 +173,14 @@ class Shell(cmd.Cmd):
                 return self.do_exit(self)
             self.cmdloop()
 
+    #start out by printing the order book (the new socket book)
+    printOrderBooks(socketbook.asks,socketbook.bids,15)
+
     #give a little user interface       
     print 'Type exit to exit gracefully or Ctrl+Z or Ctrl+C to force quit'
     print 'Type help to show the available commands'
     print 'sample trade example: '
-    print '   buy 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks'
+    print '   buy 2.8 140 145 64 = buys 2.8 BTC between $140 to $145 using 64 chunks'
 
 
     def do_book(self,size):
@@ -185,8 +188,12 @@ class Shell(cmd.Cmd):
         try:
             size = stripoffensive(size)
             size = int(size)
-
-            gox.client.request_fulldepth()
+            if (time.time() - socketbook.fulldepth_time) > 300:
+                print "Starting to download fulldepth from mtgox....",
+                gox.client.request_fulldepth()
+                while socketbook.fulldepth_downloaded == False:
+                    time.sleep(0.1)
+                print "Finished."
             printOrderBooks(socketbook.asks,socketbook.bids,size)
         except:
             printOrderBooks(socketbook.asks,socketbook.bids)
@@ -194,19 +201,17 @@ class Shell(cmd.Cmd):
 
     def do_balancenotifier(self,args):
         """Check your balance every 30 seconds and BEEP and print something out when you receive the funds (either btc or usd)"""
-        def bn(firstarg,notifier_stop):
+        def bn(firstarg,notifier_stop,btc,usd):
             while(not notifier_stop.is_set()):
                 btcnew,usdnew = bal()
                 if btcnew > btc or usdnew > usd:
-                    last = float(mtgox.get_ticker2()['last']['value'])
-                    print 'Your balance is %s BTC and $%s USD ' % (btcnew,usdnew)
-                    print 'Last BTC Price of %.5f' % (last)
-                    for x in range(2,35):
-                        winsound.Beep(x*125,85) #frequency(Hz),duration(ms)
-                    notifier_stop.wait(3)     #wait
-                    for x in range(35,2):       #again.                 
-                        winsound.Beep(x*125,85)
-                    notifier_stop.set()
+                    last = D(mtgox.get_ticker2()['last']['value'])
+                    print '\nYour balance is %s BTC and $%s USD. BTC Last Price is %.5f' % (btcnew,usdnew,last)
+                    winsound.Beep(1200,1000)
+                    winsound.Beep(1800,1000)
+                    winsound.Beep(1200,1000)
+                    winsound.Beep(1800,1000)
+                    btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
 
         global notifier_stop
@@ -218,7 +223,7 @@ class Shell(cmd.Cmd):
             notifier_stop.set()
         else:   
             notifier_stop = threading.Event()
-            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop)).start()
+            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd)).start()
 
 
     def do_action(self,args):

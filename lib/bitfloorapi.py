@@ -29,7 +29,7 @@ class Client(object):
         self._secret = secret
         self._passphrase = passphrase
         self._product_id = 1    #the 1 means "product_ID" is USD (currently our only option anyway)
-        self._inc = D('0.01')   # TODO: get from bitfloor
+        self._inc = D('0.01')   # (the currency precision) TODO: get from bitfloor(can't yet)
 
     def book(self, level=1):
         url = '/book/L{1}/{0}'.format(self._product_id, level)
@@ -91,6 +91,14 @@ class Client(object):
 
     def accounts(self):
         return self._send_post('/accounts')
+
+    def bitcoin_withdraw(self,address,amount):
+        return self._send_post('/withdraw', {
+            'currency': 'BTC',
+            'amount': amount,
+            'method': 'bitcoin',
+            'destination':address
+        })
 
     def _send_get(self, url, payload={}):
         try:

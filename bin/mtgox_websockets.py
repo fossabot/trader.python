@@ -2,6 +2,7 @@ import websocket # websocket-client>=0.4.1 (included, otherwise downloadble)
 import socket
 import cjson
 import time
+import traceback
 
 def serialize(obj):
     return cjson.encode(obj)
@@ -78,7 +79,10 @@ def on_message(ws,message):
             ws.LASTTICKER = now
             on_op_private_ticker(data)
     elif channel == "lag":
-        now = float(data["lag"]["stamp"]) / 1E6
+        if data["lag"]["stamp"]:
+            now = float(data["lag"]["stamp"]) / 1E6
+        else:
+            now = time.time()              #dummy
         if now - ws.LASTLAG > 15:
             ws.LASTLAG = now
             lag = str(float(data["lag"]["age"] / 1E6))
@@ -122,6 +126,7 @@ def main():
         	on_close(ws)
         	return
         except Exception as error:
+            traceback.print_exc()
             on_error(error)
             on_close(ws)
             on_reconnect()                       #try to reconnect

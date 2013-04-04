@@ -237,7 +237,7 @@ class Client:
     def get_depth(self):
         return self.request("data/getDepth.php", {"Currency":CURRENCY})
     def get_fulldepth(self):
-        return self.request(PAIR + "/money/depth/full",None,JSON=True,API_VERSION=2,GET=True)
+        return self.request(PAIR + "/money/depth/full",None,API_VERSION=2,GET=True)
     def get_trades(self):
         return self.request("data/getTrades.php",None,GET=True)
     def get_balance(self):
@@ -245,7 +245,7 @@ class Client:
         balance = { "usds":info[CURRENCY]["Balance"]["value"], "btcs":info[PRODUCT]["Balance"]["value"] }
         return balance
     def entire_trade_history(self):
-        return self.request(PAIR + "/money/trades/fetch",None,JSON=True,API_VERSION=2,GET=True)
+        return self.request(PAIR + "/money/trades/fetch",None,API_VERSION=2,GET=True)
 
     def get_spread(self):
         depth = self.get_depth()
@@ -272,10 +272,10 @@ class Client:
             return
     
     def order_new(self, typ, amount, price=None):
-        if amount < 0.01:
-            print "Minimum amount is 0.01btc"
+        if amount < D('0.01'):
+            print "Minimum amount is 0.01 %s" % PRODUCT
             return None
-        if amount > 100.0:
+        if amount > D('100.0'):
             print "You are about to %s >100 %s. Continue?\n" % (typ,PRODUCT)
             yesno = raw_input()
             if not(yesno):
@@ -329,7 +329,7 @@ class Client:
         if price:
             #price = int(D(price) * (1/self.cPrec))
             params["price"] = price
-        result = self.request(PAIR + "/money/order/quote", params, API_VERSION=2,JSON=True)
+        result = self.request(PAIR + "/money/order/quote", params, API_VERSION=2)
         if result["result"] == "success":
             print 'The result was ' % (result)
             return result["data"]
@@ -344,14 +344,14 @@ class Client:
             params = {"description":str(desc)}
         else:
             params = None
-        result = self.request("generic/private/bitcoin/address",params,API_VERSION=1,JSON=True)["return"]
+        result = self.request("generic/private/bitcoin/address",params,API_VERSION=1)["return"]
         if result["result"] == "success":
             return result["addr"]
         else:
             print "Error!! %s" % result["result"]        
 
 #not tested yet.
-    def bitcoin_withdraw(self,address,amount_int,fee_int="",no_instant=False,green=False,JSON=True):
+    def bitcoin_withdraw(self,address,amount_int,fee_int="",no_instant=False,green=False):
     #string, int, (int, bool, bool)are optional
 
         params = {"address":str(address),
@@ -360,7 +360,7 @@ class Client:
                 "no_instant":no_instant,
                 "green":green
                 }
-        result = self.request("generic/private/bitcoin/send_simple",params,API_VERSION=1,JSON=True)["return"]
+        result = self.request("generic/private/bitcoin/send_simple",params,API_VERSION=1)["return"]
         if result["result"] == "success":
             return result
         else:
@@ -376,7 +376,7 @@ class Client:
                 #"no_instant":no_instant,
                 #"green":green
                 }
-        result = self.request("withdraw.php",params,API_VERSION=0,JSON=True)
+        result = self.request("withdraw.php",params,API_VERSION=0)
         print result
         if result["result"] == "success":
             return result
