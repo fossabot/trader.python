@@ -13,9 +13,8 @@ from book import *
 from common import *
 import depthparser
 import json
-import json_ascii
 import traceback
-import pyreadline
+#import pyreadline
 import winsound         #plays beeps for alerts 
 import threading        #for subthreads
 import datetime
@@ -299,7 +298,7 @@ class Shell(cmd.Cmd):
         btc,usd = bal()
         last = D(mtgox.get_ticker2()['last']['value'])
         print 'Your balance is %s BTC and $%.2f USD ' % (btc,usd)
-        print 'Account Value: $%.2f @ Last BTC Price of %s' % (btc*last+usd,last)
+        print 'Account Value: $%.2f @ Last BTC Price of $%s' % (btc*last+usd,last)
 
 
     def do_balancenotifier(self,args):
@@ -411,6 +410,7 @@ class Shell(cmd.Cmd):
         """Cancel an order by number,ie: 7 or by range, ie: 10 - 25""" \
         """Use with arguments after the cancel command, or without to view the list and prompt you"""
         try:
+            useargs = False
             if args:
                 useargs = True
             orders = mtgox.get_orders()['orders']
@@ -631,9 +631,8 @@ class Shell(cmd.Cmd):
     def do_readtradehist24(self,args):
         """reading trade history data from a file and gathering stats on it"""
         import tradehistory
-        print "Is this a Trade History file (not a full depth file)?"
-        isdepthfile = raw_input("N/No or [Leave blank for Yes(default)]")
-        if not(isdepthfile):
+        filetype = prompt("Is this a Trade History file (not a full depth file)?",True)
+        if not(filetype):
             tradehistory.readhist24()
         else:
             tradehistory.readdepth()
@@ -823,6 +822,7 @@ class Shell(cmd.Cmd):
     def do_exit(self,args):      #standard way to exit
         """Exits the program"""
         try:
+            notifier_stop.set()      #<------ this is weird but if removed it breaks CTRL+C catching
             for k,v in threadlist.iteritems():
                 v.set()
             print "Shutting down threads..."

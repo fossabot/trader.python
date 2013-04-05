@@ -17,17 +17,28 @@ import traceback
 import logging
 import sys
 import socket
-
+import winsound
+#import pyreadline
 
 bitfloor = bitfloorapi.Client()
-cPrec = '0.01'
-bPrec = '0.00001'
+
+cPrec = D('0.01')
+bPrec = D('0.00001')
+
+threadlist = {}
 
 class UserError(Exception):
     def __init__(self, errmsg):
         self.errmsg = errmsg
     def __str__(self):
         return self.errmsg
+
+
+def bal():
+    balance = bitfloor.accounts()
+    btcbalance = D(balance[0]['amount'])
+    usdbalance = D(balance[1]['amount'])
+    return btcbalance,usdbalance
 
 #For Market Orders (not limit)
 # Checks market conditions
@@ -118,6 +129,49 @@ class Shell(cmd.Cmd):
     print ' '
 
 
+    def do_balance(self,arg):
+        """Shows your current account balance and value of your portfolio based on last ticker price"""
+        btc,usd = bal()
+        last = D(bitfloor.ticker()['price'])
+        print 'Your balance is %.8g BTC and $%.2f USD ' % (btc,usd)
+        print 'Account Value: $%.2f @ Last BTC Price of $%s' % (btc*last+usd,last)
+
+
+    def do_balancenotifier(self,args):
+        """Check your balance every 30 seconds and BEEP and print something out when you receive the funds (either btc or usd)"""
+        def bn(firstarg,notifier_stop,btc,usd):
+            while(not notifier_stop.is_set()):
+                btcnew,usdnew = bal()
+                if btcnew > btc or usdnew > usd:
+                    last = D(bitfloor.ticker()['price'])
+                    print '\nBalance: %s BTC + $%.2f USD = $%.2f @ $%.2f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
+                    for x in xrange(0,3):
+                        winsound.Beep(1200,1000)
+                        winsound.Beep(1800,1000)
+                    btc,usd = btcnew,usdnew
+                notifier_stop.wait(30)
+
+        global notifier_stop
+        btc,usd = bal()
+        args = stripoffensive(args)
+        args = args.split()
+        if 'exit' in args:
+            print "Shutting down background thread..."
+            notifier_stop.set()
+        else:   
+            notifier_stop = threading.Event()
+            threadlist["balancenotifier"] = notifier_stop
+            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd)).start()
+
+
+    def do_book(self,size):
+        """Download and print the order book of current bids and asks of depth $size"""
+        try:
+            size = int(size)
+            printorderbook(size)
+        except:
+            printorderbook()        
+
     def do_liquidbot(self,arg):
         """incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
         def liquidthread(firstarg,stop_event):
@@ -153,9 +207,9 @@ class Shell(cmd.Cmd):
             # print "This is how I redirect and redisplay stdout to the logfile."
             # sys.stdout = sys.__stdout__
 #pre inits
-            TRADEAMOUNT = D('0.88800')           #<--------- number of bitcoins to buy in each go.
-            BUYMAXPRICE = D('200.0')            #<------max price for buys 
-            SELLMINPRICE = D('100.0')          #<------min price for sells
+            TRADEAMOUNT = D('2.32690')           #<--------- number of bitcoins to buy in each go.
+            BUYMAXPRICE = D('100.0')            #<------max price for buys 
+            SELLMINPRICE = D('136.36')          #<------min price for sells
             TRADESATONCE = 1
             buyorderids = []
             sellorderids = []
@@ -163,7 +217,7 @@ class Shell(cmd.Cmd):
             countbuys,countsells = 0,0
             amtbought,amtsold = 0,0
             countcycles = 0
-            initcountbuys,initcountsells = 0,0       #   <---------Modify these numbers if you want it to make up for past runs in a certain way
+            initcountbuys,initcountsells = 50,0       #   <---------Modify these numbers if you want it to make up for past runs in a certain way
             numbought,numsold = initcountbuys,initcountsells       
             typedict = {0:"Buy",1:"Sell"}
             logging.info("Liquidbot started.")
@@ -223,48 +277,48 @@ class Shell(cmd.Cmd):
                                 successes.write("%s %s @$ %.2f = %.7f , %s %s\n" % (typedict[co["side"]],size,price,result,amtbought,amtsold))
                                 successes.flush()
                             if co["status"]=='cancelled':
-                                logging.debug("%s order %s for %s BTC @ $%.2f has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],co["price"],co["status"]))
+                                logging.debug("%s order %s for %s BTC @ $%.2f has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],float(co["price"]),co["status"]))
                             iddicts[co["side"]].remove(co["order_id"])
                             allorders = buyorderids + sellorderids                
                 countcycles +=1 
 #order placement                
                 logging.debug("The spread is now: %s...NEW ORDERING CYCLE starting: # %s" % (spr,countcycles))
 #method 1
-                # if spr > D('0.10') and (highbid <= BUYMAXPRICE  or lowask >= SELLMINPRICE):
-                #     #set the target prices of the order pair to 1 cent higher or lower than the best order book prices
-                #     targetbid = highbid + D('0.01')
-                #     targetask = lowask - D('0.01')
-                #     #start eating into profits to find an uninhabited pricepoint
-                #     #do not exceed values specified by BUYMAXPRICE or SELLMINPRICE
-                #     while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
-                #         targetbid += D('0.01')
-                #     while targetask in onaskbookprice and not(targetask in onbidbookprice):
-                #         targetask -= D('0.01')
-                #     if len(buyorderids) < TRADESATONCE and spr > D('0.10') and numsold >= numbought:
-                #         if targetbid <= BUYMAXPRICE:
-                #             try:
-                #                 sys.stdout = sl
-                #                 buyorderids += spread('bitfloor',bitfloor,0,TRADEAMOUNT,targetbid)
-                #                 sys.stdout = sys.__stdout__
-                #                 countbuys += 1
-                #             except:
-                #                 logging.error(traceback.print_exc())
-                #         else:
-                #             logging.debug("EXCEEDED BUYMAXPRICE of: %s" % BUYMAXPRICE)
-                #     if len(sellorderids) < TRADESATONCE and spr > D('0.10') and numbought >= numsold:
-                #         if targetask >= SELLMINPRICE:
-                #             try:
-                #                 sys.stdout = sl
-                #                 sellorderids += spread('bitfloor',bitfloor,1,TRADEAMOUNT,targetask)
-                #                 sys.stdout = sys.__stdout__
-                #                 countsells += 1
-                #             except:
-                #                 logging.error(traceback.print_exc())
-                #         else:
-                #             logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)
+                if spr > D('0.10') and (highbid <= BUYMAXPRICE  or lowask >= SELLMINPRICE):
+                    #set the target prices of the order pair to 1 cent higher or lower than the best order book prices
+                    targetbid = highbid + D('0.01')
+                    targetask = lowask - D('0.01')
+                    #start eating into profits to find an uninhabited pricepoint
+                    #do not exceed values specified by BUYMAXPRICE or SELLMINPRICE
+                    while targetbid in onbidbookprice and not(targetbid in onaskbookprice):
+                        targetbid += D('0.01')
+                    while targetask in onaskbookprice and not(targetask in onbidbookprice):
+                        targetask -= D('0.01')
+                    if len(buyorderids) < TRADESATONCE and spr > D('0.10') and numsold >= numbought:
+                        if targetbid <= BUYMAXPRICE:
+                            try:
+                                sys.stdout = sl
+                                buyorderids += spread('bitfloor',bitfloor,0,TRADEAMOUNT,targetbid)
+                                sys.stdout = sys.__stdout__
+                                countbuys += 1
+                            except:
+                                logging.error(traceback.print_exc())
+                        else:
+                            logging.debug("EXCEEDED BUYMAXPRICE of: %s" % BUYMAXPRICE)
+                    if len(sellorderids) < TRADESATONCE and spr > D('0.10') and numbought >= numsold:
+                        if targetask >= SELLMINPRICE:
+                            try:
+                                sys.stdout = sl
+                                sellorderids += spread('bitfloor',bitfloor,1,TRADEAMOUNT,targetask)
+                                sys.stdout = sys.__stdout__
+                                countsells += 1
+                            except:
+                                logging.error(traceback.print_exc())
+                        else:
+                            logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)
 #method 2
 #changes
-                if spr: # > D('0.10'):
+                elif spr: # > D('0.10'):
                     logging.debug("Starting second method. ")
                     #Try to place order INSIDE the spread.
                     targetbid = onaskbookprice[1]           #gave up and took the second price point
@@ -301,6 +355,7 @@ class Shell(cmd.Cmd):
             t1_stop.set()
         else:
             t1_stop = threading.Event()
+            threadlist["liquidbot"] = t1_stop
             thread1 = threading.Thread(target = liquidthread, args=(None,t1_stop)).start()
 
     def do_buy(self, arg):
@@ -443,21 +498,6 @@ class Shell(cmd.Cmd):
                 print "Invalid args. Expecting a valid ticker subkey."
                 self.onecmd('help ticker')
 
-    def do_balance(self,arg):
-        """Shows your current account balance and value of your portfolio based on last ticker price"""
-        balance = floatify(bitfloor.accounts())
-        last = float(bitfloor.ticker()['price'])
-        print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
-        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
-
-    def do_book(self,size):
-        """Download and print the order book of current bids and asks of depth $size"""
-        try:
-            size = int(size)
-            printorderbook(size)
-        except:
-            printorderbook()        
-
     def do_orders(self,arg):
         """Print a list of all your open orders"""
         try:
@@ -484,9 +524,9 @@ class Shell(cmd.Cmd):
                     numsells += D('1')
                     amtsells += D(order['size'])
             if amtbuys:
-                buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
+                buyavg = D(buytotal/amtbuys).quantize(cPrec)
             if amtsells:
-                sellavg = D(selltotal/amtsells).quantize(D(cPrec))
+                sellavg = D(selltotal/amtsells).quantize(cPrec)
             print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
@@ -516,14 +556,17 @@ class Shell(cmd.Cmd):
     def do_exit(self,arg):      #standard way to exit
         """Exits the program"""
         try:
-            t1_stop.set()
+        notifier_stop.set()         #<------ this is weird but if removed it breaks CTRL+C catching
+            for k,v in threadlist.iteritems():
+                v.set()
             print "Shutting down threads..."
         except:
-            pass
+            pass             
         print "\n"
         print "Session Terminating......."
-        print "Exiting......"
+        print "Exiting......"           
         return True
+
 
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
@@ -532,4 +575,5 @@ class Shell(cmd.Cmd):
     def help_help(self):
         print 'Prints the help screen'
 
-Shell().cmdloop()
+if __name__ == '__main__':
+    Shell().cmdloop()

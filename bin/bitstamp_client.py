@@ -17,9 +17,11 @@ import traceback
 import logging
 import sys
 import socket
+import winsound
+#import pyreadline
 
 
-bitstampapi = bitstampapi.Client()
+bitstamp = bitstampapi.Client()
 
 cPrec = D('0.01')
 bPrec = D('0.00000001')
@@ -39,17 +41,19 @@ def bal():
     usdbalance = D(balance['usd_balance'])
     return btcbalance,usdbalance
 
+def available():
+    balance = bitstamp.account_balance()
+    btcavailable =D(balance['btc_available'])
+    usdavailable = D(balance['usd_available'])
+    return btcavailable,usdavailable
+
 def reserved():
     balance = bitstamp.account_balance()
     btcreserved = D(balance['btc_reserved'])
     usdreserved = D(balance['usd_reserved'])
     return btcreserved,usdreserved
 
-def available():
-    balance = bitstamp.account_balance()
-    btcavailable =D(balance['btc_available'])
-    usdavailable = D(balance['usd_available'])
-    return btcavailable,usdavailable
+
 
 
 #For Market Orders (not limit)
@@ -122,7 +126,7 @@ class Shell(cmd.Cmd):
             except KeyboardInterrupt:
                 return self.do_exit(self)
             self.cmdloop()
-               
+
     #start out by printing the order book
     printorderbook()
 
@@ -134,16 +138,54 @@ class Shell(cmd.Cmd):
     print ' '
 
 
-    def do_balance(self,arg):
+    def do_balance(self,args):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
-        btc,usd = bal()
-        last = D(bitstamp.ticker()['last'])
-        print 'Your balance is %r BTC and $%.2f USD ' % (btc,usd)
-        print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (btc*last+usd,last)
+        """Can show total, available(available for trading), or reserved(reserved in open orders)"""
+        """usage: balance [available/reserved](optional)"""
+        args = stripoffensive(args)
+        if 'available' in args:
+            btc,usd = available()    
+        elif 'reserved' in args:
+            btc,usd = reserved()
+        else:
+            btc,usd = bal()
+        word = args if args else "total"
+        print 'Your %s balance is %.8f BTC and $%.2f USD ' % (word,btc,usd)
+        if word == "total":
+            last = D(bitstamp.ticker()['last'])
+            print 'Account Value: $%.2f @ Last BTC Price of $%.2f' % (btc*last+usd,last)
 
+
+    def do_balancenotifier(self,args):
+        """Check your balance every 30 seconds and BEEP and print something out when you receive the funds (either btc or usd)"""
+        """usage: balancenotifier"""
+        def bn(firstarg,notifier_stop,btc,usd):
+            while(not notifier_stop.is_set()):
+                btcnew,usdnew = bal()
+                if btcnew > btc or usdnew > usd:
+                    last = D(bitstamp.ticker()['last'])
+                    print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
+                    for x in xrange(0,3):
+                        winsound.Beep(1200,1000)
+                        winsound.Beep(1800,1000)
+                    btc,usd = btcnew,usdnew
+                notifier_stop.wait(30)
+
+        global notifier_stop
+        btc,usd = bal()
+        args = stripoffensive(args)
+        args = args.split()
+        if 'exit' in args:
+            print "Shutting down background thread..."
+            notifier_stop.set()
+        else:   
+            notifier_stop = threading.Event()
+            threadlist["balancenotifier"] = notifier_stop
+            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd)).start()
 
     def do_book(self,size):
-        """Download and print the order book of current bids and asks of depth $size"""
+        """Download and print the order book of current bids and asks, up to length [size]"""
+        """usage: book [size](optional)"""
         try:
             size = int(size)
             printorderbook(size)
@@ -151,11 +193,11 @@ class Shell(cmd.Cmd):
             printorderbook()        
 
 
-    def do_buy(self, arg):
+    def do_buy(self, args):
         """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(spread order): buy size price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
         try:
-            args = arg.split()
+            args = args.split()
             newargs = tuple(decimalify(args))
             if len(newargs) not in (1,3):
                 spread('bitstamp',bitstamp, 0, *newargs)
@@ -166,11 +208,11 @@ class Shell(cmd.Cmd):
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help buy')
 
-    def do_sell(self, arg):
+    def do_sell(self, args):
         """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(spread order): sell size price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
         try:
-            args = arg.split()
+            args = args.split()
             newargs = tuple(decimalify(args))
             if len(newargs) not in (1,3):
                 spread('bitstamp',bitstamp, 1, *newargs)
@@ -185,7 +227,9 @@ class Shell(cmd.Cmd):
     def do_cancel(self,args):
         """Cancel an order by number,ie: 7 or by range, ie: 10 - 25""" \
         """Use with arguments after the cancel command, or without to view the list and prompt you"""
+        """usage: cancel [number/range]"""
         try:
+            useargs = False
             if args:
                 useargs = True
             orders = bitstamp.open_orders()
@@ -205,7 +249,7 @@ class Shell(cmd.Cmd):
                     useargs = False
                 else:
                     orderlist = ""
-                    userange=False
+                    userange = False
                     numorder = 0
                     orderlist = raw_input("Which order numbers would you like to cancel?: [ENTER] quits.\n")
                 if orderlist == "":
@@ -219,43 +263,47 @@ class Shell(cmd.Cmd):
                 else:
                     orderlist = orderlist.split()
                 for order in orders:
+                    cancel = False
                     numorder += 1
                     if userange == True:
                         if numorder >= int(orderlist[0]) and numorder <= int(orderlist[1]):
-                            result = mtgox.cancel_order(order['id'])
-                            numcancelled += 1
+                            cancel = True
                     elif str(numorder) in orderlist:
-                        result = mtgox.cancel_order(order['id'])
-                        numcancelled += 1
+                        cancel = True
+                    if cancel == True:
+                        result = bitstamp.cancel_order(order['id'])
+                        if result:
+                            numcancelled += 1
+                            print "Order %s Cancelled" % order['id']
                 if numcancelled > 1:
                     print "%s Orders have been Cancelled!!!!!" % numcancelled
         except Exception as e:
             print e
             return            
 
-    def do_cancelall(self,arg):
+    def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
         bitstamp.cancel_all()
 
 
     def do_gethistory(self,args):
 #Very rough. pretty print it 
-        """Prints out your user transactions in the past <timdelta>"""
+        """Prints out your user transactions in the past [timdelta]"""
         history=bitstamp.get_usertransactions()
         ppdict(history)
 
 
     def do_getaddress(self,args):
         """Find out your bitcoin deposit address"""
-        bitstamp.get_depositaddress()
+        ppdict(bitstamp.get_depositaddress())
 
 
-    def do_marketbuy(self, arg):
+    def do_marketbuy(self, args):
         """working on new market trade buy function"""
         """usage: amount lowprice highprice"""
         entirebook = refreshbook()
         try:
-            args = arg.split()
+            args = args.split()
             newargs = tuple(decimalify(args))
             side = entirebook.asks
             markettrade(side,'buy',*newargs)
@@ -265,12 +313,12 @@ class Shell(cmd.Cmd):
             self.onecmd('help marketbuy')
 
 
-    def do_marketsell(self, arg):
+    def do_marketsell(self, args):
         """working on new market trade sell function"""
         """usage: amount lowprice highprice"""
         entirebook = refreshbook()
         try:
-            args = arg.split()
+            args = args.split()
             newargs = tuple(decimalify(args))
             side = entirebook.bids
             side.reverse()
@@ -281,7 +329,7 @@ class Shell(cmd.Cmd):
             self.onecmd('help marketsell')
  
 
-    def do_orders(self,arg):
+    def do_orders(self,args):
         """Print a list of all your open orders"""
         try:
             orders = bitstamp.open_orders()
@@ -293,10 +341,10 @@ class Shell(cmd.Cmd):
             numorder = 0        
             for order in orders:
                 numorder += 1
-                uuid = order['id']
+                uuid = str(order['id'])
                 shortuuid = uuid[:8]+'-??-'+uuid[-12:]
                 ordertype="Sell" if order['type']==1 else "Buy"
-                print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,order['price'],order['amount'])
+                print '%s order %s. Price $%s @ Amount: %s' % (ordertype,shortuuid,order['price'],order['amount'])
                 if order['type'] == 0:
                     buytotal += D(order['price'])*D(order['amount'])
                     numbuys += D('1')
@@ -306,20 +354,21 @@ class Shell(cmd.Cmd):
                     numsells += D('1')
                     amtsells += D(order['amount'])
             if amtbuys:
-                buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
+                buyavg = D(buytotal/amtbuys).quantize(cPrec)
             if amtsells:
-                sellavg = D(selltotal/amtsells).quantize(D(cPrec))
+                sellavg = D(selltotal/amtsells).quantize(cPrec)
             print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
             print e
             return
 
-                    
-    def do_sellwhileaway(self,arg):
+
+#not working on bitstamp i dont think                    
+    def do_sellwhileaway(self,args):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
-        """Usage: amount price"""
-        args = arg.split()
+        """Usage: sellwhileaway amount price"""
+        args = args.split()
         amount,price = tuple(decimalify(args))
         #seed initial balance data so we can check it during first run of the while loop
         balance = decimalify(bitstamp.accounts())
@@ -348,11 +397,12 @@ class Shell(cmd.Cmd):
             balance = decimalify(bitstamp.accounts())
             time.sleep(45)
 
-    def do_sellwhileaway2(self,arg):
+#not working on bitstamp i dont think
+    def do_sellwhileaway2(self,args):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
-        """Usage: amount price"""
+        """Usage: sellwhileaway2 amount price"""
         try:
-            args = arg.split()
+            args = args.split()
             amount,price = tuple(decimalify(args))
             #seed initial balance data so we can check it during first run of the while loop
             balance = decimalify(bitstamp.accounts())
@@ -390,13 +440,13 @@ class Shell(cmd.Cmd):
             self.onecmd('help spread')
 
 
-    def do_ticker(self,arg):
+    def do_ticker(self,args):
         """Print the entire ticker out or use one of the following options:\n""" \
-        """[--bid|--ask|--last|--vol|--low|--high]"""
+        """usage: ticker [--bid|--ask|--last|--volume|--low|--high]"""
         args = stripoffensive(args)
         ticker = floatify(bitstamp.ticker())
         last = ticker['last']
-        low,high,vol = ticker['low'],ticker['high'],ticker['vol']
+        low,high,vol = ticker['low'],ticker['high'],ticker['volume']
         bid,ask = ticker['bid'],ticker['ask']
         if not args:
             print "BTCUSD ticker | Best bid: %.2f, Best ask: %.2f, Bid-ask spread: %.2f, Last trade: %.2f, " \
@@ -444,9 +494,10 @@ class Shell(cmd.Cmd):
 
 
 #exit out if Ctrl+Z is pressed
-    def do_exit(self,arg):      #standard way to exit
+    def do_exit(self,args):      #standard way to exit
         """Exits the program"""
         try:
+            notifier_stop.set()        #<------ this is weird but if removed it breaks CTRL+C catching
             for k,v in threadlist.iteritems():
                 v.set()
             print "Shutting down threads..."
@@ -457,11 +508,12 @@ class Shell(cmd.Cmd):
         print "Exiting......"           
         return True
 
-    def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
+    def do_EOF(self,args):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
-        return self.do_exit(arg)
+        return self.do_exit(args)
 
     def help_help(self):
         print 'Prints the help screen'
 
-Shell().cmdloop()
+if __name__ == '__main__':
+    Shell().cmdloop()

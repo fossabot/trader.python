@@ -48,12 +48,13 @@ class Client:
 
     def post(self,url,params=None):
         url = APIURL + url
-        postdata = {"user": self.key,
-                "password": self.secret}
-        if params:
-            params = urllib.urlencode(params)
-            url = url + '?' + params
-        postdata = urllib.urlencode(postdata)
+        if params != None:
+            if isinstance(params, dict):
+                params = params.items()
+        else:
+            params = []
+        params += [("user",self.key),("password",self.secret)]
+        postdata = urllib.urlencode(params)
         req = urllib2.Request(url,postdata)         #POST
         req.add_header('Accept-encoding', 'gzip')       
         response = urllib2.urlopen(req)
@@ -127,19 +128,26 @@ class Client:
     #Cancel a single order
         url = "cancel_order/"
         params = {"id":orderid}
-        return self.post(url)    #Returns 'True' if found and canceled.
+        return self.post(url,params)    #Returns 'True' if found and canceled.
 
     def cancel_all(self):
+        error = False
         orders = self.open_orders()
         for order in orders:
             x = self.cancel_order(order['id'])
-            print x
-        if orders:
+            if x == True:
+                print "Order %s has been Cancelled." % order['id']
+            else:
+                print "Error: Order %s not cancelled." % order['id']
+                error = True
+        if orders and error == False:
             print "All Orders have been Cancelled!!!!!"
-        else:
+        elif orders and error == True:
+            print "Some Orders were cancelled, and some had errors."
+        elif not(orders):
             print "No Orders found!!"
 
-    def order_new(side,amount,price):
+    def order_new(self,side,amount,price):
         if side == 0:
             #buy
             result = self.buy(amount,price)
