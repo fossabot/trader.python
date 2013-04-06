@@ -23,8 +23,8 @@ config = {
 HTTPConn = httplib.HTTPSConnection
 
 class Client(object):
-    def __init__(self):
-        self._key,self._secret,self._passphrase = unlock_api_key.unlock("bitfloor")
+    def __init__(self,encpassword=""):
+        self._key,self._secret,self._passphrase = unlock_api_key.unlock("bitfloor",encpassword)
         self._product_id = 1    #the 1 means "product_ID" is USD (currently our only option anyway)
         self._inc = D('0.01')   # (the currency precision) TODO: get from bitfloor(can't yet)
         self.cPrec = D('0.01')
