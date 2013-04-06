@@ -15,7 +15,7 @@ import base64
 
 
 def lock():
-    print "\n\nga-bitbot API Key Encryptor v0.3"
+    print "\n\ntrader.python API Key Encryptor v0.3"
     print "-" * 30
     print "\n\n"
 

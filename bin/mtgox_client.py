@@ -501,9 +501,9 @@ class Shell(cmd.Cmd):
     def do_functest(self,args):
         """test function to test out high/low"""
         #mtgox.order_quote("bid",1000,socketbook.bid/1E5)
-        s = self.do_readtickerlog("5")
-        print "THIS IS TE NEW S"
-        print s
+        #s = self.do_readtickerlog("5")
+        #print "THIS IS TE NEW S"
+        print mtgox.last_order()
 
     def do_getaddress(self,args):
         """Generate a new personal bitcoin deposit address for your mtgox account (needs deposit priveleges to work)"""
@@ -649,39 +649,38 @@ class Shell(cmd.Cmd):
 
 
     def do_stoplossbot(self,args):
-        """Not done, do not use.started work on this didnt finish."""
-        def stoploss(firstarg,stop_event,side,size,price,percent):
+      #Finished. Should work.
+        """Usage: stoplossbot size of position , avg position price, percent willing to accept"""
+        """   ie: stoplossbot 13.88512098 136.50 95"""
+        def stoploss(firstarg,stop_event,amount,price,percent):
             while(not stop_event.is_set()):
-                #entirebook = refreshbook()
-                #ticker = mtgox.get_ticker2()
-                #last = D(ticker["last"]["value"])
-                entirebook = Book.parse(mtgox.get_depth())
-                entirebook.sort()
-                lowask = entirebook.asks[0].price
-                percent = D(percent) / D('100')
-                price = D(price)
+                last = D(socketbook.ask)
+                percent = percent / D('100')
                 if price*percent < last:
-                    orders = spread('mtgox',mtgox,'sell',size,price)
-                    for order in orders:
-                        print order["oid"]
-                stop_event.wait(60)
-        
+                    order = mtgox.order_new('ask',amount,protection=False)
+                    avgprice = mtgox.get_ask_history(order['data'])['return']['avg_cost']['display']
+                    print "%s Sold with stop-loss at a price of: %s" % (order['data'],avgprice)
+                    stop_event.set()
+                stop_event.wait(2)
+
+        #pass the args:  size of position , avg position price, percent willing to accept.
         try:
             args = stripoffensive(args)
             args = args.split()
-            newargs = tuple(floatify(args))
-            stoploss(*newargs)
+            newargs = tuple(decimalify(args))
+
+            global stopbot_stop
+            if args[0] == 'exit':
+                print "Shutting down background thread..."
+                stopbot_stop.set()
+            else:
+                stopbot_stop = threading.Event()
+                threadlist["stopbot"] = stopbot_stop
+                args= (None,stopbot_stop) + newargs
+                thread1 = threading.Thread(target = stoploss, args=args).start()
         except Exception as e:
             traceback.print_exc()
-
-        global stopbot_stop
-        if args == 'exit':
-            print "Shutting down background thread..."
-            stopbot_stop.set()
-        else:
-            stopbot_stop = threading.Event()
-            threadlist["stopbot"] = stopbot_stop
-            thread1 = threading.Thread(target = tickeralert, args=(None,stopbot_stop)).start()
+            print "An error occurred."
 
 
     def do_ticker(self,arg):
@@ -730,10 +729,12 @@ class Shell(cmd.Cmd):
         """Download the entire trading history of mtgox for the past 24 hours. Write it to a file"""
         print "Starting to download entire trade history from mtgox....",
         eth = mtgox.entire_trade_history()
-        with open(os.path.join(partialpath + 'mtgox_entiretrades.txt'),'w') as f:
+        filename = os.path.join(partialpath + 'mtgox_entiretrades.txt')
+        with open(filename,'w') as f:
             depthvintage = str(time.time())
             f.write(depthvintage)
             f.write('\n')
+            f.close()
             json.dump(eth,f)
             f.close()
             print "Finished."

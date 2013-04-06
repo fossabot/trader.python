@@ -103,7 +103,7 @@ def on_reconnect():
 def main():
     while True:                     #infinite loop  
         websocket.enableTrace(False)
-        url = 'ws://websocket.mtgox.com/mtgox'
+        url = 'wss://websocket.mtgox.com/mtgox'
         ws = websocket.WebSocket()
         ws.LASTTICKER = time.time() - 15        #sets the last ticker 30 seconds prior to now, so it shows up on first run.
         ws.LASTLAG = time.time() - 30           #same for the lag counter

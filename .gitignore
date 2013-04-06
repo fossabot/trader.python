@@ -1,6 +1,7 @@
 *.pyc
 
-keys/*
+keys/*.txt
+keys/backup/*
 data/*
 tradeshistory.txt
 pyinstaller.bat

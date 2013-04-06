@@ -185,6 +185,7 @@ class Client:
     def get_bid_history(self,OID):
         params = {"type":'bid',"order":OID}
         return self.request('generic/order/result',params,API_VERSION=1)
+    
     def get_ask_history(self,OID):
         params = {"type":'ask',"order":OID}
         return self.request('generic/order/result',params,API_VERSION=1)
@@ -272,15 +273,15 @@ class Client:
             print 'no orders found'
             return
     
-    def order_new(self, typ, amount, price=None):
+    def order_new(self, typ, amount, price=None, protection=True):
         if amount < D('0.01'):
             print "Minimum amount is 0.01 %s" % PRODUCT
             return None
-        if amount > D('100.0'):
-            print "You are about to %s >100 %s. Continue?\n" % (typ,PRODUCT)
-            yesno = raw_input()
-            if not(yesno):
-                return None
+        if protection == True:
+            if amount > D('100.0'):
+                yesno = prompt("You are about to {0} >100 {1}.".format(typ,PRODUCT),True)
+                if not(yesno):
+                    return None
         amount_int = int(D(amount) * (1/self.bPrec))
         params = {"type":str(typ),
                 "amount_int":amount_int
@@ -288,9 +289,9 @@ class Client:
         if price:
             price_int = int(D(price) * (1/self.cPrec))
             params["price_int"] = price_int
-        result = self.request(PAIR + "/money/order/add", params, API_VERSION=2)
-        if result["result"] == "success":
-            return result
+        response = self.request(PAIR + "/money/order/add", params, API_VERSION=2)
+        if response["result"] == "success":
+            return response
         else:
             return None
 

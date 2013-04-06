@@ -5,7 +5,7 @@ Some instructions are included in the source code(as docstrings, and by typing "
 ##Features
 Secure Authentication via password using 256-bit AES Encryption of your API-key and API-secret. (see Usage->Login with API-key/secret)
 Buy and sell bitcoins. (manually)
-Limit Orders & Market orders.  (TODO: Market order on bitfloor)
+Limit Orders & Market orders.  (Bitfloor and Bitstamp API do not support market orders - email sent, requesting it)
 Automatic Dynamic Streaming Updates via the websocket(Socket.IO)
 ##Commands (" " is the command name, but in the program you have to use lowercase)
 "Buy/Sell" Simple - X amount of BTC   (or in USD - put usd on the command)
@@ -84,19 +84,30 @@ Are you new to python? It's easy once you know what to do:
 4) Install it.
 5) Open a windows command prompt (cmd.exe).
    You'll need to install some additional modules (supporting programs)
-   Run the following:
-C:\python27\scripts\easy_install.exe python-cjson
+-------------------------------------------------------------------------------
+At this point you'll need a compiler. Visual Studio 2010 (or 2009). A free alternative is MingW32.
+-------------------------------------------------------------------------------
+If you have one, run the following:
+C:\python27\scripts\easy_install.exe python-cjson (python-cjson-1.0.3x7.win32-py2.7.exe)
 C:\python27\scripts\easy_install.exe websocket-client
 C:\python27\scripts\easy_install.exe requests
-C:\python27\scripts\easy_install.exe pyreadline
+C:\python27\scripts\easy_install.exe pyreadline (pyreadline-1.7.1.win32.exe)
+c:\python27\scripts\easy_install.exe pycrypto    (pycrypto-2.6.win32-py2.7.exe)
+	http://www.voidspace.org.uk/python/modules.shtml#pycrypto
+	http://www.voidspace.org.uk/downloads/pycrypto26/pycrypto-2.6.win32-py2.7.exe
+-------------------------------------------------------------------------------
+If you don't have a compiler, you will get a vcvarsall.bat error.Google this error.
+Here is the location of MingW32:
+	http://www.mingw.org/wiki/Getting_Started
+	http://sourceforge.net/projects/mingw/files/Installer/mingw-get-inst/mingw-get-inst-20120426/mingw-get-inst-20120426.exe/download
 
 6) Download this entire git repository as a ZIP file. 
    Direct Link: https://github.com/genbtc/trader.python/archive/master.zip
 7) Extract this entire zip file to C:\python27\ (it should create its own subdirectory named trader.python)
 8) Set some environment variables (temporarily):
 
-echo PATH=%PATH%;C:\python27\;C:\Python27\scripts\
-echo PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
+set PATH=%PATH%;C:\python27\;C:\Python27\scripts\
+set PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
 
 These will not persist once you close the command prompt 
 The way to add them permanently is longwinded...:
@@ -113,13 +124,13 @@ The way to add them permanently is longwinded...:
 
 8) Now you should be ready to run the scripts you want.
    Run the scripts in the following manner:
-cd \python27\
-python.exe trader.python\mtgox_websockets.py
+   
+cd \python27\trader.python\bin\
+python.exe mtgox_websockets.py
 
 9) Phew! You're done.
 
 ---------------
-
 TO BEGIN:
 ---------------
 Windows binaries are included! (for encrypt_api_key, bitfloor_client, and mtgox_client)
