@@ -5,32 +5,30 @@
 # A complete command line Client with a menu
 # Functionality _should_ be listed in README (functions in alpahabetical order)
 
-
-import mtgoxhmac
 import cmd
 import time
-from book import *
-from common import *
-import depthparser
 import json
 import traceback
-#import pyreadline
 import winsound         #plays beeps for alerts 
 import threading        #for subthreads
 import datetime
 from decimal import Decimal as D    #renamed to D for simplicity.
 import os
+import logging
+import csv
+
+from book import *
+from common import *
+import depthparser
+import mtgox_prof7bitapi
+import mtgoxhmac
 
 mtgox = mtgoxhmac.Client()
 
-cPrec = D('0.00001')
-bPrec = D('0.00000001')
+bPrec = mtgox.bPrec
+cPrec = mtgox.cPrec
 
 threadlist = {}
-
- 
-import mtgox_prof7bitapi
-import logging
 
 class LogWriter():
     """connects to gox.signal_debug and logs it all to the logfile"""
@@ -61,13 +59,12 @@ class LogWriter():
         #     return
         # elif "executing" in msg:
         #     return
-        # elif "https://data.mtgox.com/api/2/money/order/lag" in msg:
-        #     return
-        # else:
-        logging.debug("%s:%s", sender.__class__.__name__, msg)       #change this to .info to see the messages on screen.
-        return True
+        if "https://data.mtgox.com/api/2/money/order/lag" in msg:
+            return
+        else:
+            logging.debug("%s:%s", sender.__class__.__name__, msg)       #change this to .info to see the messages on screen.
 
-config = mtgox_prof7bitapi.GoxConfig("../goxtool.ini")      #deprecated
+config = mtgox_prof7bitapi.GoxConfig()#"../goxtool.ini")      #deprecated
 secret = mtgox_prof7bitapi.Secret()
 secret.decrypt(mtgox.enc_password)
 gox = mtgox_prof7bitapi.Gox(secret, config)
@@ -88,11 +85,9 @@ partialpath=os.path.join(fullpath + '\\..\\data\\')
 def decideto():
   #experimental, not working yet. Decide to sell or buy based on the ticker.
 
-
-
-
-
 """
+
+
 def refreshbook(maxage=180):
     #get the FULL depth (current trade order) (API 2,gzip)
     depthvintage,fulldepth = updatedepthdata(mtgox,maxage)
@@ -175,16 +170,26 @@ class Shell(cmd.Cmd):
         self.onecmd('help')             #print out the possible commands (help) on first run
         
 
+    def threadshutdown(self):
+        threads = False
+        for k,v in threadlist.iteritems():
+            v.set()
+            threads = True
+        if threads:
+            print "Shutting down threads..."        
+
     #CTRL+C Handling
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except KeyboardInterrupt as e:
+        except KeyboardInterrupt:
             print "Press CTRL+C again to exit, or ENTER to continue."
             try:
                 wantcontinue = raw_input()
             except KeyboardInterrupt:
-                return self.do_exit(self)
+                self.threadshutdown()
+                self.do_exit(self)
+                return
             self.cmdloop()
 
     #start out by printing the order book (the new socket book)
@@ -195,43 +200,6 @@ class Shell(cmd.Cmd):
     print 'Type help to show the available commands'
     print 'sample trade example: '
     print '   buy 2.8 140 145 64 = buys 2.8 BTC between $140 to $145 using 64 chunks'
-
-
-    def do_action(self,args):
-        """Not done, do not use.started work on this didnt finish."""
-        def action(firstarg,stop_event,side,size,price,percent):
-            while(not stop_event.is_set()):
-                #entirebook = refreshbook()
-                #ticker = mtgox.get_ticker2()
-                #last = D(ticker["last"]["value"])
-                entirebook = Book.parse(mtgox.get_depth())
-                entirebook.sort()
-                lowask = entirebook.asks[0].price
-                percent = D(percent) / D('100')
-                price = D(price)
-                if price*percent < last:
-                    orders = spread('mtgox',mtgox,'sell',size,price)
-                    for order in orders:
-                        print order["oid"]
-                stop_event.wait(60)
-        
-        try:
-            args = stripoffensive(args)
-            args = args.split()
-            newargs = tuple(floatify(args))
-            stoploss(*newargs)
-        except Exception as e:
-            traceback.print_exc()
-
-
-        global stopbot_stop
-        if args == 'exit':
-            print "Shutting down background thread..."
-            stopbot_stop.set()
-        else:
-            stopbot_stop = threading.Event()
-            threadlist["action"]=stopbot_stop
-            thread1 = threading.Thread(target = action, args=(None,stopbot_stop)).start()
 
 
     def do_asks(self,args):
@@ -315,17 +283,24 @@ class Shell(cmd.Cmd):
                     btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
 
-        global notifier_stop
-        btc,usd = bal()
-        args = stripoffensive(args)
-        args = args.split()
-        if 'exit' in args:
-            print "Shutting down background thread..."
-            notifier_stop.set()
-        else:   
-            notifier_stop = threading.Event()
-            threadlist["balancenotifier"] = notifier_stop
-            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd)).start()
+        try:
+            global notifier_stop
+            btc,usd = bal()
+            args = stripoffensive(args)
+            args = args.split()
+            if 'exit' in args:
+                print "Shutting down background thread..."
+                notifier_stop.set()
+            else:   
+                notifier_stop = threading.Event()
+                threadlist["balancenotifier"] = notifier_stop
+                notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd))
+                notifier_thread.daemon = True
+                notifier_thread.start()
+        except Exception as e:
+            traceback.print_exc()
+            print "An error occurred."
+            self.onecmd('help balancenotifier')
 
 
     def do_book(self,size):
@@ -347,8 +322,59 @@ class Shell(cmd.Cmd):
 
     def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions"""
-        btchistory=mtgox.get_history_btc()
-        print "%s" % btchistory.decode('utf-8')
+        filename = os.path.join(partialpath + 'mtgox_btchistory.csv')
+        download = prompt("Download a new history?",False)
+        if download:
+            btchistory=mtgox.get_history_btc().decode('utf-8')
+            print "%s" % btchistory
+            with open(filename,'w') as f:
+                f.write(btchistory.encode('utf8'))
+                print "Finished writing file."
+        csvfile = open(filename, 'rb')
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        fulllist = []
+        firstrow = True
+        for row in spamreader:
+            if firstrow == True:
+                keys = row
+            eachlist = []
+            itemdict = []
+            listoflist = []
+            for x in xrange(len(row)):
+                onelist = [keys[x],row[x]]
+                listoflist.append(onelist)
+                fulldict = {x[0]:x[1] for x in listoflist}
+
+            fulllist.append(fulldict)
+            firstrow = False
+        #print fulllist
+        allfees = D('0')
+        amtbtcin = D('0')
+        valuein = D('0')
+        amtbtcout = D('0')
+        valueout = D('0')
+        for item in fulllist:
+            if item["Type"] == "fee":
+                onefee = D(item["Value"])
+                allfees += onefee.quantize(D('0.00000001'))
+            if item["Type"] == "in" or item["Type"] == "out":
+                info = item["Info"]
+                price=D(info[info.find("$")+1:])
+                amount=D(item["Value"])
+            if item["Type"] == "in":
+                amtbtcin += amount
+                valuein += D(price*amount).quantize(D('0.00001'))
+            if item["Type"] == "out":
+                amtbtcout += amount
+                valueout += D(price*amount).quantize(D('0.00001'))
+
+
+        print "Sum of all fees is: %s BTC" % allfees
+        print "Sum of all BTC bought is %s BTC:" % amtbtcin
+        print "Sum of all BTC sold is: %s BTC" % amtbtcout
+        print "Value of all BTC bought is: $%s" % valuein
+        print "Value of all BTC sold is: $%s" % valueout
+ 
 
     def do_usdhistory(self,args):
         """Prints out your entire trading history of USD transactions"""
@@ -648,39 +674,54 @@ class Shell(cmd.Cmd):
             self.onecmd('help spread')
 
 
-    def do_stoplossbot(self,args):
-      #Finished. Should work.
-        """Usage: stoplossbot size of position , avg position price, percent willing to accept"""
-        """   ie: stoplossbot 13.88512098 136.50 95"""
-        def stoploss(firstarg,stop_event,amount,price,percent):
-            while(not stop_event.is_set()):
-                last = D(socketbook.ask)
-                percent = percent / D('100')
-                if price*percent < last:
-                    order = mtgox.order_new('ask',amount,protection=False)
-                    avgprice = mtgox.get_ask_history(order['data'])['return']['avg_cost']['display']
-                    print "%s Sold with stop-loss at a price of: %s" % (order['data'],avgprice)
-                    stop_event.set()
-                stop_event.wait(2)
+    def do_stoploss(self,args):
+      #Finished. Works.
+        """Usage: stoploss size of position , avg position price, percent willing to accept"""
+        """   ie: stoploss 13.88512098 136.50 95"""
+        def stoplossbot(firstarg,stop_event,amount,price,percent):
+            try:
+                found = False
+                while(not stop_event.is_set()):
+                    last = D(socketbook.ask)
+                    percent = percent / D('100')
+                    if price*percent > last:
+                        order = mtgox.order_new('ask',amount,protection=False)
+                        while found == False:
+                            stop_event.wait(2)
+                            response = mtgox.get_ask_history(order['data'])
+                            if not(response["result"] == "error"):
+                                found = True
+                        avgprice = response['return']['avg_cost']['display']
+                        print "%s Sold with stop-loss @of c %s" % (order['data'],avgprice)
+                        stop_event.set()
+                    stop_event.wait(2)
+            except Exception as e:
+                try:    #DEBUGGING ONLY
+                    print "Order was: ", order, "Result was: ", result
+                except:
+                    traceback.print_exc()
+                    print "An error occurred."
+                    self.onecmd('help stoploss')
 
-        #pass the args:  size of position , avg position price, percent willing to accept.
         try:
+            global stopbot_stop
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-
-            global stopbot_stop
-            if args[0] == 'exit':
+            if 'exit' in args:
                 print "Shutting down background thread..."
                 stopbot_stop.set()
             else:
                 stopbot_stop = threading.Event()
                 threadlist["stopbot"] = stopbot_stop
-                args= (None,stopbot_stop) + newargs
-                thread1 = threading.Thread(target = stoploss, args=args).start()
+                args = (None,stopbot_stop) + newargs
+                stopbot_thread = threading.Thread(target = stoplossbot, args=args)
+                stopbot_thread.daemon = True
+                stopbot_thread.start()
         except Exception as e:
             traceback.print_exc()
             print "An error occurred."
+            self.onecmd('help stoploss')
 
 
     def do_ticker(self,arg):
@@ -734,7 +775,6 @@ class Shell(cmd.Cmd):
             depthvintage = str(time.time())
             f.write(depthvintage)
             f.write('\n')
-            f.close()
             json.dump(eth,f)
             f.close()
             print "Finished."
@@ -746,7 +786,7 @@ class Shell(cmd.Cmd):
         """NOTE: RUNS AS A BACKGROUND PROCESS!!!!!!\n""" \
         """usage: updown <low> <high>\n""" \
         """Shutdown: updown exit  """
-        def tickeralert(firstarg,stop_event):
+        def tickeralert(firstarg,tickeralert_stop):
             try:
                 low, high = floatify(args.split())
             except Exception as e:
@@ -754,7 +794,7 @@ class Shell(cmd.Cmd):
                 return
             #Log lastprice to the ticker log file
             with open(os.path.join(partialpath + 'mtgox_last.txt'),'a') as f:
-                while(not stop_event.is_set()):
+                while(not tickeralert_stop.is_set()):
                     ticker =mtgox.get_ticker()
                     last = float(ticker['last'])
                     text = json.dumps({"time":time.time(),"lastprice":last})
@@ -785,18 +825,24 @@ class Shell(cmd.Cmd):
                         #decideto()
                         #spread('mtgox',mtgox,'buy', 1, low+1, high-1, 5)
                         print "New range is: %s-%s" % (low,high)
-                    stop_event.wait(40)
+                    tickeralert_stop.wait(40)
 
-        args = stripoffensive(args)
-        global t1_stop
-        if args == 'exit':
-            print "Shutting down background thread..."
-            t1_stop.set()
-        else:
-            t1_stop = threading.Event()
-            threadlist["updown"] = t1_stop
-            thread1 = threading.Thread(target = tickeralert, args=(None,t1_stop)).start()
-
+        try:
+            global tickeralert_stop
+            args = stripoffensive(args)
+            if args == 'exit':
+                print "Shutting down background thread..."
+                tickeralert_stop.set()
+            else:
+                tickeralert_stop = threading.Event()
+                threadlist["tickeralert"] = tickeralert_stop
+                tickeralert_thread = threading.Thread(target = tickeralert, args=(None,tickeralert_stop))
+                tickeralert_thread.daemon = True
+                tickeralert_thread.start()
+        except Exception as e:
+            traceback.print_exc()
+            print "An error occurred."
+            self.onecmd('help updown')
 
     def do_withdraw(self,args):
         """Withdraw Bitcoins to an address (needs withdraw priveleges to work)"""
@@ -821,14 +867,7 @@ class Shell(cmd.Cmd):
 
 
     def do_exit(self,args):      #standard way to exit
-        """Exits the program"""
-        try:
-            notifier_stop.set()      #<------ this is weird but if removed it breaks CTRL+C catching
-            for k,v in threadlist.iteritems():
-                v.set()
-            print "Shutting down threads..."
-        except:
-            pass             
+        """Exits the program"""   
         print "\n"
         print "Session Terminating......."
         print "Exiting......"           

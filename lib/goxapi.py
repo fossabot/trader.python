@@ -49,14 +49,14 @@ from urllib2 import urlopen
 from urllib import urlencode
 import weakref
 import websocket
-import encrypt_apikey
+
 import unlock_api_key
 
 input = raw_input # pylint: disable=W0622,C0103
 
 FORCE_PROTOCOL = "socketio"
-FORCE_NO_FULLDEPTH = False
-FORCE_NO_HISTORY = False
+FORCE_NO_FULLDEPTH = True
+FORCE_NO_HISTORY = True
 FORCE_HTTP_API = False
 
 def int2str(value_int, currency):
@@ -128,7 +128,7 @@ class GoxConfig(SafeConfigParser):
     for separate Gox() instances"""
 
     _DEFAULTS = [["gox", "currency", "USD"]
-                ,["gox", "use_ssl", "False"]
+                ,["gox", "use_ssl", "True"]
                 ,["gox", "use_plain_old_websocket", "False"]
                 ,["gox", "use_http_api", "True"]
                 ,["gox", "load_fulldepth", "True"]
@@ -179,7 +179,8 @@ class GoxConfig(SafeConfigParser):
             self.add_section(section)
         if not self.has_option(section, option):
             self.set(section, option, default)
-            self.save()
+#commented out
+#            self.save()
 
 class Signal():
     """callback functions (so called slots) can be connected to a signal and
@@ -333,15 +334,15 @@ class Secret:
         and then try to decrypt the secret."""
         self.decrypt()
 
-    # pylint: disable=R0201
-    def prompt_encrypt(self):
-        """ask for key, secret and password on the command line,
-        then encrypt the secret and store it in the ..\data\ directory"""
-        try:
-            encrypt_apikey.lock()
-            return 1
-        except:
-            return False
+    # # pylint: disable=R0201
+    # def prompt_encrypt(self):
+    #     """ask for key, secret and password on the command line,
+    #     then encrypt the secret and store it in the ..\data\ directory"""
+    #     try:
+    #         encrypt_apikey.lock()
+    #         return 1
+    #     except:
+    #         return False
 
     def know_secret(self):
         """do we know the secret key? The application must be able to work
@@ -450,7 +451,7 @@ class History(BaseObject):
 class BaseClient(BaseObject):
     """abstract base class for SocketIOClient and WebsocketClient"""
 
-    SOCKETIO_HOST_BETA = "socketio-beta.mtgox.com"
+    SOCKETIO_HOST_BETA = "socketio.mtgox.com"
     SOCKETIO_HOST = "socketio.mtgox.com"
     #WEBSOCKET_HOST = "websocket.mtgox.com"
     HTTP_HOST = "data.mtgox.com"

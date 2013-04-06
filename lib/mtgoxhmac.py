@@ -1,5 +1,5 @@
 """
-MtGoxHMAC v0.3
+MtGoxHMAC v0.31
 
 Copyright 2011 Brian Monkaba
 Modified 4/2/2013 by genBTC 
@@ -32,28 +32,19 @@ import json_ascii
 import urllib
 import urllib2
 import urlparse
-import unlock_api_key
 import ssl
 import gzip
 import io
 from decimal import Decimal as D
 import traceback
 
+from common import UserError,ServerError
+import unlock_api_key
+
 CURRENCY = "USD"
 PRODUCT = "BTC"     #maybe future litecoin implementations can work off this
 PAIR = PRODUCT + CURRENCY
 
-
-class ServerError(Exception):
-    def __init__(self, ret):
-        self.ret = ret
-    def __str__(self):
-        return "Server error: %s" % self.ret
-class UserError(Exception):
-    def __init__(self, errmsg):
-        self.errmsg = errmsg
-    def __str__(self):
-        return self.errmsg
 
 class Client:
     def __init__(self, enc_password=""):

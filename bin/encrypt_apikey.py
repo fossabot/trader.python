@@ -1,5 +1,5 @@
 """
-encrypt_api_key v0.01 
+encrypt_api_key 
 Copyright 2011 Brian Monkaba
 VERSION 0.3 REVISED by genBTC 
 """
@@ -15,7 +15,7 @@ import base64
 
 
 def lock():
-    print "\n\ntrader.python API Key Encryptor v0.3"
+    print "\n\ngenbtc.trader API Key Encryptor v0.3"
     print "-" * 30
     print "\n\n"
 

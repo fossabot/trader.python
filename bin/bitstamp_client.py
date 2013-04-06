@@ -4,7 +4,7 @@
 # Universal Client for all things bitstamp
 # Functionality _should_ be listed in README
 
-#import args        #lib/args.py modified to use product 1 & bitstamp file
+
 import bitstampapi     #args was phased out and get_rapi() was moved to bitstamp and config.json moved to data/
 import cmd
 import time
@@ -23,16 +23,10 @@ import winsound
 
 bitstamp = bitstampapi.Client()
 
-cPrec = D('0.01')
-bPrec = D('0.00000001')
+bPrec = bitstamp.bPrec
+cPrec = bitstamp.cPrec
 
 threadlist = {}
-
-class UserError(Exception):
-    def __init__(self, errmsg):
-        self.errmsg = errmsg
-    def __str__(self):
-        return self.errmsg
 
 
 def bal():
@@ -115,16 +109,26 @@ class Shell(cmd.Cmd):
         self.use_rawinput = False
         self.onecmd('help')
         
+    def threadshutdown(self):
+        threads = False
+        for k,v in threadlist.iteritems():
+            v.set()
+            threads = True
+        if threads:
+            print "Shutting down threads..."        
+
     #CTRL+C Handling
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except KeyboardInterrupt as e:
+        except:
             print "Press CTRL+C again to exit, or ENTER to continue."
             try:
                 wantcontinue = raw_input()
             except KeyboardInterrupt:
-                return self.do_exit(self)
+                self.threadshutdown()
+                self.do_exit(self)
+                return
             self.cmdloop()
 
     #start out by printing the order book
@@ -181,7 +185,30 @@ class Shell(cmd.Cmd):
         else:   
             notifier_stop = threading.Event()
             threadlist["balancenotifier"] = notifier_stop
-            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd)).start()
+            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd))
+            notifier_thread.daemon = True
+            notifier_thread.start()
+
+    def do_fakethread(self,args):
+        """Fake thread for testing"""
+        def ft(firstarg,fakethread_stop,btc,usd):
+            while(not fakethread_stop.is_set()):
+                print "THIS IS A FAKE THREAD!!!!!!"
+                fakethread_stop.wait(3)
+
+        global fakethread_stop
+        btc,usd = bal()
+        args = stripoffensive(args)
+        args = args.split()
+        if 'exit' in args:
+            print "Shutting down background thread..."
+            fakethread_stop.set()
+        else:   
+            fakethread_stop = threading.Event()
+            threadlist["fakethread"] = fakethread_stop
+            fake_thread = threading.Thread(target = ft, args=(None,fakethread_stop,btc,usd))
+            fake_thread.daemon = True
+            fake_thread.start()
 
     def do_book(self,size):
         """Download and print the order book of current bids and asks, up to length [size]"""
@@ -433,9 +460,10 @@ class Shell(cmd.Cmd):
     def do_spread(self,args):
         """Print out the bid/ask spread"""
         try:
-            print "High Bid is: $", entirebook.bids[0].price
-            print "Low ask is: $", entirebook.asks[0].price
-            print "The spread is: $%f" % entirebook.asks[0].price - entirebook.bids[0].price
+            entirebook = refreshbook()
+            print "Lowest ask is: $%f"  % entirebook.asks[0][0]
+            print "Highest Bid is: $%f" % entirebook.bids[0][0]
+            print "The spread is: $%f" % (entirebook.asks[0][0] - entirebook.bids[0][0])
         except:
             self.onecmd('help spread')
 
@@ -496,13 +524,6 @@ class Shell(cmd.Cmd):
 #exit out if Ctrl+Z is pressed
     def do_exit(self,args):      #standard way to exit
         """Exits the program"""
-        try:
-            notifier_stop.set()        #<------ this is weird but if removed it breaks CTRL+C catching
-            for k,v in threadlist.iteritems():
-                v.set()
-            print "Shutting down threads..."
-        except:
-            pass             
         print "\n"
         print "Session Terminating......."
         print "Exiting......"           

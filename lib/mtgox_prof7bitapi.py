@@ -50,7 +50,7 @@ import urllib2
 from urllib import urlencode
 import weakref
 import websocket
-import encrypt_apikey
+#import encrypt_apikey
 import unlock_api_key
 
 input = raw_input # pylint: disable=W0622,C0103
@@ -163,21 +163,21 @@ class GoxConfig(SafeConfigParser):
                 ,["goxtool", "set_xterm_title", "True"]
                 ]
 
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self): #, filename):
+        #self.filename = filename
         SafeConfigParser.__init__(self)
-        self.load()
+        #self.load()
         for (sect, opt, default) in self._DEFAULTS:
             self._default(sect, opt, default)
 
-    def save(self):
-        """save the config to the .ini file"""
-        with open(self.filename, 'wb') as configfile:
-            self.write(configfile)
+    # def save(self):
+    #     """save the config to the .ini file"""
+    #     with open(self.filename, 'wb') as configfile:
+    #         self.write(configfile)
 
-    def load(self):
-        """(re)load the onfig from the .ini file"""
-        self.read(self.filename)
+    # def load(self):
+    #     """(re)load the onfig from the .ini file"""
+    #     self.read(self.filename)
 
     def get_safe(self, sect, opt):
         """get value without throwing exception."""
@@ -362,15 +362,15 @@ class Secret:
         and then try to decrypt the secret."""
         self.decrypt(password)
 
-    # pylint: disable=R0201
-    def prompt_encrypt(self):
-        """ask for key, secret and password on the command line,
-        then encrypt the secret and store it in the ..\data\ directory"""
-        try:
-            encrypt_apikey.lock()
-            return 1
-        except:
-            return False
+    # # pylint: disable=R0201
+    # def prompt_encrypt(self):
+    #     """ask for key, secret and password on the command line,
+    #     then encrypt the secret and store it in the ..\data\ directory"""
+    #     try:
+    #         encrypt_apikey.lock()
+    #         return 1
+    #     except:
+    #         return False
 
     def know_secret(self):
         """do we know the secret key? The application must be able to work

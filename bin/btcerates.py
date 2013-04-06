@@ -6,9 +6,12 @@ import hashlib
 import hmac
 import time
 import winsound
+import os
+
 
 import unlock_api_key 
-import os
+
+
 
 fullpath = os.path.dirname(os.path.realpath(__file__))
 partialpath=os.path.join(fullpath + '\\..\\data\\')
@@ -173,7 +176,7 @@ def ac(ret=0):
                 print '{0:7}  => {1:10.4f}  {2:10.4f}'.format(kk, k[kk], 1./k[kk])
  
             print
-            print 'Funds:   Available        Total    Converted'
+            print 'Funds:\tAvailable\t\tTotal\tConverted'
             for kk in xf:
                 print '{0:3} =  {1:11.3f}  {2:11.3f}  {3:11.3f}'.format(kk, xa[kk], xf[kk], t[kk])
  

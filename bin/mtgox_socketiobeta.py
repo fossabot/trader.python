@@ -12,7 +12,6 @@
 #<<<<<<<<<
 
 import argparse
-import goxapi
 import logging
 import locale
 import math
@@ -20,6 +19,8 @@ import sys
 import time
 import traceback
 import threading
+
+import goxapi
 
 class LogWriter():
     """connects to gox.signal_debug and logs it all to the logfile"""

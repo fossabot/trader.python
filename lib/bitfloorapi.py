@@ -24,12 +24,11 @@ HTTPConn = httplib.HTTPSConnection
 
 class Client(object):
     def __init__(self):
-        key,secret,passphrase = unlock_api_key.unlock("bitfloor")
-        self._key = key
-        self._secret = secret
-        self._passphrase = passphrase
+        self._key,self._secret,self._passphrase = unlock_api_key.unlock("bitfloor")
         self._product_id = 1    #the 1 means "product_ID" is USD (currently our only option anyway)
         self._inc = D('0.01')   # (the currency precision) TODO: get from bitfloor(can't yet)
+        self.cPrec = D('0.01')
+        self.bPrec = D('0.00001')
 
     def book(self, level=1):
         url = '/book/L{1}/{0}'.format(self._product_id, level)

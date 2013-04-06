@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # list of commonly used and useful functions
 # NOW contains common client interface function calls to each individual API framework
 
@@ -15,6 +14,20 @@ from decimal import Decimal as D
 import random
 import re
 
+
+class UserError(Exception):
+    def __init__(self, errmsg):
+        self.errmsg = errmsg
+    def __str__(self):
+        return self.errmsg
+
+class ServerError(Exception):
+    def __init__(self, ret):
+        self.ret = ret
+    def __str__(self):
+        return "Server error: %s" % self.ret
+
+        
 fullpath = os.path.dirname(os.path.realpath(__file__))
 partialpath=os.path.join(fullpath + '\\..\\data\\')
 
@@ -206,15 +219,8 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
     randomnesstotal = 0
     loop_price = D(str(price_lower))
     price_range = D(str(price_upper)) - D(str(price_lower))
-    if exchangename == 'bitfloor':
-        cPrec = D('0.01')
-        bPrec = D('0.00001')
-    elif exchangename == 'mtgox':
-        cPrec = D('0.00001')
-        bPrec = D('0.00000001')
-    elif exchangename == 'bitstamp':
-        cPrec = D('0.01')
-        bPrec = D('0.00000001')
+    bPrec = exchangeobject.bPrec
+    cPrec = exchangeobject.cPrec
     price_chunk = D(price_range/ D(chunks)).quantize(cPrec)
     chunk_size = D(D(size) / D(chunks)).quantize(bPrec)
     for x in range (0, int(chunks)):

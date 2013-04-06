@@ -2,6 +2,7 @@
 # adds a single order to mt.gox
 # uses encrypted API keys
 
+
 import mtgoxhmac
 import cmd
 

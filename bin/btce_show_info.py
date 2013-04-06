@@ -1,8 +1,11 @@
 #!/usr/bin/python
-import btce
+
+
 import json
 import json_ascii
 from time import strftime, localtime
+
+btce = btceapi.Client()
 
 info = btce.getinfo()
 #print 'Info: ', info
@@ -16,8 +19,11 @@ print
 #print 'Depth: ', btce.depth('btc_usd')
 #print 'All Trades: ', btce.trades('btc_usd')
 #print 'Trans_History', btce.trans_history()
-ticker = btce.ticker('btc_usd')
-print 'Ticker: ', ticker
+pairs = ['btc_usd','ltc_btc','ltc_usd']
+for pair in pairs:
+	ticker = btce.ticker(pair)
+	print '%s Ticker: %s' % (pair.upper(),ticker)
+	print '-'*40
 
 if info['open_orders']:
 	print "Open orders (" + str(info['open_orders']) + "):"

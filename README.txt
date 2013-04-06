@@ -96,7 +96,11 @@ c:\python27\scripts\easy_install.exe pycrypto    (pycrypto-2.6.win32-py2.7.exe)
 	http://www.voidspace.org.uk/python/modules.shtml#pycrypto
 	http://www.voidspace.org.uk/downloads/pycrypto26/pycrypto-2.6.win32-py2.7.exe
 -------------------------------------------------------------------------------
-If you don't have a compiler, you will get a vcvarsall.bat error.Google this error.
+Another alternative, is to download these packages as binaries, from: 
+http://www.lfd.uci.edu/~gohlke/pythonlibs/
+The .exe filenames are listed above (try to google or something).
+If you don't have a compiler, you will get a vcvarsall.bat error 
+Googling this error will tell you something about needing Visual Studio, or downloading mingw32 instead.
 Here is the location of MingW32:
 	http://www.mingw.org/wiki/Getting_Started
 	http://sourceforge.net/projects/mingw/files/Installer/mingw-get-inst/mingw-get-inst-20120426/mingw-get-inst-20120426.exe/download
@@ -104,31 +108,19 @@ Here is the location of MingW32:
 6) Download this entire git repository as a ZIP file. 
    Direct Link: https://github.com/genbtc/trader.python/archive/master.zip
 7) Extract this entire zip file to C:\python27\ (it should create its own subdirectory named trader.python)
-8) Set some environment variables (temporarily):
+8) Set your PYTHONPATH environment variables:
+Temporarily (this command window only):
+	set PYTHONPATH=%PYTHONPATH%;C:\Python27\trader.python\lib\
+Permanently (in the registry):
+	setx PYTHONPATH %PYTHONPATH%
 
-set PATH=%PATH%;C:\python27\;C:\Python27\scripts\
-set PYTHONPATH=%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
-
-These will not persist once you close the command prompt 
-The way to add them permanently is longwinded...:
-	-System Control Panel or Right click My Computer -> Properties...
-	-Advanced System settings (left sidebar)
-	-Environment Variables (button on the bottom).
-	-User Variables
-	-find PATH, Edit... (or New... if it doesnt exist).
-	-Copy the following into the respective edit box for PATH and PYTHONPATH:
-		%PATH%;c:\python27\;C:\Python27\scripts\
-		%PYTHONPATH%;C:\python27\;C:\python27\libs\;C:\python27\trader.python\lib\
-	-Note: These will NOT take effect until you restart. 
-		Which is why you must still do the "echo" commands above until you restart.
-
-8) Now you should be ready to run the scripts you want.
+10) Now you should be ready to run the scripts you want.
    Run the scripts in the following manner:
    
 cd \python27\trader.python\bin\
-python.exe mtgox_websockets.py
+python.exe mtgox_client.py
 
-9) Phew! You're done.
+Phew! You're done.
 
 ---------------
 TO BEGIN:

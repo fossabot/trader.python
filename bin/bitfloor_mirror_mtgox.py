@@ -2,6 +2,7 @@
 # will try to mirror mtgox's order book,
 # taking into account existing bitfloor orders and the user's available funds
 
+
 import urllib
 import json
 import json_ascii

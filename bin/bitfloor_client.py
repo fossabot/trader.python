@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # bitfloor_client.py
-# Created by genBTC 3/8/2013 updated 3/17/2013
+# Created by genBTC 3/8/2013 updated 4/6/2013
 # Universal Client for all things bitfloor
 # Functionality _should_ be listed in README
 
-#import args        #lib/args.py modified to use product 1 & bitfloor file
-import bitfloorapi     #args was phased out and get_rapi() was moved to bitfloor and config.json moved to data/
+
+import bitfloorapi
 import cmd
 import time
 from decimal import Decimal as D    #got annoyed at having to type Decimal every time.
@@ -18,20 +18,13 @@ import logging
 import sys
 import socket
 import winsound
-#import pyreadline
 
 bitfloor = bitfloorapi.Client()
 
-cPrec = D('0.01')
-bPrec = D('0.00001')
+bPrec = bitfloor.bPrec
+cPrec = bitfloor.cPrec
 
 threadlist = {}
-
-class UserError(Exception):
-    def __init__(self, errmsg):
-        self.errmsg = errmsg
-    def __str__(self):
-        return self.errmsg
 
 
 def bal():
@@ -106,16 +99,26 @@ class Shell(cmd.Cmd):
         self.use_rawinput = False
         self.onecmd('help')
         
+    def threadshutdown(self):
+        threads = False
+        for k,v in threadlist.iteritems():
+            v.set()
+            threads = True
+        if threads:
+            print "Shutting down threads..."        
+
     #CTRL+C Handling
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except KeyboardInterrupt as e:
+        except:
             print "Press CTRL+C again to exit, or ENTER to continue."
             try:
                 wantcontinue = raw_input()
             except KeyboardInterrupt:
-                return self.do_exit(self)
+                self.threadshutdown()
+                self.do_exit(self)
+                return
             self.cmdloop()
                
     #start out by printing the order book
@@ -150,18 +153,24 @@ class Shell(cmd.Cmd):
                         winsound.Beep(1800,1000)
                     btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
-
-        global notifier_stop
-        btc,usd = bal()
-        args = stripoffensive(args)
-        args = args.split()
-        if 'exit' in args:
-            print "Shutting down background thread..."
-            notifier_stop.set()
-        else:   
-            notifier_stop = threading.Event()
-            threadlist["balancenotifier"] = notifier_stop
-            notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd)).start()
+        try:
+            global notifier_stop
+            btc,usd = bal()
+            args = stripoffensive(args)
+            args = args.split()
+            if 'exit' in args:
+                print "Shutting down background thread..."
+                notifier_stop.set()
+            else:   
+                notifier_stop = threading.Event()
+                threadlist["balancenotifier"] = notifier_stop
+                notifier_thread = threading.Thread(target = bn, args=(None,notifier_stop,btc,usd))
+                notifier_thread.daemon = True
+                notifier_thread.start()
+        except Exception as e:
+            traceback.print_exc()
+            print "An error occurred."
+            self.onecmd('help balancenotifier')
 
 
     def do_book(self,size):
@@ -171,6 +180,43 @@ class Shell(cmd.Cmd):
             printorderbook(size)
         except:
             printorderbook()        
+
+
+    def do_buy(self, arg):
+        """(limit order): buy size price \n""" \
+        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        try:
+            args = arg.split()
+            newargs = tuple(decimalify(args))
+            if len(newargs) not in (1,3):
+                spread('bitfloor',bitfloor, 0, *newargs)
+            else:
+                raise UserError
+        except Exception as e:
+            traceback.print_exc()
+            print "Invalid args given!!! Proper use is:"
+            self.onecmd('help buy')
+            
+    def do_sell(self, arg):
+        """(limit order): sell size price \n""" \
+        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        try:
+            args = arg.split()
+            newargs = tuple(decimalify(args))
+            if len(newargs) not in (1,3):
+                spread('bitfloor',bitfloor, 1, *newargs)
+            else:
+                raise UserError
+        except Exception as e:
+            traceback.print_exc()
+            print "Invalid args given!!! Proper use is:"
+            self.onecmd('help sell')
+
+
+    def do_cancelall(self,arg):
+        """Cancel every single order you have on the books"""
+        bitfloor.cancel_all()
+
 
     def do_liquidbot(self,arg):
         """incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
@@ -203,13 +249,10 @@ class Shell(cmd.Cmd):
             console = logging.StreamHandler()
             console.setLevel(logging.INFO)
             console_logger.addHandler(console)         
-            # sys.stdout = sl
-            # print "This is how I redirect and redisplay stdout to the logfile."
-            # sys.stdout = sys.__stdout__
 #pre inits
-            TRADEAMOUNT = D('2.32690')           #<--------- number of bitcoins to buy in each go.
-            BUYMAXPRICE = D('100.0')            #<------max price for buys 
-            SELLMINPRICE = D('136.36')          #<------min price for sells
+            TRADEAMOUNT = D('0.777')           #<--------- number of bitcoins to buy in each go.
+            BUYMAXPRICE = D('200.0')            #<------max price for buys 
+            SELLMINPRICE = D('100.00')          #<------min price for sells
             TRADESATONCE = 1
             buyorderids = []
             sellorderids = []
@@ -274,7 +317,7 @@ class Shell(cmd.Cmd):
                                     numsold += 1
                                     amtsold += size
                                 logging.debug("Size of all buys: %s . Size of all sells: %s ." % (amtbought,amtsold))
-                                successes.write("%s %s @$ %.2f = %.7f , %s %s\n" % (typedict[co["side"]],size,price,result,amtbought,amtsold))
+                                successes.write("%s %s @$ %.2f = %.7f , %s , %s\n" % (typedict[co["side"]],size,price,result,amtbought,amtsold))
                                 successes.flush()
                             if co["status"]=='cancelled':
                                 logging.debug("%s order %s for %s BTC @ $%.2f has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],float(co["price"]),co["status"]))
@@ -347,46 +390,27 @@ class Shell(cmd.Cmd):
                             logging.debug("EXCEEDED SELLMINPRICE of: %s" % SELLMINPRICE)                                    
 #restart the loop 
                 stop_event.wait(5)
-                
-                
-        global t1_stop
-        if arg == 'exit':
-            print "Shutting down background thread..."
-            t1_stop.set()
-        else:
-            t1_stop = threading.Event()
-            threadlist["liquidbot"] = t1_stop
-            thread1 = threading.Thread(target = liquidthread, args=(None,t1_stop)).start()
 
-    def do_buy(self, arg):
-        """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+#main function of def do_liquidbot(): from above                
         try:
-            args = arg.split()
-            newargs = tuple(decimalify(args))
-            if len(newargs) not in (1,3):
-                spread('bitfloor',bitfloor, 0, *newargs)
-            else:
-                raise UserError
+            global liquidbot_stop
+            btc,usd = bal()
+            args = stripoffensive(args)
+            args = args.split()
+            if 'exit' in args:
+                print "Shutting down background thread..."
+                liquidbot_stop.set()
+            else:   
+                liquidbot_stop = threading.Event()
+                threadlist["liquidbot"] = liquidbot_stop
+                liquidbot_thread = threading.Thread(target = liquidthread, args=(None,t1_stop))
+                liquidbot_thread.daemon = True
+                liquidbot_thread.start()
         except Exception as e:
             traceback.print_exc()
-            print "Invalid args given!!! Proper use is:"
-            self.onecmd('help buy')
-            
-    def do_sell(self, arg):
-        """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
-        try:
-            args = arg.split()
-            newargs = tuple(decimalify(args))
-            if len(newargs) not in (1,3):
-                spread('bitfloor',bitfloor, 1, *newargs)
-            else:
-                raise UserError
-        except Exception as e:
-            traceback.print_exc()
-            print "Invalid args given!!! Proper use is:"
-            self.onecmd('help sell')
+            print "An error occurred."
+            self.onecmd('help liquidbot')                
+
 
     def do_marketbuy(self, arg):
         """working on new market trade buy function"""
@@ -417,6 +441,43 @@ class Shell(cmd.Cmd):
             print "Invalid args given. Proper use is: "
             self.onecmd('help marketsell')
         
+
+    def do_orders(self,arg):
+        """Print a list of all your open orders"""
+        try:
+            time.sleep(1)
+            orders = bitfloor.orders()
+            orders = sorted(orders, key=lambda x: x['price'])
+            buytotal,selltotal = 0,0
+            numbuys,numsells = 0,0
+            amtbuys,amtsells = 0,0
+            buyavg,sellavg = 0,0
+            numorder = 0        
+            for order in orders:
+                numorder += 1
+                uuid = order['order_id']
+                shortuuid = uuid[:8]+'-??-'+uuid[-12:]
+                ordertype="Sell" if order['side']==1 else "Buy"
+                print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
+                if order['side'] == 0:
+                    buytotal += D(order['price'])*D(order['size'])
+                    numbuys += D('1')
+                    amtbuys += D(order['size'])
+                elif order['side'] == 1:
+                    selltotal += D(order['price'])*D(order['size'])
+                    numsells += D('1')
+                    amtsells += D(order['size'])
+            if amtbuys:
+                buyavg = D(buytotal/amtbuys).quantize(cPrec)
+            if amtsells:
+                sellavg = D(selltotal/amtsells).quantize(cPrec)
+            print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
+            print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
+        except Exception as e:
+            print e
+            return
+
+                    
     def do_sellwhileaway(self,arg):
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
         """Usage: amount price"""
@@ -498,40 +559,6 @@ class Shell(cmd.Cmd):
                 print "Invalid args. Expecting a valid ticker subkey."
                 self.onecmd('help ticker')
 
-    def do_orders(self,arg):
-        """Print a list of all your open orders"""
-        try:
-            time.sleep(1)
-            orders = bitfloor.orders()
-            orders = sorted(orders, key=lambda x: x['price'])
-            buytotal,selltotal = 0,0
-            numbuys,numsells = 0,0
-            amtbuys,amtsells = 0,0
-            buyavg,sellavg = 0,0
-            numorder = 0        
-            for order in orders:
-                numorder += 1
-                uuid = order['order_id']
-                shortuuid = uuid[:8]+'-??-'+uuid[-12:]
-                ordertype="Sell" if order['side']==1 else "Buy"
-                print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
-                if order['side'] == 0:
-                    buytotal += D(order['price'])*D(order['size'])
-                    numbuys += D('1')
-                    amtbuys += D(order['size'])
-                elif order['side'] == 1:
-                    selltotal += D(order['price'])*D(order['size'])
-                    numsells += D('1')
-                    amtsells += D(order['size'])
-            if amtbuys:
-                buyavg = D(buytotal/amtbuys).quantize(cPrec)
-            if amtsells:
-                sellavg = D(selltotal/amtsells).quantize(cPrec)
-            print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
-            print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
-        except Exception as e:
-            print e
-            return
 
     def do_withdraw(self,args):
         """Withdraw Bitcoins to an address"""
@@ -548,20 +575,10 @@ class Shell(cmd.Cmd):
             print "Unknown error occurred."
             self.onecmd('help withdraw')
 
-    def do_cancelall(self,arg):
-        """Cancel every single order you have on the books"""
-        bitfloor.cancel_all()
 
 #exit out if Ctrl+Z is pressed
     def do_exit(self,arg):      #standard way to exit
-        """Exits the program"""
-        try:
-        notifier_stop.set()         #<------ this is weird but if removed it breaks CTRL+C catching
-            for k,v in threadlist.iteritems():
-                v.set()
-            print "Shutting down threads..."
-        except:
-            pass             
+        """Exits the program"""    
         print "\n"
         print "Session Terminating......."
         print "Exiting......"           
@@ -571,6 +588,7 @@ class Shell(cmd.Cmd):
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
         return self.do_exit(arg)
+
 
     def help_help(self):
         print 'Prints the help screen'
