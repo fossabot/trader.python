@@ -9,7 +9,7 @@ Limit Orders & Market orders.  (Bitfloor and Bitstamp API do not support market 
 Automatic Dynamic Streaming Updates via the websocket(Socket.IO)
 ##Commands (" " is the command name, but in the program you have to use lowercase)
 "Buy/Sell" Simple - X amount of BTC   (or in USD - put usd on the command)
-"Buy/Sell" Spread - X amount of BTC between price A and price B of equally sized specified # of chunks (use with the word 'random' to randomize this a bit)
+"Buy/Sell" Spread - X amount of BTC between price A and price B of equally volumed specified # of chunks (use with the word 'random' to randomize this a bit)
 "Orders" - List your orders (TODO: upgrade to API 2)
 "Cancel" - Cancel a single order (or a range (ie order #1-#20)) - sorted by price and numbered for convenience. no need to use order_id UUID.
 "Cancelall" - Cancel ALL orders at once.
@@ -57,12 +57,12 @@ Analyze the trading history (High/low/vwap/total/amounts/times) = "readtradehist
 
 Old Description:
 FEATURES:
-+) Diversify your position into "chunks" of a specified size between price A and B. WORKS GREAT!  #spread trade function including Chunk Trade spread logic & Confirmation#
++) Diversify your position into "chunks" of a specified volume between price A and B. WORKS GREAT!  #spread trade function including Chunk Trade spread logic & Confirmation#
 	( todo: check market conditions, use VWAP to pick, select desired patience level or 	instant gratification)
 +) Print the order books out to X length
 +) For Market Orders
 #Checks exact price (total and per bitcoin) @ Market prices
-#   by checking opposite Order Book depth for a given size and price range (lower to upper)
+#   by checking opposite Order Book depth for a given volume and price range (lower to upper)
 #   and alerts you if cannot be filled immediately, and lets you place a limit order instead
 +) Bitcoin Functions:
 #calculate and print the total BTC between price A and B

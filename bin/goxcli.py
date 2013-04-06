@@ -1227,17 +1227,17 @@ class DepthParser(object):
             orders = list(orders)
         subs = list()
         length = len(orders)
-        # Calculate size of step and then adjust to whole integer
+        # Calculate volume of step and then adjust to whole integer
         # Round to make sure no orders 
         step = round( float(length) / steps ) * steps
         if length/steps * steps >= length:
-            stepSize = length / teps
+            stepvolume = length / teps
         else:
-            stepSize = length/steps+1
+            stepvolume = length/steps+1
         while orders:
-            # Take slices of orderlist in stepsize
-            subs.append(orders[0:stepSize])
-            del orders[0:stepSize]
+            # Take slices of orderlist in stepvolume
+            subs.append(orders[0:stepvolume])
+            del orders[0:stepvolume]
         else:
             if not self.cumulate:
                 for step in subs:
@@ -1283,9 +1283,9 @@ class DepthParser(object):
         u" lists of bids needs to be reversed when passed as argument."
         stepList = list()
         if side == "asks":
-            stepSize = (max - min) / self.steps
+            stepvolume = (max - min) / self.steps
             # Price increases for each ask
-            stepEnd = min + stepSize
+            stepEnd = min + stepvolume
             withinStep = lambda orderPrice: orderPrice <= stepEnd
         else:
             # Reverse if not allready done (roughly tuple/list, not generator)
@@ -1293,9 +1293,9 @@ class DepthParser(object):
                 if orders[-1] < orders[0]:
                     orders = reversed(orders)
             # Price decreases for each bid
-            stepSize = (max - min) * -1 / self.steps
+            stepvolume = (max - min) * -1 / self.steps
             withinStep = lambda orderPrice: orderPrice >= stepEnd
-            stepEnd = max + stepSize
+            stepEnd = max + stepvolume
         if self.iv:
             # Values included in orders
             calcStep = lambda amount, orderAmount, orderPrice, value: \
@@ -1331,7 +1331,7 @@ class DepthParser(object):
                     amount, value = calcStep(0, orderAmount, orderPrice, 0)
                 stamp = orderStamp
                 # Set next step end
-                stepEnd += stepSize
+                stepEnd += stepvolume
         else:
             if withinStep(price):
                 # Add step if orders has been parsed since last step was added
@@ -1734,7 +1734,7 @@ class ActionHandler(object):
                 u" symbol to specify amount in currency instead of BTC.\n" \
         u"[price] Specify at what price you want to request your order.\n" \
         u"NOTE: If you don't enter a price, GoxCLI will fetch the OrderBook," \
-             u" trying to put up a properly sized ask, I haven't even checked" \
+             u" trying to put up a properly volumed ask, I haven't even checked" \
              u" if these orders are exact under normal circumstances, as" \
              u" everything else in this application YOU USE THIS AT YOUR OWN " \
              u" RISK "

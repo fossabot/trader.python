@@ -20,9 +20,9 @@ while True:
     side = random.randrange(2)
     try:
         if side == 0:
-            price = float(book['ask'][0])*1.1
+            price = float(book['ask'][0])*1.3
         else:
-            price = float(book['bid'][0])*.9
+            price = float(book['bid'][0])*.7
     except:
         # this can happen if the book has no liquidity
         # if so, cannot take liquidity, so wait and try again

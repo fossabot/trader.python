@@ -49,7 +49,7 @@ def lock():
     aes = AES.new(crypt_key, AES.MODE_OFB, crypt_ini)        #create the AES container
     plaintext = json.dumps({"key":key,"secret":secret})
 
-    #new way to pad. Uses 32 block size for the cipher 256 bit AES
+    #new way to pad. Uses 32 block length for the cipher 256 bit AES
     #chr(32) happens to be spacebar... (padding with spaces)
     pad = lambda s: s + (32 - len(s) % 32) * chr(32)        # function to pad the password 
     paddedtext = pad(plaintext)

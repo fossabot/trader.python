@@ -68,10 +68,10 @@ def tail(f, window=20):
     BUFSIZ = 1024
     f.seek(0, 2)
     bytes = f.tell()
-    size = window
+    volume = window
     block = -1
     data = []
-    while size > 0 and bytes > 0:
+    while volume > 0 and bytes > 0:
         if (bytes - BUFSIZ > 0):
             # Seek back one whole BUFSIZ
             f.seek(block*BUFSIZ, 2)
@@ -83,7 +83,7 @@ def tail(f, window=20):
             # only read what was not read
             data.append(f.read(bytes))
         linesFound = data[-1].count('\n')
-        size -= linesFound
+        volume -= linesFound
         bytes -= BUFSIZ
         block -= 1
     return '\n'.join(''.join(data).splitlines()[-window:])
@@ -138,43 +138,59 @@ def stddev(x):
     return math.sqrt(average(x))
 
 #calculate and print the total BTC between price A and B
-def depthsumrange (bookside,lowest=1,highest=100):
-    """Usage is: bookside(Book object) lowest(optional) highest(optional)"""
-    totalBTC,totalprice = (0,0)
-    for order in bookside:
-        if order.price >= lowest and order.price <= highest:
-            totalBTC+=order.size
-            totalprice+=order.price * order.size
-    print 'There are %s BTC total between $%s and $%s' % (totalBTC,lowest,highest)
-    return totalBTC,totalprice
-
 #match any order to the opposite site of the order book (ie: if buying find a seller) - market order
 #given the amount of BTC and price range check to see if it can be filled as a market order
-def depthmatch (bookside,amount,lowest,highest):
-    """Usage is: bookside(Book object) amount lowest highest"""
-    totalBTC,totalprice = depthsumrange(bookside,lowest,highest)
-    if amount <= totalBTC:
-        print "Your %s BTC is available from a total of: %s BTC" % (amount,totalBTC)
+def depthsumrange (bookside,amount,lowest=1,highest=2000,ismtgox=False):
+    """Usage is: bookside(Book object) amount lowest(optional) highest(optional)"""
+    totalBTC,totalprice = (0,0)
+    if ismtgox:
+        cdiv = D(1E5)
+        bdiv = D(1E8)
     else:
-        print "This amount %s BTC is not available between %s and %s" % (amount,lowest,highest)
-    return totalBTC
+        cdiv = D(1)
+        bdiv = D(1)
+    lowest *= cdiv
+    highest *= cdiv
+
+    for order in bookside:
+        if order.price >= lowest and order.price <= highest:
+            totalBTC+=order.volume
+            totalprice+=order.volume * order.price
+    word = "IS" if amount <= totalBTC else "is NOT"
+    print "%s BTC %s available." % (amount,word),
+    print 'There are %s BTC total between $%s and $%s' % (totalBTC/bdiv,lowest/cdiv,highest/cdiv)
+    return totalBTC/bdiv,totalprice/(cdiv*bdiv)
+
 
 #match any order to the opposite side of the order book (ie: if selling find a buyer) - market order
 #calculate the total price of the order and the average weighted price of each bitcoin 
-def depthprice (bookside,amount,lowest,highest):
+def depthprice (bookside,amount,lowest,highest,ismtgox=False):
     """Usage is: bookside(Book object) amount lowest highest"""
     totalBTC, totalprice, weightedavgprice = (0,0,0)
+    if ismtgox:
+        cdiv = D(1E5)
+        bdiv = D(1E8)
+    else:
+        cdiv = D(1)
+        bdiv = D(1)
+    lowest *= cdiv
+    highest *= cdiv
+    amount *= bdiv
+
     for order in bookside:
         if order.price >= lowest and order.price <= highest:
-            totalBTC+=order.size
-            totalprice+=order.price * order.size
+            print "order.price %s / order.volume %s " % (order.price,order.volume)
+            if totalBTC < amount:
+                totalBTC+=order.volume
+                totalprice+=order.volume * order.price
             if totalBTC >= amount:
                 totalprice-=order.price*(totalBTC-amount)
                 totalBTC=amount
                 weightedavgprice=totalprice/totalBTC
+                break
     if weightedavgprice > 0:
-        print '%s BTC @ $%.5f/BTC equals: $%.5f' % (totalBTC, weightedavgprice,totalprice)
-        return totalBTC,weightedavgprice,totalprice
+        print '%s BTC @ $%.5f/BTC equals: $%.5f' % (totalBTC/bdiv, weightedavgprice/cdiv,totalprice/(cdiv*bdiv))
+        return totalBTC/bdiv,weightedavgprice/cdiv,totalprice/(cdiv*bdiv)
     else: 
         print 'Your order cannot be serviced.'    
 
@@ -207,8 +223,8 @@ def printOrderBooks(asks,bids,howmany=15):
 
 
 # spread trade function including Chunk Trade spread logic & Confirmation
-def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100000,chunks=1,dorandom='',silent=False):
-    """Sell some BTC between price A and price B of equal sized chunks"""
+def spread(exchangename,exchangeobject, side, volume, price_lower, price_upper=100000,chunks=1,dorandom='',silent=False):
+    """Sell some BTC between price A and price B of equal volumed chunks"""
     """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
     """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
     """Simple trade also allowed: (buy/sell) amount price"""
@@ -222,9 +238,9 @@ def spread(exchangename,exchangeobject, side, size, price_lower, price_upper=100
     bPrec = exchangeobject.bPrec
     cPrec = exchangeobject.cPrec
     price_chunk = D(price_range/ D(chunks)).quantize(cPrec)
-    chunk_size = D(D(size) / D(chunks)).quantize(bPrec)
+    chunk_volume = D(D(volume) / D(chunks)).quantize(bPrec)
     for x in range (0, int(chunks)):
-        randomchunk = chunk_size
+        randomchunk = chunk_volume
         if dorandom.lower()=='random':
             if chunks > 1:
                 if x+1 == int(chunks):
@@ -310,7 +326,7 @@ def stripoffensive(strng,additional=""):
     new = re.sub(pattern, '', strng)
     return new
 
-def prompt(self,prompt,default):
+def prompt(prompt,default):
     y = ("y","yes") 
     n = ("n","no")
     defaultcapital = "[YES]/no" if default else "[NO]/yes"

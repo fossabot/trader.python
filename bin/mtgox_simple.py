@@ -16,18 +16,18 @@ class Shell(cmd.Cmd):
         pass
     #print 'Last Mt.Gox Open order: ', mtgox.last_order()
     #print mtgox.get_info()
-    prompt = '(buy|sell size price) '
+    prompt = '(buy|sell volume price) '
     def do_sell(self, arg):
-         size, price = arg.split()
-         size = float(size)
+         volume, price = arg.split()
+         volume = float(volume)
          price = float(price)
-         mtgox.order_new('ask',size,price)
+         mtgox.order_new('ask',volume,price)
 
     def do_buy(self, arg):
-        size, price = arg.split()
-        size = float(size)
+        volume, price = arg.split()
+        volume = float(volume)
         price = float(price)
-        mtgox.order_new('bid',size,price)
+        mtgox.order_new('bid',volume,price)
 
     def do_orders(self,arg):
         orders = mtgox.get_orders()['orders']

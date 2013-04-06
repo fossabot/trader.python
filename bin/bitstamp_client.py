@@ -55,7 +55,7 @@ def reserved():
 # Order X amount of BTC between price A and B
 # optional Wait time (default to instant gratification)
 #Checks exact price (total and per bitcoin) @ Market prices
-#   by checking opposite Order Book depth for a given size and price range (lower to upper)
+#   by checking opposite Order Book depth for a given volume and price range (lower to upper)
 #   and alerts you if cannot be filled immediately, and lets you place a limit order instead
 def markettrade(bookside,action,amount,lowest,highest,waittime=0):
 
@@ -94,10 +94,10 @@ def refreshbook():
     return entirebook
 
 #start printing part of the order book (first 15 asks and 15 bids)
-def printorderbook(size=15):
+def printorderbook(length=15):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
-    printbothbooks(entirebook.asks,entirebook.bids,size)   #otherwise use the size from the arguments
+    printbothbooks(entirebook.asks,entirebook.bids,length)   #otherwise use the length from the arguments
       
 #Console
 class Shell(cmd.Cmd):
@@ -210,19 +210,19 @@ class Shell(cmd.Cmd):
             fake_thread.daemon = True
             fake_thread.start()
 
-    def do_book(self,size):
-        """Download and print the order book of current bids and asks, up to length [size]"""
-        """usage: book [size](optional)"""
+    def do_book(self,length):
+        """Download and print the order book of current bids and asks, up to length [length]"""
+        """usage: book [length](optional)"""
         try:
-            size = int(size)
-            printorderbook(size)
+            length = int(length)
+            printorderbook(length)
         except:
             printorderbook()        
 
 
     def do_buy(self, args):
-        """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
+        """(limit order): buy volume price \n""" \
+        """(spread order): buy volume price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
         try:
             args = args.split()
             newargs = tuple(decimalify(args))
@@ -236,8 +236,8 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
 
     def do_sell(self, args):
-        """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
+        """(limit order): sell volume price \n""" \
+        """(spread order): sell volume price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
         try:
             args = args.split()
             newargs = tuple(decimalify(args))

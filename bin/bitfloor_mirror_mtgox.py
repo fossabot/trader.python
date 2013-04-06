@@ -15,7 +15,7 @@ from book import Book, Order
 import bitfloorapi
 
 bitfloor = bitfloorapi.Client()
-SIZE_LIMIT = 0.01
+size_LIMIT = 0.01
 
 def get_mtgox():
     f = urllib.urlopen("http://mtgox.com/api/0/data/getDepth.php")
@@ -59,7 +59,7 @@ def get_our_book():
 def cancel(book, our_book, side):
     sides = side + 's'
     for o in getattr(book, sides):
-        if o.size < -SIZE_LIMIT:
+        if o.size < -size_LIMIT:
             for order in our_book[sides].get(o.price, []):
                 print 'cancel ' + side, order
                 bitfloor.order_cancel(order.id)
@@ -114,11 +114,11 @@ def run():
 
     # send in orders to fill the gaps
     for o in mbook.bids:
-        if o.size > SIZE_LIMIT:
+        if o.size > size_LIMIT:
             print 'bid', o
             bitfloor.buy(size=str(o.size), price=str(o.price))
     for o in mbook.asks:
-        if o.size > SIZE_LIMIT:
+        if o.size > size_LIMIT:
             print 'ask', o
             bitfloor.sell(size=str(o.size), price=str(o.price))
 

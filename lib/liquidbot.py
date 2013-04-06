@@ -130,7 +130,7 @@ class OrderManager:
 
     def place_order(self, index, order_type):
         position = self.get_position(index)
-        order_id = self.exchange.place_order(position, settings.ORDER_SIZE, order_type)
+        order_id = self.exchange.place_order(position, settings.ORDER_volume, order_type)
         self.orders[index] = {"id": order_id, "type": order_type}
 
     def check_orders(self):

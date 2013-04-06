@@ -34,5 +34,5 @@ for x in buylinelist:
 	totalbuy += x[0]*x[1]
 for x in selllinelist:
 	totalsell += x[0]*x[1]
-	
-print totalbuy,totalsell
+
+print "Total Bought: $%s.  Total Sold: $%s"	% (totalbuy,totalsell)

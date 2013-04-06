@@ -38,35 +38,37 @@ def bal():
 # Order X amount of BTC between price A and B
 # optional Wait time (default to instant gratification)
 #Checks exact price (total and per bitcoin) @ Market prices
-#   by checking opposite Order Book depth for a given size and price range (lower to upper)
+#   by checking opposite Order Book depth for a given volume and price range (lower to upper)
 #   and alerts you if cannot be filled immediately, and lets you place a limit order instead
 def markettrade(bookside,action,amount,lowest,highest,waittime=0):
-
-    depthsumrange(bookside,lowest,highest)
-    depthmatch(bookside,amount,lowest,highest)
+    fail = False
 
     if action == 'sell':
-        if lowest > bookside[-1].price and highest:
+        if lowest > bookside[0].price:
+            fail = True
             print "Market order impossible, price too high."
-            print "Your Lowest sell price of $%s is higher than the highest bid of $%s" % (lowest,bookside[-1].price)
+            print "Your Lowest asking price: $%s is higher than the highest bid: $%s" % (lowest,bookside[0].price)
             print "Place [L]imit order on the books for later?   or......"
             print "Sell to the [H]ighest Bidder? Or [C]ancel?"
             print "[L]imit Order / [H]ighest Bidder / [C]ancel: "
             choice = raw_input()
             if choice =='H' or choice == 'h' or choice =='B' or choice =='b':
-                pass                 #sell_on_mtgox_i_forgot_the_command_
+                pass                 #sell_on_mtgox
 
-    if action == 'buy':
+    elif action == 'buy':
         if highest < bookside[0].price:
-            print "Suboptimal behavior detected."
-            print "You are trying to buy and your highest buy price is lower than the lowest ask is."
-            print "There are cheaper bitcoins available than ", highest
-            print "[P]roceed / [C]ancel: "
-            choice = raw_input()
-            if choice =='P' or choice =='Proceed':
-                pass                 #buy_on_mtgox_i_forgot_the_command_
+            fail = True
+            print "Suboptimal behavior detected. "
+            print "Your highest bid price: $%s is lower than the lowest ask: $%s" % (highest,bookside[0].price)
 
-    depthprice(bookside,amount,lowest,highest)
+            # print "[P]roceed / [C]ancel: "
+            # choice = raw_input()
+            # if choice =='P' or choice =='Proceed':
+            #     pass                 #buy_on_mtgox
+    
+    if fail == False:
+        totalBTC,totalprice = depthsumrange(bookside,amount,lowest,highest)
+        depthprice(bookside,amount,lowest,highest)
 
     #time.sleep(D(waittime))
 
@@ -84,10 +86,10 @@ def refreshbook():
     return entirebook
 
 #start printing part of the order book (first 15 asks and 15 bids)
-def printorderbook(size=15):
+def printorderbook(volume=15):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
-    printbothbooks(entirebook.asks,entirebook.bids,size)   #otherwise use the size from the arguments
+    printbothbooks(entirebook.asks,entirebook.bids,volume)   #otherwise use the volume from the arguments
       
 #Console
 class Shell(cmd.Cmd):
@@ -173,18 +175,18 @@ class Shell(cmd.Cmd):
             self.onecmd('help balancenotifier')
 
 
-    def do_book(self,size):
-        """Download and print the order book of current bids and asks of depth $size"""
+    def do_book(self,length):
+        """Download and print the order book of current bids and asks of depth $length"""
         try:
-            size = int(size)
-            printorderbook(size)
+            length = int(length)
+            printorderbook(length)
         except:
             printorderbook()        
 
 
     def do_buy(self, arg):
-        """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(limit order): buy volume price \n""" \
+        """(spread order): buy volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
@@ -198,8 +200,8 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
             
     def do_sell(self, arg):
-        """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(limit order): sell volume price \n""" \
+        """(spread order): sell volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
@@ -225,14 +227,14 @@ class Shell(cmd.Cmd):
             # so far this works. needs a whole bunch more work though.
 
             class StreamToLogger(object):
-               """Fake file-like stream object that redirects writes to a logger instance."""
-               def __init__(self, logger, log_level=logging.DEBUG):
-                  self.logger = logger
-                  self.log_level = log_level
-                  self.linebuf = ''
-               def write(self, buf):
-                  for line in buf.rstrip().splitlines():
-                     self.logger.log(self.log_level, line.rstrip())
+                """Fake file-like stream object that redirects writes to a logger instance."""
+                def __init__(self, logger, log_level=logging.DEBUG):
+                    self.logger = logger
+                    self.log_level = log_level
+                    self.linebuf = ''
+                def write(self, buf):
+                    for line in buf.rstrip().splitlines():
+                        self.logger.log(self.log_level, line.rstrip())
 
             logging.basicConfig(filename='liquidbotlog.txt'
                    ,filemode='a'
@@ -306,21 +308,21 @@ class Shell(cmd.Cmd):
                         elif "status" in co:
                             if co["status"]=='filled':
                                 print "\n"
-                                size = D(co["size"])
+                                volume = D(co["volume"])
                                 price = D(co["price"])
-                                result = size * price
-                                logging.info("Success!! %s %s @ $ %.2f for %s BTC = %.7f <<<<<<><-><>>>>>>" % (typedict[co["side"]],co["status"],price,size,result))
+                                result = volume * price
+                                logging.info("Success!! %s %s @ $ %.2f for %s BTC = %.7f <<<<<<><-><>>>>>>" % (typedict[co["side"]],co["status"],price,volume,result))
                                 if co["side"]==0:
                                     numbought += 1
-                                    amtbought += size
+                                    amtbought += volume
                                 else:
                                     numsold += 1
-                                    amtsold += size
-                                logging.debug("Size of all buys: %s . Size of all sells: %s ." % (amtbought,amtsold))
-                                successes.write("%s %s @$ %.2f = %.7f , %s , %s\n" % (typedict[co["side"]],size,price,result,amtbought,amtsold))
+                                    amtsold += volume
+                                logging.debug("volume of all buys: %s . volume of all sells: %s ." % (amtbought,amtsold))
+                                successes.write("%s %s @$ %.2f = %.7f , %s , %s\n" % (typedict[co["side"]],volume,price,result,amtbought,amtsold))
                                 successes.flush()
                             if co["status"]=='cancelled':
-                                logging.debug("%s order %s for %s BTC @ $%.2f has been %s!." % (typedict[co["side"]], co["order_id"],co["size"],float(co["price"]),co["status"]))
+                                logging.debug("%s order %s for %s BTC @ $%.2f has been %s!." % (typedict[co["side"]], co["order_id"],co["volume"],float(co["price"]),co["status"]))
                             iddicts[co["side"]].remove(co["order_id"])
                             allorders = buyorderids + sellorderids                
                 countcycles +=1 
@@ -413,8 +415,8 @@ class Shell(cmd.Cmd):
 
 
     def do_marketbuy(self, arg):
-        """working on new market trade buy function"""
-        """usage: amount lowprice highprice"""
+        """Dummy Simulation. working on new market trade buy function"""
+        """usage: marketbuy amount lowprice highprice"""
         entirebook = refreshbook()
         try:
             args = arg.split()
@@ -427,15 +429,14 @@ class Shell(cmd.Cmd):
             self.onecmd('help marketbuy')
 
     def do_marketsell(self, arg):
-        """working on new market trade sell function"""
-        """usage: amount lowprice highprice"""
+        """Dummy Simulation. working on new market trade sell function"""
+        """usage: marketsell amount lowprice highprice"""
         entirebook = refreshbook()
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
             side = entirebook.bids
-            side.reverse()
-            markettrade(side,'buy',*newargs)    
+            markettrade(side,'sell',*newargs)    
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given. Proper use is: "

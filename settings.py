@@ -13,7 +13,7 @@ DRY_USD = 1000.0
 ORDER_PAIRS = 3
 
 # How large each order should be, in BTC
-ORDER_SIZE = 10.0
+ORDER_volume = 10.0
 
 # Distance between successive orders, as a percentage (example: 0.025 for 2.5%)
 INTERVAL = 0.04

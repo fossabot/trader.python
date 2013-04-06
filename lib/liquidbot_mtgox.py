@@ -43,8 +43,8 @@ class MtGox(object):
         return dict(
             bid=order_book['bids'][0][0],
             ask=order_book['asks'][0][0],
-            size_bid=order_book['bids'][0][1],
-            size_ask=order_book['asks'][0][1],
+            volume_bid=order_book['bids'][0][1],
+            volume_ask=order_book['asks'][0][1],
             )
 
 # Authentication required methods

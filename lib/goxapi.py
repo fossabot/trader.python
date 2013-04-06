@@ -62,7 +62,7 @@ FORCE_HTTP_API = False
 def int2str(value_int, currency):
     """return currency integer formatted as a string"""
     if currency == "BTC":
-        return ("%16.8f" % (value_int / 100000000.0))
+        return ("%12.8f" % (value_int / 100000000.0))
     if currency == "JPY":
         return ("%12.3f" % (value_int / 1000.0))
     else:
@@ -1112,7 +1112,7 @@ class Gox(BaseObject):
         typ = msg["trade"]["trade_type"]
 
         self.debug(
-            "trade:      ", int2str(price, self.currency),
+            "trade:   ", int2str(price, self.currency),
             "vol:", int2str(volume, "BTC"),
             "type:", typ
         )

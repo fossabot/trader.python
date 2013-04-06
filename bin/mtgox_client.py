@@ -53,12 +53,6 @@ class LogWriter():
     # pylint: disable=R0201
     def slot_debug(self, sender, (msg)):
         """handler for signal_debug signals"""
-        # if "pending" in msg and not("OrderBook") in msg:
-        #     return
-        # elif "post-pending" in msg:
-        #     return
-        # elif "executing" in msg:
-        #     return
         if "https://data.mtgox.com/api/2/money/order/lag" in msg:
             return
         else:
@@ -94,12 +88,12 @@ def refreshbook(maxage=180):
     entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
     entirebook.sort()      #sort it
     return entirebook
-def printorderbook(size=15,maxage=120):
+def printorderbook(length=15,maxage=120):
     #entirebook = refreshbook(maxage)       #the full depth book was inaccurate from lag or something
     entirebook = Book.parse(mtgox.get_depth())
     entirebook.sort()
     #start printing part of the order book (first 15 asks and 15 bids)
-    printbothbooks(entirebook.asks,entirebook.bids,size)   #otherwise use the size from the arguments
+    printbothbooks(entirebook.asks,entirebook.bids,length)   #otherwise use the length from the arguments
 def bal():
     balance = mtgox.get_balance()
     btcbalance = D(balance['btcs'])
@@ -203,8 +197,8 @@ class Shell(cmd.Cmd):
 
 
     def do_asks(self,args):
-        """Calculate the amount of bitcoins for sale at or under <pricetarget>.\n""" \
-        """If 'over' option is given, find coins or at or over <pricetarget>."""
+        """Calculate the amount of bitcoins for sale at or under [pricetarget].\n""" \
+        """If 'over' option is given, find coins or at or over [pricetarget]."""
         #Using the Socketbook 
 
         args = stripoffensive(args)
@@ -232,8 +226,8 @@ class Shell(cmd.Cmd):
         print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, pricetarget, total)
 
     def do_bids(self,args):
-        """Calculate the amount of bitcoin demanded at or over <pricetarget>.\n""" \
-        """If 'under' option is given, find coins or at or under <pricetarget>"""
+        """Calculate the amount of bitcoin demanded at or over [pricetarget].\n""" \
+        """If 'under' option is given, find coins or at or under [pricetarget]"""
         #Using the Socketbook 
 
         args = stripoffensive(args)
@@ -303,11 +297,12 @@ class Shell(cmd.Cmd):
             self.onecmd('help balancenotifier')
 
 
-    def do_book(self,size):
-        """Uses the constantly updated data from the websocket(socket.io) of depth/trades"""
+    def do_book(self,length):
+        """Uses the constantly updated data from the websocket(socket.io) of depth/trades\n""" \
+        """usage: book [length]"""
         try:
-            size = stripoffensive(size)
-            size = int(size)
+            length = stripoffensive(length)
+            length = int(length)
             vintage = (time.time() - socketbook.fulldepth_time)
             if vintage > 300:
                 print "Starting to download fulldepth from mtgox....",
@@ -315,7 +310,7 @@ class Shell(cmd.Cmd):
                 while socketbook.fulldepth_downloaded == False:
                     time.sleep(0.1)
                 print "Finished."
-            printOrderBooks(socketbook.asks,socketbook.bids,size)
+            printOrderBooks(socketbook.asks,socketbook.bids,length)
         except:
             printOrderBooks(socketbook.asks,socketbook.bids)
 
@@ -337,6 +332,8 @@ class Shell(cmd.Cmd):
         for row in spamreader:
             if firstrow == True:
                 keys = row
+                firstrow = False
+                continue
             eachlist = []
             itemdict = []
             listoflist = []
@@ -344,9 +341,8 @@ class Shell(cmd.Cmd):
                 onelist = [keys[x],row[x]]
                 listoflist.append(onelist)
                 fulldict = {x[0]:x[1] for x in listoflist}
-
             fulllist.append(fulldict)
-            firstrow = False
+
         #print fulllist
         allfees = D('0')
         amtbtcin = D('0')
@@ -374,28 +370,66 @@ class Shell(cmd.Cmd):
         print "Sum of all BTC sold is: %s BTC" % amtbtcout
         print "Value of all BTC bought is: $%s" % valuein
         print "Value of all BTC sold is: $%s" % valueout
- 
 
     def do_usdhistory(self,args):
         """Prints out your entire trading history of USD transactions"""
-        usdhistory=mtgox.get_history_usd()
-        print "%s" % usdhistory.decode('utf-8')
+        filename = os.path.join(partialpath + 'mtgox_usdhistory.csv')
+        download = prompt("Download a new history?",False)
+        if download:
+            usdhistory=mtgox.get_history_usd().decode('utf-8')
+            print "%s" % usdhistory
+            with open(filename,'w') as f:
+                f.write(usdhistory.encode('utf8'))
+                print "Finished writing file."
+        csvfile = open(filename, 'rb')
+        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
+        fulllist = []
+        firstrow = True
+        for row in spamreader:
+            if firstrow == True:
+                keys = row
+                firstrow = False
+                continue
+            eachlist = []
+            itemdict = []
+            listoflist = []
+            for x in xrange(len(row)):
+                onelist = [keys[x],row[x]]
+                listoflist.append(onelist)
+                fulldict = {x[0]:x[1] for x in listoflist}
+            fulllist.append(fulldict)
 
+        #print fulllist
+        allfees = D('0')
+        amtusdin = D('0')
+        amtusdout = D('0')
+        for item in fulllist:
+            if item["Type"] == "fee":
+                onefee = D(item["Value"])
+                allfees += onefee.quantize(D('0.00001'))
+            amount=D(item["Value"])
+            if item["Type"] == "earned":
+                amtusdin+=amount
+            elif item["Type"] == "spent":
+                amtusdout+=amount
+        print "Sum of all fees is: $%s USD" % allfees
+        print "Sum of all usd bought is: $%s USD" % amtusdin
+        print "Sum of all usd sold is: $%s USD" % amtusdout
 
     def do_buy(self, args):
-        """(market order): buy size \n""" \
+        """(market order): buy volume \n""" \
         """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
-        """(limit order): buy size price \n""" \
-        """(spread order): buy size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
-        # adds a multitude of orders between price A and price B of equal sized # of chunks on Mtgox.
+        """(limit order): buy volume price \n""" \
+        """(spread order): buy volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        # adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox.
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
             if len(newargs) == 1:
                 mtgox.order_new('bid',*newargs)
-            elif "usd" in newargs:
-                buyprice = mtgox.get_ticker()["buy"]
+            elif "usd" in newargs:                      #place an order of $X USD
+                buyprice = mtgox.get_ticker()["buy"]    
                 amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
                 mtgox.order_new('bid',amt.quantize(bPrec),buyprice)  #goes as a limit order (can be market also if you delete buyprice here)           
             elif not(len(newargs) == 3):
@@ -408,17 +442,17 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
 
     def do_sell(self, args):
-        """(market order): sell size \n""" \
+        """(market order): sell volume \n""" \
         """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n""" \
-        """(limit order): sell size price \n""" \
-        """(spread order): sell size price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(limit order): sell volume price \n""" \
+        """(spread order): sell volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
             if len(newargs) == 1:
                 mtgox.order_new('ask',*newargs)
-            elif "usd" in newargs:
+            elif "usd" in newargs:                      #place an order of $X USD
                 sellprice = mtgox.get_ticker()["sell"]
                 amt = D(newargs[0]) / D(sellprice)       #convert USD to BTC.
                 mtgox.order_new('ask',amt.quantize(bPrec),sellprice) #goes as a limit order (can be market also if you delete buyprice here)
@@ -433,7 +467,7 @@ class Shell(cmd.Cmd):
     
 
     def do_cancel(self,args):
-        """Cancel an order by number,ie: 7 or by range, ie: 10 - 25""" \
+        """Cancel an order by number,ie: 7 or by range, ie: 10 - 25\n""" \
         """Use with arguments after the cancel command, or without to view the list and prompt you"""
         try:
             useargs = False
@@ -497,26 +531,26 @@ class Shell(cmd.Cmd):
 
 
     def do_depth(self,args):
-        """Shortcut for the 3 depth functions in common.py"""
+        """Shortcut for the 2 depth functions in common.py\n""" \
+        """usage: depth (sum/price) (bids/asks)"""
         try:
-            entirebook = refreshbook(maxage=180)
             args = stripoffensive(args)
             args = args.split()
-            mydict = {"buy":entirebook.bids,"bids":entirebook.bids,"bid":entirebook.bids,"sell":entirebook.asks,"ask":entirebook.asks,"asks":entirebook.asks}
+            mydict = {"buy":socketbook.asks,"bids":socketbook.asks,"bid":socketbook.asks,"sell":socketbook.bids,"ask":socketbook.bids,"asks":socketbook.bids}
             for x in mydict.keys():
                 if x in args:
                     args.remove(x)
                     whichbook = mydict[x]
-            functlist = ["sum","range","match","price"]
+            functlist = ["sum","range","price"]
             for x in functlist:
                 if x in args:
                     args.remove(x)
                     newargs = tuple(decimalify(args))
                     func = x
-            functdict = {"sum":depthsumrange,"range":depthsumrange,"match":depthmatch,"price":depthprice}[func](whichbook,*newargs)
+            functdict = {"sum":depthsumrange,"range":depthsumrange,"price":depthprice}[func](whichbook,*newargs,ismtgox=True)
         except:
             print "Invalid args given. Proper use is:"
-            print "depth (sum/match/price) (bids/asks)"
+            self.onecmd('help depth')
 
 
     def do_fees(self,args):
@@ -606,16 +640,17 @@ class Shell(cmd.Cmd):
             buyavg,sellavg = 0,0
             numorder = 0
             for order in orders:
-                numorder += 1
-                uuid = order['oid']
-                shortuuid = uuid[:8]+'-?-'+uuid[-12:]                
                 ordertype="Sell" if order['type'] == 1 else "Buy"
+                numorder += 1
                 if order['status'] == 1:
-                    print '%s = %s | %s | %s BTC @ $%s' % (numorder,ordertype,order['oid'],order['amount'],order['price'])
+                    OPX = 'O'
                 elif order['status'] == 2:
-                    print '%s = %s | %s | %s BTC PENDING @ $%s' % (numorder,ordertype,shortuuid,order['amount'],order['price'])
+                    OPX = 'P'
                 elif order['status'] == 0:
-                    print '%s = %s | %s OUT OF FUNDS %s BTC @ $%s' % (numorder,ordertype,shortuuid,order['amount'],order['price'])
+                    OPX = 'X'
+                else:
+                    OPX = '|'
+                print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['oid'],order['amount'],order['price'])
                 if order['type'] == 2:
                     buytotal += D(order['price'])*D(order['amount'])
                     numbuys += D('1')
@@ -625,9 +660,9 @@ class Shell(cmd.Cmd):
                     numsells += D('1')
                     amtsells += D(order['amount'])
             if amtbuys:
-                buyavg = D(buytotal/amtbuys).quantize(D(cPrec))
+                buyavg = D(buytotal/amtbuys).quantize(cPrec)
             if amtsells:
-                sellavg = D(selltotal/amtsells).quantize(D(cPrec))
+                sellavg = D(selltotal/amtsells).quantize(cPrec)
             print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
@@ -676,7 +711,7 @@ class Shell(cmd.Cmd):
 
     def do_stoploss(self,args):
       #Finished. Works.
-        """Usage: stoploss size of position , avg position price, percent willing to accept"""
+        """Usage: stoploss amount of position , avg position price, percent willing to accept\n""" \
         """   ie: stoploss 13.88512098 136.50 95"""
         def stoplossbot(firstarg,stop_event,amount,price,percent):
             try:

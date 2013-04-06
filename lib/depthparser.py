@@ -193,9 +193,9 @@ class DepthParser(object):
         u" lists of bids needs to be reversed when passed as argument."
         stepList = list()
         if side == "asks":
-            stepSize = (max - min) / self.steps
+            stepvolume = (max - min) / self.steps
             # Price increases for each ask
-            stepEnd = min + stepSize
+            stepEnd = min + stepvolume
             withinStep = lambda orderPrice: orderPrice <= stepEnd
         else:
             # Reverse if not allready done (roughly tuple/list, not generator)
@@ -203,9 +203,9 @@ class DepthParser(object):
                 if orders[-1] < orders[0]:
                     orders = reversed(orders)
             # Price decreases for each bid
-            stepSize = (max - min) * -1 / self.steps
+            stepvolume = (max - min) * -1 / self.steps
             withinStep = lambda orderPrice: orderPrice >= stepEnd
-            stepEnd = max + stepSize
+            stepEnd = max + stepvolume
         if self.iv:
             # Values included in orders
             calcStep = lambda amount, orderAmount, orderPrice, value: \
@@ -241,7 +241,7 @@ class DepthParser(object):
                     amount, value = calcStep(0, orderAmount, orderPrice, 0)
                 stamp = orderStamp
                 # Set next step end
-                stepEnd += stepSize
+                stepEnd += stepvolume
         else:
             if withinStep(price):
                 # Add step if orders has been parsed since last step was added

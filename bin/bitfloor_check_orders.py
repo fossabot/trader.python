@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# must be run with Side (0=buy,1=sell), Size, Price as arguments on the command line
 
 import bitfloorapi
 import cmd
@@ -8,7 +7,9 @@ import time
 
 bitfloor = bitfloorapi.Client()
 
-side,size,price = sys.argv[1:]
+#must be run with Side (0=buy,1=sell), size, Price as arguments on the command line
+#no.
+#side,size,price = sys.argv[1:]
 
 time.sleep(4)
 orders = bitfloor.orders()

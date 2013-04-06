@@ -199,8 +199,8 @@ class _SSLSocketWrapper(object):
     def __init__(self, sock):
         self.ssl = socket.ssl(sock)
 
-    def recv(self, bufsize):
-        return self.ssl.read(bufsize)
+    def recv(self, bufvolume):
+        return self.ssl.read(bufvolume)
 
     def send(self, payload):
         return self.ssl.write(payload)
@@ -653,18 +653,18 @@ class WebSocket(object):
         self.sock.close()
         self.io_sock = self.sock
 
-    def _recv(self, bufsize):
-        bytes = self.io_sock.recv(bufsize)
+    def _recv(self, bufvolume):
+        bytes = self.io_sock.recv(bufvolume)
         if not bytes:
             raise WebSocketConnectionClosedException()
         return bytes
 
-    def _recv_strict(self, bufsize):
-        remaining = bufsize
+    def _recv_strict(self, bufvolume):
+        remaining = bufvolume
         bytes = ""
         while remaining:
             bytes += self._recv(remaining)
-            remaining = bufsize - len(bytes)
+            remaining = bufvolume - len(bytes)
 
         return bytes
 

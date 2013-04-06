@@ -50,7 +50,7 @@ def main():
 
     config = goxapi.GoxConfig("goxtool.ini")
     secret = goxapi.Secret()
-    secret.prompt_decrypt() 
+    #secret.prompt_decrypt() 
     gox = goxapi.Gox(secret, config)
 
       

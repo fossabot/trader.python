@@ -6,7 +6,7 @@ from hmac import HMAC
 import base64
 import json
 def get_nonce():
-    return int(time.time()*100000)
+    return int(time.time()*1000)
  
 def sign_data(secret, data):
     return base64.b64encode(str(HMAC(secret, data, sha512).digest()))
