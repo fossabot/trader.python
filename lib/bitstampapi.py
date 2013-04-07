@@ -206,7 +206,7 @@ class Client:
         url = "bitcoin_deposit_address/"
         return self.post(url)    #Returns your bitcoin deposit address.
 
-    def get_tradefee(self,timedelta=2592000):	#the past 30 days (what the fee is based off)
+    def fee_schedule(self,timedelta=2592000):	#the past 30 days (what the fee is based off)
         data = self.get_usertransactions(timedelta)
         totalamount = sum((D(x["amount"])*D(x["price"])) for x in data)
         feedict = {
@@ -226,17 +226,25 @@ class Client:
             100000:0.24,
             150000:0.22,
         }
-        fee = 0.22  #<-if greater than 150,000 the following will never define a fee.
-        for x in sorted(feedict.iterkeys(),reverse=True):
-            if totalamount < D(str(x)): fee = D(str(feedict[x]))
-        return totalamount,fee
+        fee = 0.20  #<-if greater than $150,000 the following code will never define a fee, so just pre-set it.
+        howmanyto = 0
+        nexttier = 1E8
+        feedictkeylist = sorted(feedict.iterkeys(),reverse=True)
+        for x in feedictkeylist:
+            if totalamount < D(str(x)): 
+                fee = D(str(feedict[x]))
+                howmanyto = D(x) - totalamount
+                nexttier = D(x)
+        return totalamount,fee,howmanyto,nexttier
 
 
 #Test functions for the API
 #Will flesh out to become client
 if __name__ == "__main__":
     bitstamp = Client()
-    print "Total amount is: %s Your trade fee is: %s " %(bitstamp.get_tradefee())    
+    totalamount,fee,howmanyto,nexttier = bitstamp.fee_schedule()
+    print "Total amount is: {:.5f}. Your trade fee is: {:.2%} ".format(totalamount,fee)
+    print "You are %s away from the next tier of: $%s"
     #data = bitstamp.get_transactions(int(howmany)) not working
     #print "If the entire site was a person, its trade_fee would be: " % (data)
     # earliestdate = min(D(x["date"]) for x in data)

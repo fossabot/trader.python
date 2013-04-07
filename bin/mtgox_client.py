@@ -163,7 +163,7 @@ class Shell(cmd.Cmd):
         self.use_rawinput = False
         self.onecmd('help')             #print out the possible commands (help) on first run
         
-
+    #Shut down all threads cleanly.
     def threadshutdown(self):
         threads = False
         for k,v in threadlist.iteritems():
@@ -185,6 +185,10 @@ class Shell(cmd.Cmd):
                 self.do_exit(self)
                 return
             self.cmdloop()
+        except:                     #catch every exception!
+            traceback.print_exc()
+            self.cmdloop()
+            
 
     #start out by printing the order book (the new socket book)
     printOrderBooks(socketbook.asks,socketbook.bids,15)

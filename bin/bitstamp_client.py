@@ -2,10 +2,9 @@
 # bitstamp_client.py
 # Created by genBTC 4/4/2013
 # Universal Client for all things bitstamp
-# Functionality _should_ be listed in README
 
 
-import bitstampapi     #args was phased out and get_rapi() was moved to bitstamp and config.json moved to data/
+import bitstampapi 
 import cmd
 import time
 from decimal import Decimal as D    #got annoyed at having to type Decimal every time.
@@ -18,8 +17,8 @@ import logging
 import sys
 import socket
 import winsound
-#import pyreadline
 
+#################################
 
 bitstamp = bitstampapi.Client()
 
@@ -28,6 +27,7 @@ cPrec = bitstamp.cPrec
 
 threadlist = {}
 
+#################################
 
 def bal():
     balance = bitstamp.account_balance()
@@ -47,7 +47,7 @@ def reserved():
     usdreserved = D(balance['usd_reserved'])
     return btcreserved,usdreserved
 
-
+#################################
 
 
 #For Market Orders (not limit)
@@ -58,33 +58,36 @@ def reserved():
 #   by checking opposite Order Book depth for a given volume and price range (lower to upper)
 #   and alerts you if cannot be filled immediately, and lets you place a limit order instead
 def markettrade(bookside,action,amount,lowest,highest,waittime=0):
-
-    depthsumrange(bookside,lowest,highest)
-    depthmatch(bookside,amount,lowest,highest)
+    fail = False
 
     if action == 'sell':
-        if lowest > bookside[-1].price and highest:
+        if lowest > bookside[0].price:
+            fail = True
             print "Market order impossible, price too high."
-            print "Your Lowest sell price of $%s is higher than the highest bid of $%s" % (lowest,bookside[-1].price)
+            print "Your Lowest asking price: $%s is higher than the highest bid: $%s" % (lowest,bookside[0].price)
             print "Place [L]imit order on the books for later?   or......"
             print "Sell to the [H]ighest Bidder? Or [C]ancel?"
             print "[L]imit Order / [H]ighest Bidder / [C]ancel: "
             choice = raw_input()
             if choice =='H' or choice == 'h' or choice =='B' or choice =='b':
-                pass                 #sell_on_mtgox_i_forgot_the_command_
+                pass                 #sell_on_mtgox
 
-    if action == 'buy':
+    elif action == 'buy':
         if highest < bookside[0].price:
-            print "Suboptimal behavior detected."
-            print "You are trying to buy and your highest buy price is lower than the lowest ask is."
-            print "There are cheaper bitcoins available than ", highest
-            print "[P]roceed / [C]ancel: "
-            choice = raw_input()
-            if choice =='P' or choice =='Proceed':
-                pass                 #buy_on_mtgox_i_forgot_the_command_
+            fail = True
+            print "Suboptimal behavior detected. "
+            print "Your highest bid price: $%s is lower than the lowest ask: $%s" % (highest,bookside[0].price)
 
-    depthprice(bookside,amount,lowest,highest)
+            # print "[P]roceed / [C]ancel: "
+            # choice = raw_input()
+            # if choice =='P' or choice =='Proceed':
+            #     pass                 #buy_on_mtgox
+    
+    if fail == False:
+        totalBTC,totalprice = depthsumrange(bookside,amount,lowest,highest)
+        depthprice(bookside,amount,lowest,highest)
 
+    #time.sleep(D(waittime))
 
 
 #get update the entire order book
@@ -98,7 +101,9 @@ def printorderbook(length=15):
     entirebook = refreshbook()
     #start printing part of the order book (first 15 asks and 15 bids)
     printbothbooks(entirebook.asks,entirebook.bids,length)   #otherwise use the length from the arguments
-      
+
+
+#################################      
 #Console
 class Shell(cmd.Cmd):
     def emptyline(self):      
@@ -108,7 +113,8 @@ class Shell(cmd.Cmd):
         self.prompt = 'Bitstamp CMD>'   # The prompt for a new user input command
         self.use_rawinput = False
         self.onecmd('help')
-        
+
+    #Shut down all threads cleanly.        
     def threadshutdown(self):
         threads = False
         for k,v in threadlist.iteritems():
@@ -121,7 +127,7 @@ class Shell(cmd.Cmd):
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except:
+        except KeyboardInterrupt:
             print "Press CTRL+C again to exit, or ENTER to continue."
             try:
                 wantcontinue = raw_input()
@@ -130,6 +136,12 @@ class Shell(cmd.Cmd):
                 self.do_exit(self)
                 return
             self.cmdloop()
+        except:                     #catch every exception!
+            traceback.print_exc()
+            self.cmdloop()
+
+#end of nuts and bolts section
+#################################
 
     #start out by printing the order book
     printorderbook()
@@ -189,26 +201,7 @@ class Shell(cmd.Cmd):
             notifier_thread.daemon = True
             notifier_thread.start()
 
-    def do_fakethread(self,args):
-        """Fake thread for testing"""
-        def ft(firstarg,fakethread_stop,btc,usd):
-            while(not fakethread_stop.is_set()):
-                print "THIS IS A FAKE THREAD!!!!!!"
-                fakethread_stop.wait(3)
 
-        global fakethread_stop
-        btc,usd = bal()
-        args = stripoffensive(args)
-        args = args.split()
-        if 'exit' in args:
-            print "Shutting down background thread..."
-            fakethread_stop.set()
-        else:   
-            fakethread_stop = threading.Event()
-            threadlist["fakethread"] = fakethread_stop
-            fake_thread = threading.Thread(target = ft, args=(None,fakethread_stop,btc,usd))
-            fake_thread.daemon = True
-            fake_thread.start()
 
     def do_book(self,length):
         """Download and print the order book of current bids and asks, up to length [length]"""
@@ -219,15 +212,26 @@ class Shell(cmd.Cmd):
         except:
             printorderbook()        
 
-
+#################################
+   
     def do_buy(self, args):
+        """(market order): buy volume \n""" \
+        """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
         """(limit order): buy volume price \n""" \
         """(spread order): buy volume price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
+            # adds a multitude of orders between price A and price B of equal volumed # of chunks on Bitstamp.
         try:
+            args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if len(newargs) not in (1,3):
-                spread('bitstamp',bitstamp, 0, *newargs)
+            if len(newargs) == 1:
+                bitstamp.order_new(0,*newargs,price=1000)    #market order simulated by buying for $1000
+            elif "usd" in newargs:                      #place an order of $X USD
+                lastprice = bitstamp.ticker()["last"]    
+                amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
+                bitstamp.order_new(0,amt.quantize(bPrec),lastprice)  #goes as a limit order (can be market also if you delete buyprice here)           
+            elif not(len(newargs) == 3):
+                spread('bitstamp',bitstamp,0,*newargs)
             else:
                 raise UserError
         except Exception as e:
@@ -236,24 +240,35 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
 
     def do_sell(self, args):
+        """(market order): sell volume \n""" \
+        """(spend-x order): sell $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
         """(limit order): sell volume price \n""" \
         """(spread order): sell volume price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
+            # adds a multitude of orders between price A and price B of equal volumed # of chunks on Bitstamp.
         try:
+            args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if len(newargs) not in (1,3):
-                spread('bitstamp',bitstamp, 1, *newargs)
+            if len(newargs) == 1:
+                bitstamp.order_new(1,*newargs,price=1000)    #market order simulated by buying for $1000
+            elif "usd" in newargs:                      #place an order of $X USD
+                lastprice = bitstamp.ticker()["last"]    
+                amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
+                bitstamp.order_new(1,amt.quantize(bPrec),lastprice)  #goes as a limit order (can be market also if you delete buyprice here)           
+            elif not(len(newargs) == 3):
+                spread('bitstamp',bitstamp,1,*newargs)
             else:
                 raise UserError
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
-            self.onecmd('help sell')
-       
+            self.onecmd('help buy')
+
+#################################
 
     def do_cancel(self,args):
-        """Cancel an order by number,ie: 7 or by range, ie: 10 - 25""" \
-        """Use with arguments after the cancel command, or without to view the list and prompt you"""
+        """Cancel an order by number,ie: 7 or by range, ie: 10 - 25\n""" \
+        """Use with arguments after the cancel command, or without to view the list and prompt you\n""" \
         """usage: cancel [number/range]"""
         try:
             useargs = False
@@ -305,16 +320,120 @@ class Shell(cmd.Cmd):
                 if numcancelled > 1:
                     print "%s Orders have been Cancelled!!!!!" % numcancelled
         except Exception as e:
-            print e
-            return            
+            print "Unexpected Error: %s" % e
+            self.onecmd('help cancel')        
 
     def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
-        bitstamp.cancel_all()
+        try:
+            bitstamp.cancel_all()
+        except Exception as e:
+            print "Unexpected Error: %s" % e
+            self.onecmd('help cancelall')
+
+
+#####################################################################
+#bunch of small function utilities.
+#
+    def do_bitinstant(self,args):
+        """Just print out the BitInstant reserves"""
+        try:
+            ppdict(bitstamp.bitinstant_reserves())
+        except Exception as e:
+            print "Unexpected Error: %s" % e
+            self.onecmd('help bitinstant')
+
+    def do_eurusd(self,args):
+        """Just print out the exchange rate for EUD to USD conversion"""
+        try:
+            ppdict(bitstamp.eur_usd())
+        except Exception as e:
+            print "Unexpected Error: %s" % e
+            self.onecmd('help eurusd')
+
+    def do_create_bitstampcode(self,args):
+        """Create a Bitstamp code of either BTC or USD"""
+        """usage: create_bitstampcode [usd]/[btc] amount"""
+        try:
+            if not(args):
+                btcusd = prompt("Create the code as BTC?",True)
+                amount = raw_input("Amount to create the code for?")
+            else:
+                btcusd, amount = args.split()
+            kwargs = {}
+            if btcusd == True or btcusd.lower() == "btc":
+                print "BTC Selected as the Code creation method"
+                kwargs["btc"]=amount
+            elif btcusd == False or btcusd.lower() == "usd":
+                print "USD Selected as the Code creation method"
+                kwargs["usd"]=amount
+
+            bitstamp.create_bitstampcode(**kwargs)
+        except:
+            print "Incorrect Usage. Invalid args given."
+            self.onecmd('help create_bitstampcode')
+
+    def do_redeem_bitstampcode(self,args):
+        """Redeem a Bitstamp code"""
+        """usage: redeem_bitstampcode code"""
+        try:
+            bitstamp.redeem_bitstampcode(args)
+        except:
+            print "Incorrect Usage. Invalid args given."
+            self.onecmd('help redeem_bitstampcode')
+
+    def do_send_touser(self,customer_id,currency,amount):
+        """Send funds to a customerID"""
+        """usage: send_touser customerID currency amount"""
+        try:
+            bitstamp.send_touser(customer_id,currency,amount)
+        except:
+            print "Incorrect Usage. Invalid args given."
+            self.onecmd('help send_touser')
+
+    def do_withdrawal_requests(self,args):
+        """Just print a list of all withdrawal requests"""
+        try:
+            ppdict(bitstamp.withdrawal_requests())
+        except Exception as e:
+            print "Unexpected Error: %s" % e
+            self.onecmd('help withdrawal_requests')
+#
+#####################################################################
+
+
+#For testing thread activity only. REMOVE.
+    def do_fakethread(self,args):
+        """Fake thread for testing"""
+        def ft(firstarg,fakethread_stop,btc,usd):
+            while(not fakethread_stop.is_set()):
+                print "THIS IS A FAKE THREAD!!!!!!"
+                fakethread_stop.wait(3)
+
+        global fakethread_stop
+        btc,usd = bal()
+        args = stripoffensive(args)
+        args = args.split()
+        if 'exit' in args:
+            print "Shutting down background thread..."
+            fakethread_stop.set()
+        else:   
+            fakethread_stop = threading.Event()
+            threadlist["fakethread"] = fakethread_stop
+            fake_thread = threading.Thread(target = ft, args=(None,fakethread_stop,btc,usd))
+            fake_thread.daemon = True
+            fake_thread.start()
+
+
+    def do_fee(self,args):
+        """Checks your 30 day volume and prints your fee, and how far you are from the next tier"""
+        totalamount,fee,howmanyto,nexttier = bitstamp.fee_schedule()
+        print "Your 30 day volume is: %.5f. Your trade fee is: %.2f%%" % (totalamount,fee)
+        print "You are $%s away from the next tier of: $%s" % (howmanyto,nexttier)
 
 
     def do_gethistory(self,args):
-#Very rough. pretty print it 
+    #Very rough. pretty print it 
         """Prints out your user transactions in the past [timdelta]"""
         history=bitstamp.get_usertransactions()
         ppdict(history)
@@ -324,10 +443,11 @@ class Shell(cmd.Cmd):
         """Find out your bitcoin deposit address"""
         ppdict(bitstamp.get_depositaddress())
 
+######################################
 
-    def do_marketbuy(self, args):
-        """working on new market trade buy function"""
-        """usage: amount lowprice highprice"""
+    def do_checkmarketbuy(self, args):
+        """working on new market trade buy function\n""" \
+        """usage: checkmarketbuy amount lowprice highprice"""
         entirebook = refreshbook()
         try:
             args = args.split()
@@ -337,24 +457,25 @@ class Shell(cmd.Cmd):
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given. Proper use is: "
-            self.onecmd('help marketbuy')
+            self.onecmd('help checkmarketbuy')
 
-
-    def do_marketsell(self, args):
-        """working on new market trade sell function"""
-        """usage: amount lowprice highprice"""
+    def do_checkmarketsell(self, args):
+        """working on new market trade sell function\n""" \
+        """usage: checkmarketsell amount lowprice highprice"""
         entirebook = refreshbook()
         try:
             args = args.split()
             newargs = tuple(decimalify(args))
             side = entirebook.bids
             side.reverse()
-            markettrade(side,'buy',*newargs)    
+            markettrade(side,'sell',*newargs)    
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given. Proper use is: "
-            self.onecmd('help marketsell')
- 
+            self.onecmd('help checkmarketsell')
+
+###################################### 
+
 
     def do_orders(self,args):
         """Print a list of all your open orders"""
@@ -367,11 +488,9 @@ class Shell(cmd.Cmd):
             buyavg,sellavg = 0,0
             numorder = 0        
             for order in orders:
+                ordertype="Sell" if order['type'] == 1 else "Buy"
                 numorder += 1
-                uuid = str(order['id'])
-                shortuuid = uuid[:8]+'-??-'+uuid[-12:]
-                ordertype="Sell" if order['type']==1 else "Buy"
-                print '%s order %s. Price $%s @ Amount: %s' % (ordertype,shortuuid,order['price'],order['amount'])
+                print '%s = %s %s | %s BTC @ $%s' % (numorder,ordertype,order['id'],order['amount'],order['price'])                
                 if order['type'] == 0:
                     buytotal += D(order['price'])*D(order['amount'])
                     numbuys += D('1')
@@ -390,24 +509,24 @@ class Shell(cmd.Cmd):
             print e
             return
 
-
-#not working on bitstamp i dont think                    
+######################################
+#coded for but not tested on bitstamp.
     def do_sellwhileaway(self,args):
-        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
+        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
         """Usage: sellwhileaway amount price"""
         args = args.split()
         amount,price = tuple(decimalify(args))
         #seed initial balance data so we can check it during first run of the while loop
         balance = decimalify(bitstamp.accounts())
-        #seed the last price just in case we have the money already and we never use the while loop
+        #seed the last price just in case we have the money already and the while loop never triggers
         last = D(bitstamp.ticker()['price'])
-        while balance[0]['amount'] < amount:
-            balance = decimalify(bitstamp.accounts())
-            last = D(bitstamp.ticker()['price'])
-            print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
-            print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
+        while btc < amount:
+            btc,usd = bal()
+            last = D(bitstamp.ticker()['last'])
+            print 'Your balance is %.8f BTC and $%.2f USD ' % (btc,usd)
+            print 'Account Value: $%.2f @ Last BTC Price of $%.2f' % (btc*last+usd,last)
             time.sleep(60)
-        while balance[0]['amount'] > 6:
+        while btc > 6:
             if last > price+3:
                 bitstamp.cancel_all()
                 spread('bitstamp',bitstamp,1,5,last,last,1)
@@ -420,41 +539,47 @@ class Shell(cmd.Cmd):
                     bitstamp.cancel_all()
                     spread('bitstamp',bitstamp,1,5,last,price,2)
 
-            last = D(bitstamp.ticker()['price'])                    
-            balance = decimalify(bitstamp.accounts())
             time.sleep(45)
+            last = D(bitstamp.ticker()['last'])
+            btc,usd = bal()
 
-#not working on bitstamp i dont think
+#coded for but not tested on bitstamp.
     def do_sellwhileaway2(self,args):
-        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
+        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
         """Usage: sellwhileaway2 amount price"""
         try:
             args = args.split()
             amount,price = tuple(decimalify(args))
             #seed initial balance data so we can check it during first run of the while loop
-            balance = decimalify(bitstamp.accounts())
-            #seed the last price just in case we have the money already and we never use the while loop
-            last = D(bitstamp.ticker()['price'])
-            while balance[0]['amount'] < amount:
-                balance = decimalify(bitstamp.accounts())
-                last = D(bitstamp.ticker()['price'])
-                print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
-                print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
+            btc,usd = bal()
+            #seed the last price just in case we have the money already and the while loop never triggers
+            last = D(bitstamp.ticker()['last'])
+            while btc < amount:
+                btc,usd = bal()
+                last = D(bitstamp.ticker()['last'])
+                print 'Your balance is %.8f BTC and $%.2f USD ' % (btc,usd)
+                print 'Account Value: $%.2f @ Last BTC Price of $%.2f' % (btc*last+usd,last)
                 time.sleep(60)
             sold=False
             while sold==False:
                 if last > price:
                     bitstamp.cancel_all()
-                    spread('bitstamp',bitstamp,1,balance[0]['amount'],last,last+1,2)
+                    result = spread('bitstamp',bitstamp,1,btc,last,last+1,2)
+                    if result:
+                        sold = True
                 else:
                     bitstamp.cancel_all()
-                    spread('bitstamp',bitstamp,1,balance[0]['amount'],((last+price)/2)+0.5,price,2)
-                balance = decimalify(bitstamp.accounts())
-                last = D(bitstamp.ticker()['price'])
-                time.sleep(60)
+                    spread('bitstamp',bitstamp,1,btc,((last+price)/2)+0.5,price,2)
+                    if result: 
+                        sold = True
+                time.sleep(45)
+                last = D(bitstamp.ticker()['last'])
+                btc,usd = bal()
         except:
             print "Retrying:"
             self.onecmd(self.do_sellwhileaway2(amount,price))
+
+######################################
 
 
     def do_spread(self,args):
@@ -464,7 +589,8 @@ class Shell(cmd.Cmd):
             print "Lowest ask is: $%f"  % entirebook.asks[0][0]
             print "Highest Bid is: $%f" % entirebook.bids[0][0]
             print "The spread is: $%f" % (entirebook.asks[0][0] - entirebook.bids[0][0])
-        except:
+        except Exception as e:
+            print "Unexpected Error: %s" % e
             self.onecmd('help spread')
 
 
@@ -489,15 +615,19 @@ class Shell(cmd.Cmd):
 
     def do_tradehist24(self,args):
         """Download the entire trading history of bitstamp for the past 24 hours. Write it to a file"""
-        print "Starting to download entire trade history from bitstamp....",
-        eth = bitstamp.get_transactions(86400)
-        with open(os.path.join(partialpath + 'bitstamp_entiretrades.txt'),'w') as f:
-            depthvintage = str(time.time())
-            f.write(depthvintage)
-            f.write('\n')
-            json.dump(eth,f)
-            f.close()
-            print "Finished."
+        try:
+            print "Starting to download entire trade history from bitstamp....",
+            eth = bitstamp.get_transactions(86400)
+            with open(os.path.join(partialpath + 'bitstamp_entiretrades.txt'),'w') as f:
+                depthvintage = str(time.time())
+                f.write(depthvintage)
+                f.write('\n')
+                json.dump(eth,f)
+                f.close()
+                print "Finished."
+        except Exception as e:
+            print "Unexpected Error: %s" % e
+            self.onecmd('help tradehist24')
 
 
     def do_withdraw(self,args):
@@ -515,12 +645,12 @@ class Shell(cmd.Cmd):
                 print "%s BTC successfully sent to %s" % (amount,address)
             else:
                 print "There was an error withdrawing."
-        except:
+        except Exception as e:
             traceback.print_exc()
-            print "Unknown error occurred."
+            print "Unexpected Error: %s" % e
             self.onecmd('help withdraw')
 
-
+######################################
 #exit out if Ctrl+Z is pressed
     def do_exit(self,args):      #standard way to exit
         """Exits the program"""
@@ -536,5 +666,6 @@ class Shell(cmd.Cmd):
     def help_help(self):
         print 'Prints the help screen'
 
+######################################
 if __name__ == '__main__':
     Shell().cmdloop()

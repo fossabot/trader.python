@@ -100,7 +100,8 @@ class Shell(cmd.Cmd):
         self.prompt = 'Bitfloor CMD>'   # The prompt for a new user input command
         self.use_rawinput = False
         self.onecmd('help')
-        
+     
+    #Shut down all threads cleanly.    
     def threadshutdown(self):
         threads = False
         for k,v in threadlist.iteritems():
@@ -113,7 +114,7 @@ class Shell(cmd.Cmd):
     def cmdloop(self):
         try:
             cmd.Cmd.cmdloop(self)
-        except:
+        except KeyboardInterrupt:
             print "Press CTRL+C again to exit, or ENTER to continue."
             try:
                 wantcontinue = raw_input()
@@ -122,6 +123,10 @@ class Shell(cmd.Cmd):
                 self.do_exit(self)
                 return
             self.cmdloop()
+        except:                     #catch every exception!
+            traceback.print_exc()
+            self.cmdloop()
+                        
                
     #start out by printing the order book
     printorderbook()
@@ -414,9 +419,9 @@ class Shell(cmd.Cmd):
             self.onecmd('help liquidbot')                
 
 
-    def do_marketbuy(self, arg):
+    def do_checkmarketbuy(self, arg):
         """Dummy Simulation. working on new market trade buy function"""
-        """usage: marketbuy amount lowprice highprice"""
+        """usage: checkmarketbuy amount lowprice highprice"""
         entirebook = refreshbook()
         try:
             args = arg.split()
@@ -426,11 +431,11 @@ class Shell(cmd.Cmd):
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given. Proper use is: "
-            self.onecmd('help marketbuy')
+            self.onecmd('help checkmarketbuy')
 
-    def do_marketsell(self, arg):
+    def do_checkmarketsell(self, arg):
         """Dummy Simulation. working on new market trade sell function"""
-        """usage: marketsell amount lowprice highprice"""
+        """usage: checkmarketsell amount lowprice highprice"""
         entirebook = refreshbook()
         try:
             args = arg.split()
@@ -440,7 +445,7 @@ class Shell(cmd.Cmd):
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given. Proper use is: "
-            self.onecmd('help marketsell')
+            self.onecmd('help checkmarketsell')
         
 
     def do_orders(self,arg):
@@ -480,64 +485,70 @@ class Shell(cmd.Cmd):
 
                     
     def do_sellwhileaway(self,arg):
-        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
-        """Usage: amount price"""
+        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
+        """Usage: sellwhileaway amount price"""
         args = arg.split()
         amount,price = tuple(decimalify(args))
         #seed initial balance data so we can check it during first run of the while loop
         balance = decimalify(bitfloor.accounts())
-        #seed the last price just in case we have the money already and we never use the while loop
+        #seed the last price just in case we have the money already and the while loop never triggers
         last = D(bitfloor.ticker()['price'])
-        while balance[0]['amount'] < amount:
-            balance = decimalify(bitfloor.accounts())
+        while btc < amount:
+            btc,usd = bal()
             last = D(bitfloor.ticker()['price'])
-            print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
-            print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
+            print 'Your balance is %.8g BTC and $%.2f USD ' % (btc,usd)
+            print 'Account Value: $%.2f @ Last BTC Price of $%s' % (btc*last+usd,last)
             time.sleep(60)
-        while balance[0]['amount'] > 6:
+        while btc > 6:
             if last > price+3:
                 bitfloor.cancel_all()
                 spread('bitfloor',bitfloor,1,5,last,last,1)
             if last > price:
-                if balance > 5:
+                if btc > 5:
                     bitfloor.cancel_all()
                     spread('bitfloor',bitfloor,1,5,price,last+1,3)
             if price > last:
-                if balance > 5 and price-last < 3:
+                if btc > 5 and price-last < 3:
                     bitfloor.cancel_all()
                     spread('bitfloor',bitfloor,1,5,last,price,2)
 
-            last = D(bitfloor.ticker()['price'])                    
-            balance = decimalify(bitfloor.accounts())
             time.sleep(45)
+            last = D(bitfloor.ticker()['price'])                    
+            btc,usd = bal()
+            
 
     def do_sellwhileaway2(self,arg):
-        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>."""
-        """Usage: amount price"""
+        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
+        """Usage: sellwhileaway2 amount price"""
         try:
             args = arg.split()
             amount,price = tuple(decimalify(args))
             #seed initial balance data so we can check it during first run of the while loop
-            balance = decimalify(bitfloor.accounts())
-            #seed the last price just in case we have the money already and we never use the while loop
+            btc,usd = bal()
+            #seed the last price just in case we have the money already and the while loop never triggers
             last = D(bitfloor.ticker()['price'])
-            while balance[0]['amount'] < amount:
-                balance = decimalify(bitfloor.accounts())
+            while btc < amount:
+                btc,usd = bal()
                 last = D(bitfloor.ticker()['price'])
-                print 'Your balance is %r BTC and $%.2f USD ' % (balance[0]['amount'],balance[1]['amount'])
-                print 'Account Value: $%.2f @ Last BTC Price of %.2f' % (balance[0]['amount']*last+balance[1]['amount'],last)
+                print 'Your balance is %.8g BTC and $%.2f USD ' % (btc,usd)
+                print 'Account Value: $%.2f @ Last BTC Price of $%s' % (btc*last+usd,last)
                 time.sleep(60)
             sold=False
             while sold==False:
                 if last > price:
                     bitfloor.cancel_all()
-                    spread('bitfloor',bitfloor,1,balance[0]['amount'],last,last+1,2)
+                    result = spread('bitfloor',bitfloor,1,btc,last,last+1,2)
+                    if result:
+                        sold = True
                 else:
                     bitfloor.cancel_all()
-                    spread('bitfloor',bitfloor,1,balance[0]['amount'],((last+price)/2)+0.5,price,2)
-                balance = decimalify(bitfloor.accounts())
+                    result = spread('bitfloor',bitfloor,1,btc,((last+price)/2)+0.5,price,2)
+                    if result:
+                        sold = True
+                time.sleep(45)                        
                 last = D(bitfloor.ticker()['price'])
-                time.sleep(60)
+                btc,usd = bal()
+
         except:
             print "Retrying:"
             self.onecmd(self.do_sellwhileaway2(amount,price))

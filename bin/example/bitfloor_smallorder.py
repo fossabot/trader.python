@@ -20,7 +20,7 @@ print 'the book bid price is', bidprice
 #side 0 means buy, side 1 means sell
 #syntax is Bitfloor.order_new(side, size, price)
 
-resp = bitfloor.order_new(1, 0.01, 50.02)
+resp = bitfloor.order_new(0, 0.01, 50.02)
 id = resp.get('order_id')
 print format(id)
 print resp
