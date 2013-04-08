@@ -29,7 +29,7 @@ Just omit a price to place a market order.
 
 - [x] **"Buy"/"Sell"** Simple - X amount of BTC   (or in USD - add usd to the command line)
 
-- [x] **"Buy"/"Sell" Spread - X amount of BTC between price A and price B of equally volumed specified # of chunks (use with the word 'random' to randomize this a bit)
+- [x] **"Buy"/"Sell"** Spread - X amount of BTC between price A and price B of equally volumed specified # of chunks (use with the word 'random' to randomize this a bit)
 
 - [x] **"Orders"** - List your orders, How many, & the Average Price (TODO: upgrade to API 2)
 
@@ -47,9 +47,9 @@ Just omit a price to place a market order.
 
 - [x] **"Lag"** - Show the current Mt.Gox Lag (trading lag)
 
-- [x] **"Book"- Print the order books out to howmany length you want (Display depth) (current order book of bids/asks) = printorderbook()
+- [x] **"Book"** - Print the order books out to howmany length you want (Display depth) (current order book of bids/asks) = printorderbook()
 
-Mt Gox book is automatically updated with the freshest possible date by websocket(Socket.IO)
+        Mt Gox book is automatically updated with the freshest possible data by websocket(Socket.IO)
 
 - [x] **"Withdraw"** - Withdraw bitcoins to an address(needs withdraw API priveleges in your mt.gox API security settings. (Currently available on bitfloor,bitstamp and mt.gox)
 
@@ -70,9 +70,9 @@ Mt Gox book is automatically updated with the freshest possible date by websocke
 
 - [x] **"depth range"** calculate and print the total BTC between price A and B = depthsumrange()
 
-Match any order to the opposite site of the order book (ie: if buying find a seller or vice versa) - market order
+        Match any order to the opposite site of the order book (ie: if buying find a seller or vice versa) - market order
 
-Given the amount of BTC and price range, check to see if it can be filled as a market order
+        Given the amount of BTC and price range, check to see if it can be filled as a market order
 
 
 ###Fee Submenu ("Fees")
@@ -96,13 +96,13 @@ Given the amount of BTC and price range, check to see if it can be filled as a m
 ###Automatic Bot Functions
 - [x] **"Stopbot"** = a stop loss bot! Finally, you can set your position price, position amount, and % willing to accept on your position. ie: 5 BTC @ $149 * 98% and the bot will put a market order in IMMEDIATELY (every 2 seconds it checks if the lowest seller is below your target percentage price, and if it is, sends the order immediately)
 
-(stopbot is for only mtgox so far - it is the only one to support a true market order)
+        (stopbot is for only mtgox so far - it is the only one to support a true market order)
 
 - [x] **"Sellwhileaway"** - checks your balance and sells X amount at Price A (in case you have to leave the house and you are waiting on bitcoins to confirm) 
 
-Also Sellwhileaway2 (both are works in progress)
+        Also Sellwhileaway2 (both are works in progress)
 
-- [x] **"Liquidbot"** - a bot on bitfloor to add liquidity to the market by surfing the spread To take advantage of bitfloor's 0.1% provider bonus therefore won't incur any trading fees 
+- [x] **"Liquidbot"** - a bot on bitfloor to add liquidity to the market by surfing the spread To take advantage of Bitfloor's 0.1% provider bonus therefore won't incur any trading fees 
 
 - [x] **"Balancenotifier"** - check balance every 30 seconds and beeps everytime your balance is added to (fully functional, and nice for day trading)
 
@@ -112,20 +112,20 @@ Also Sellwhileaway2 (both are works in progress)
 FEATURES:
 
 * Diversify your position into "chunks" of a specified volume between price A and B. WORKS GREAT!  #spread trade function including Chunk Trade spread logic & Confirmation#
-
- (todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification)
+        
+        (todo: check market conditions, use VWAP to pick, select desired patience level or instant gratification)
 
 * Print the order books out to X length
 
 * For Market Orders:
 
-Checks exact price (total and per bitcoin) @ Market prices by checking opposite Order Book depth for a given volume and price range (lower to upper) and alerts you if cannot be filled immediately, and lets you place a limit order instead
+        Checks exact price (total and per bitcoin) @ Market prices by checking opposite Order Book depth for a given volume and price range (lower to upper) and alerts you if cannot be filled immediately, and lets you place a limit order instead
 
 * Bitcoin Functions:
 
-calculate and print the total BTC between price A and B
+        Calculate and print the total BTC between price A and B
 
-match any order to the opposite site of the order book (ie: if buying find a seller) - market order given the amount of BTC and price range check to see if it can be filled as a market order calculate the total price of the order and the average weighted price of each bitcoin 
+        Match any order to the opposite site of the order book (ie: if buying find a seller) - market order given the amount of BTC and price range check to see if it can be filled as a market order calculate the total price of the order and the average weighted price of each bitcoin 
 
 
 
@@ -261,9 +261,9 @@ Where it says "Enter an encryption password: (This is the password required to 	
 
 - [x] **mtgox_socketiobeta.py** - A BETA socketio client (relies on bin/goxapi.py from prof7bit) Connects to the websockets, outputs the streaming data (ticker/trade/depth/lag)
 
-Logs to bin/goxtool.ini . CURRENTLY SET TO ONLY SCROLL PRINT OUT THE TRADES (the rest can be useless for my human eyes)
+        Logs to bin/goxtool.ini . CURRENTLY SET TO ONLY SCROLL PRINT OUT THE TRADES (the rest can be useless for my human eyes)
 
-(Lines 808/809 disabled the other two, Line 814 commented out channel_subscribe(), channel_subscribe has some commented out lines)
+        (Lines 808/809 disabled the other two, Line 814 commented out channel_subscribe(), channel_subscribe has some commented out lines)
 
 - [x] **mtgox_websockets.py** - A SAMPLE program (no error handling), that scroll prints 3 websocket channels (Ticker,trade,depth)
 

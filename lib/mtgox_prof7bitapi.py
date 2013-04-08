@@ -47,10 +47,11 @@ import threading
 from urllib2 import Request as URLRequest
 from urllib2 import urlopen
 import urllib2
+import ssl
 from urllib import urlencode
 import weakref
 import websocket
-#import encrypt_apikey
+
 import unlock_api_key
 
 input = raw_input # pylint: disable=W0622,C0103
@@ -107,25 +108,28 @@ def http_request(url):
             else:
                 data = response.read()
         return data
+    #Try to catch a number of possible errors. 
+    #Since this is used for debugging, logging.debug() should really be used instead
     except urllib2.HTTPError as e:
-        #HTTP Error ie: 500/502/503 etc #these should be split.
-        print 'HTTP Error %s: %s' % (e.code, e.msg)
-        print "URL: %s" % (e.filename)
+        #HTTP Error ie: 500/502/503 etc
+        self.debug('HTTP Error %s: %s' % (e.code, e.msg))
+        self.debug("URL: %s" % (e.filename))
         if e.fp:
             datastring = e.fp.read()
             if "error" in datastring:
-                print "Error: %s" % datastring
-                if "Order not found" in datastring:
-                    return datastring
+                if "<!DOCTYPE HTML>" in datastring:
+                    self.debug("Error: Cloudflare - Website Currently Unavailable.")
+                elif "Order not found" in datastring:
+                    return json.loads(datastring)
+                else:
+                    self.debug("Error: %s" % datastring)
     except urllib2.URLError as e:
-        print "URL Error:", e 
+        self.debug("URL Error:", e)
     except ssl.SSLError as e:
-        print "SSL Error: %s." % e  #Read error timeout. (Removed timeout variable)
+        self.debug("SSL Error: %s." % e)  #Read error timeout. (Removed timeout variable)
     except Exception as e:
-        print "General Error: %s" % e
-    else:
-    #print this before going back up to the While Loop and running this entire function over again
-        print "Retrying Connection...."
+        self.debug("General Error: %s" % e)
+
 
 def start_thread(thread_func):
     """start a new thread to execute the supplied function"""
@@ -169,7 +173,7 @@ class GoxConfig(SafeConfigParser):
         #self.load()
         for (sect, opt, default) in self._DEFAULTS:
             self._default(sect, opt, default)
-
+#commented out
     # def save(self):
     #     """save the config to the .ini file"""
     #     with open(self.filename, 'wb') as configfile:
@@ -562,10 +566,13 @@ class BaseClient(BaseObject):
             """request the full market depth, initialize the order book
             and then terminate. This is called in a separate thread after
             the streaming API has been connected."""
-            self.debug("requesting initial full depth")
-            fulldepth = http_request("https://" +  self.HTTP_HOST \
-                + "/api/2/BTC" + self.currency + "/money/depth/full")
-            self.signal_fulldepth(self, (json.loads(fulldepth)))
+            try:
+                self.debug("requesting initial full depth")
+                fulldepth = http_request("https://" +  self.HTTP_HOST \
+                    + "/api/2/BTC" + self.currency + "/money/depth/full")
+                self.signal_fulldepth(self, (json.loads(fulldepth)))
+            except Exception as e:
+                self.debug("###request_fulldepth: Error:",e)
 
         start_thread(fulldepth_thread)
 

@@ -26,9 +26,9 @@ class LogWriter():
     """connects to gox.signal_debug and logs it all to the logfile"""
     def __init__(self, gox):
         self.gox = gox
-        logging.basicConfig(filename='socketiobeta.log'
+        logging.basicConfig(filename='socketiobeta_mtgox.log'
                            ,filemode='w'
-                           ,format='%(asctime)s:%(levelname)s:%(message)s'
+                           ,format='%(asctime)s:%(levelname)s: %(message)s'
                            ,level=logging.DEBUG
                            )
         self.gox.signal_debug.connect(self.slot_debug)

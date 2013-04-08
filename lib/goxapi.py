@@ -66,7 +66,7 @@ def int2str(value_int, currency):
     if currency == "JPY":
         return ("%12.3f" % (value_int / 1000.0))
     else:
-        return ("%12.5f" % (value_int / 100000.0))
+        return ("%7.5f" % (value_int / 100000.0))
 
 def int2float(value_int, currency):
     """convert integer to float, determine the factor by currency name"""
@@ -567,11 +567,10 @@ class BaseClient(BaseObject):
         #     "dbf1dee9-4f2e-4a08-8cb7-748919a71b21": "trades",
         #     "d5f06780-30a8-4a48-a2f8-7ed181b4a13f": "ticker",
         #     "24e67e0d-1cad-4cc0-9e7a-f8523ef460fe": "depth",
-        #self.send(json.dumps({"op":"mtgox.subscribe", "type":"depth"}))
-        #self.send(json.dumps({"op":"mtgox.subscribe", "type":"ticker"}))
+        self.send(json.dumps({"op":"mtgox.subscribe", "type":"depth"}))
+        self.send(json.dumps({"op":"mtgox.subscribe", "type":"ticker"}))
         self.send(json.dumps({"op":"mtgox.subscribe", "type":"trades"}))
         # Once you join 1::/mtgox these are automaticlaly subscribed to
-        self.send(json.dumps({"op":"mtgox.subscribe", "type":"lag"}))
 
         if FORCE_HTTP_API or self.config.get_bool("gox", "use_http_api"):
             self.enqueue_http_request("money/orders", {}, "orders")
@@ -806,8 +805,9 @@ class SocketIOClient(BaseClient):
                 self.debug("subscribing to channels")
                 
                 self.socket.send("1::/mtgox")
-                self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))
-                self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))
+                self.send(json.dumps({"op":"mtgox.subscribe", "type":"lag"}))
+                self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))   #depth
+                #self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))   #ticker
 
                 self.debug(self.socket.recv())
                 self.debug(self.socket.recv())
@@ -819,7 +819,8 @@ class SocketIOClient(BaseClient):
                     msg = self.socket.recv()
                     self._time_last_received = time.time()
                     if msg == "2::":
-                        self.debug("### ping -> pong")
+#commented. do not want to see ping pong all the damn time.
+#                        self.debug("### ping -> pong")
                         self.socket.send("2::")
                         continue
                     prefix = msg[:10]
@@ -881,6 +882,10 @@ class Gox(BaseObject):
         # application controlling it to pass some of its events
         self.signal_keypress        = Signal()
         self.signal_strategy_unload = Signal()
+
+#added
+        self.LASTTICKER = time.time() - 20
+        self.LASTLAG = time.time() - 20  
 
         self._idkey      = ""
         self.wallet = {}
@@ -1068,7 +1073,16 @@ class Gox(BaseObject):
         """handle incoming ticker message (op=private, private=lag)"""
         msg = msg["lag"]
         lag = str(float(msg["age"] / 1E6))
-        self.debug(" lag: ",lag, "s")
+#added
+        stamp = msg["stamp"]
+        if stamp:
+            now = float(stamp) / 1E6
+        else:
+            now = time.time()              #dummy
+        if now - self.LASTLAG > 20:
+            self.LASTLAG = now
+            lag = str(float(msg["age"] / 1E6))
+            self.debug(" LAG: ",lag, "seconds")
 
     def _on_op_private_ticker(self, msg):
         """handle incoming ticker message (op=private, private=ticker)"""
@@ -1078,8 +1092,12 @@ class Gox(BaseObject):
         ask = int(msg["sell"]["value_int"])
         bid = int(msg["buy"]["value_int"])
 
-        self.debug(" tick:  bid:", int2str(bid, self.currency),
-            "ask:", int2str(ask, self.currency))
+#added        
+        now = float(msg["now"]) / 1E6
+        if now - self.LASTTICKER > 20:    #only show the ticker every 20 seconds.
+            self.LASTTICKER = now
+            self.debug("\nBid:", int2str(bid, self.currency),"\nAsk:", int2str(ask, self.currency),"\n")    
+        
         self.signal_ticker(self, (bid, ask))
 
     def _on_op_private_depth(self, msg):
@@ -1092,10 +1110,7 @@ class Gox(BaseObject):
         volume = int(msg["volume_int"])
         total_volume = int(msg["total_volume_int"])
 
-        self.debug(
-            "depth: ", type_str+":", int2str(price, self.currency),
-            "vol:", int2str(volume, "BTC"),
-            "total:", int2str(total_volume, "BTC"))
+        self.debug("depth:  ", type_str+":", int2str(price, self.currency),"vol:", int2str(volume, "BTC"),"total:", int2str(total_volume, "BTC"))
         self.signal_depth(self, (type_str, price, volume, total_volume))
 
     def _on_op_private_trade(self, msg):
@@ -1111,11 +1126,7 @@ class Gox(BaseObject):
         volume = int(msg["trade"]["amount_int"])
         typ = msg["trade"]["trade_type"]
 
-        self.debug(
-            "trade:   ", int2str(price, self.currency),
-            "vol:", int2str(volume, "BTC"),
-            "type:", typ
-        )
+        self.debug("TRADE: ", typ+":", int2str(price, self.currency),"\tvol:", int2str(volume, "BTC"))
         self.signal_trade(self, (date, price, volume, typ, own))
 
     def _on_op_private_user_order(self, msg):

@@ -75,7 +75,7 @@ def on_message(ws,message):
         on_op_private_depth(data)
     elif channel == "ticker":
         now = float(data["ticker"]["now"]) / 1E6
-        if now - ws.LASTTICKER > 30:    #only show the ticker every 30 seconds.
+        if now - ws.LASTTICKER > 20:    #only show the ticker every 20 seconds.
             ws.LASTTICKER = now
             on_op_private_ticker(data)
     elif channel == "lag":
@@ -83,7 +83,7 @@ def on_message(ws,message):
             now = float(data["lag"]["stamp"]) / 1E6
         else:
             now = time.time()              #dummy
-        if now - ws.LASTLAG > 15:
+        if now - ws.LASTLAG > 20:
             ws.LASTLAG = now
             lag = str(float(data["lag"]["age"] / 1E6))
             print " LAG: ",lag, "seconds"
@@ -105,8 +105,9 @@ def main():
         websocket.enableTrace(False)
         url = 'wss://websocket.mtgox.com/mtgox'
         ws = websocket.WebSocket()
-        ws.LASTTICKER = time.time() - 15        #sets the last ticker 30 seconds prior to now, so it shows up on first run.
-        ws.LASTLAG = time.time() - 30           #same for the lag counter
+        ws.LASTTICKER = time.time() - 20        #sets the last ticker 20 seconds prior to now, so it shows up on first run.
+        ws.LASTLAG = time.time() - 20           #same for the lag counter
+        # ws.LASTRECEIVED = time.time()
         try:
             ws.connect(url)         #try to connect
         except (socket.error,websocket.WebSocketConnectionClosedException) as error:
@@ -120,8 +121,13 @@ def main():
         
         try:
             while True:
-                data = ws.recv()    #start receiving data
+                data = ws.recv()    #start receiving data                
                 on_message(ws,data)
+                # ws.LASTRECEIVED = time.time()
+                # if data == "2::":
+                #     print "sending keepalive"
+                #     ws.send("2::")
+                #     continue
         except KeyboardInterrupt as e:
         	on_close(ws)
         	return
