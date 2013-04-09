@@ -550,7 +550,6 @@ def main():
     except KeyboardInterrupt as e:
         print "got Ctrl+C, trying to shut down cleanly."
         gox.stop()
-        logwriter.close()
     except Exception:
         gox.debug(traceback.format_exc())
 # The End.

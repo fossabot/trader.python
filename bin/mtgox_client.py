@@ -88,8 +88,7 @@ def refreshbook(maxage=180):
     entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
     entirebook.sort()      #sort it
     return entirebook
-def printorderbook(length=15,maxage=120):
-    #entirebook = refreshbook(maxage)       #the full depth book was inaccurate from lag or something
+def printorderbookapi0(length=15,maxage=60):
     entirebook = Book.parse(mtgox.get_depth())
     entirebook.sort()
     #start printing part of the order book (first 15 asks and 15 bids)
@@ -188,7 +187,7 @@ class Shell(cmd.Cmd):
         except:                     #catch every exception!
             traceback.print_exc()
             self.cmdloop()
-            
+
 
     #start out by printing the order book (the new socket book)
     printOrderBooks(socketbook.asks,socketbook.bids,15)
@@ -302,7 +301,7 @@ class Shell(cmd.Cmd):
 
 
     def do_book(self,length):
-        """Uses the constantly updated data from the websocket(socket.io) of depth/trades\n""" \
+        """Uses the constantly updated data from the websocket/socket.io depth/trades/ticker channels\n""" \
         """usage: book [length]"""
         try:
             length = stripoffensive(length)
@@ -317,6 +316,26 @@ class Shell(cmd.Cmd):
             printOrderBooks(socketbook.asks,socketbook.bids,length)
         except:
             printOrderBooks(socketbook.asks,socketbook.bids)
+
+    def do_bookfull(self,length):
+        """Downloads the API 2 Full Depth at most once every 3 minutes, then prints out the order book."""
+        entirebook = refreshbook()
+        try:
+            length = stripoffensive(length)
+            length = int(length)
+            printbothbooks(entirebook.asks,entirebook.bids,length)
+        except:
+            printbothbooks(entirebook.asks,entirebook.bids,15)
+
+    def do_bookquick(self,length):
+        """Downloads API 0 getDepth at most once every 60 seconds, then prints out the order book."""
+        try:
+            length = stripoffensive(length)
+            length = int(length)
+            printorderbookapi0(length=length)
+        except:
+            printorderbookapi0(length=15)
+
 
 
     def do_btchistory(self,args):
@@ -474,35 +493,36 @@ class Shell(cmd.Cmd):
         """Cancel an order by number,ie: 7 or by range, ie: 10 - 25\n""" \
         """Use with arguments after the cancel command, or without to view the list and prompt you"""
         try:
-            useargs = False
-            if args:
-                useargs = True
             orders = mtgox.get_orders()['orders']
             orders = sorted(orders, key=lambda x: x['price'])
             numorder = 0
-            numcancelled = 0
-            for order in orders:
-                ordertype="Sell" if order['type'] == 1 else "Buy"
-                numorder += 1
-                if order['status'] == 1:
-                    OPX = 'O'
-                elif order['status'] == 2:
-                    OPX = 'P'
-                elif order['status'] == 0:
-                    OPX = 'X'
-                else:
-                    OPX = '|'
-                print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['oid'],order['amount'],order['price'])
-            print "Use spaces or commas to seperate order numbers: 1,2,3"
-            print "Use a - to specify a range: 1-20. "
-            while True:
+            numcancelled = 0            
+            useargs = False
+            if args:
+                useargs = True
+            else:
+                for order in orders:
+                    ordertype="Sell" if order['type'] == 1 else "Buy"
+                    numorder += 1
+                    if order['status'] == 1:
+                        OPX = 'O'
+                    elif order['status'] == 2:
+                        OPX = 'P'
+                    elif order['status'] == 0:
+                        OPX = 'X'
+                    else:
+                        OPX = '|'
+                    print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['oid'],order['amount'],order['price'])
+                print "Use spaces or commas to seperate order numbers: 1,2,3"
+                print "Use a - to specify a range: 1-20. "
+            while True:         #loop until quit
+                userange=False
+                numorder = 0
                 if useargs == True:
                     orderlist = args
                     useargs = False
                 else:
                     orderlist = ""
-                    userange=False
-                    numorder = 0
                     orderlist = raw_input("Which order numbers would you like to cancel?: [ENTER] quits.\n")
                 if orderlist == "":
                     break
@@ -697,7 +717,7 @@ class Shell(cmd.Cmd):
         """reading trade history data from a file and gathering stats on it"""
         import tradehistory
         filetype = prompt("Is this a Trade History file (not a full depth file)?",True)
-        if not(filetype):
+        if filetype:
             tradehistory.readhist24()
         else:
             tradehistory.readdepth()
