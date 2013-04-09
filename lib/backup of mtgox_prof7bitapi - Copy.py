@@ -41,7 +41,6 @@ import io
 import json
 import logging
 import Queue
-import socket
 import time
 import traceback
 import threading
@@ -498,37 +497,40 @@ class BaseClient(BaseObject):
         self.config = config
         self.socket = None
         self.http_requests = Queue.Queue()
-        self.connected = False
+
         self._recv_thread = None
         self._http_thread = None
         self._terminate = threading.Event()
-        self._terminate.set()
 #changed
+        self._recv_thread_started = False
+        self.connected = False
         self._time_last_received = 0
 
     def start(self):
         """start the client"""
         self._terminate.clear()
-        if not self.connected:
+        if self._recv_thread_started == False:
+            self.debug("Trying to start thread.")
             self._recv_thread = start_thread(self._recv_thread_func)
             self._http_thread = start_thread(self._http_thread_func)
 
     def stop(self):
         """stop the client"""
         self._terminate.set()
-        if self.connected:
+        if self.socket:
             self.debug("closing socket")
             self.socket._closeInternal()
-            self.connected = False
-            self.socket = None
+        self.connected = False
+        self._recv_thread_started = False
 
     def _try_send_raw(self, raw_data):
         """send raw data to the websocket or disconnect and close"""
-        if self.socket.connected:
+        if self.connected:
             try:
                 self.socket.send(raw_data)
             except Exception as exc:
                 self.debug(exc)
+                self.connected = False
                 self.socket._closeInternal()
 
     def send(self, json_str):
@@ -586,49 +588,43 @@ class BaseClient(BaseObject):
     def request_ticker(self):
         """request ticker using API 0 - most accurate."""
         def ticker_thread():
-            try:
-                """request ticker"""
-                self.debug("Requesting Ticker")
-                json_ticker = http_request("https://" +  self.HTTP_HOST \
-                    + "/api/0/ticker.php?Currency=" + self.currency)
-                ticker = json.loads(json_ticker)["ticker"]
-                data = (float2int(ticker["buy"],self.currency),float2int(ticker["sell"],self.currency))
-                self.signal_backupticker(self,data)
-            except:
-                pass
+            """request ticker"""
+            self.debug("Requesting Ticker")
+            json_ticker = http_request("https://" +  self.HTTP_HOST \
+                + "/api/0/ticker.php?Currency=" + self.currency)
+            ticker = json.loads(json_ticker)["ticker"]
+            data = (float2int(ticker["buy"],self.currency),float2int(ticker["sell"],self.currency))
+            self.signal_backupticker(self,data)
 
         start_thread(ticker_thread)
 
     def request_smalldepth(self):
         """request smalldepth using API 0 - most accurate."""
         def smalldepth_thread():
-            try:
-                """request ticker"""
-                self.debug("Requesting Small Depth")
-                json_smalldepth = http_request("https://" +  self.HTTP_HOST \
-                    + "/api/0/data/getDepth.php?Currency=" + self.currency)
-                smalldepth = json.loads(json_smalldepth)
-                bids = smalldepth["bids"]
-                smalldepthmaindict = {}
-                newbids = []
-                for bid in bids:
-                    eachbid = {}
-                    eachbid["price_int"] = float2int(bid[0],self.currency)
-                    eachbid["amount_int"] = float2int(bid[1],"BTC")
-                    newbids.append(eachbid)
-                asks = smalldepth["asks"]
-                newasks = []
-                for ask in asks:
-                    eachask = {}
-                    eachask["price_int"] = float2int(ask[0],self.currency)
-                    eachask["amount_int"] = float2int(ask[1],"BTC")
-                    newasks.append(eachask)
-                smalldepthmaindict["data"] = {}
-                smalldepthmaindict["data"]["bids"]=newbids
-                smalldepthmaindict["data"]["asks"]=newasks
-                self.signal_fulldepth(self, smalldepthmaindict)
-            except:
-                pass
+            """request ticker"""
+            self.debug("Requesting Small Depth")
+            json_smalldepth = http_request("https://" +  self.HTTP_HOST \
+                + "/api/0/data/getDepth.php?Currency=" + self.currency)
+            smalldepth = json.loads(json_smalldepth)
+            bids = smalldepth["bids"]
+            smalldepthmaindict = {}
+            newbids = []
+            for bid in bids:
+                eachbid = {}
+                eachbid["price_int"] = float2int(bid[0],self.currency)
+                eachbid["amount_int"] = float2int(bid[1],"BTC")
+                newbids.append(eachbid)
+            asks = smalldepth["asks"]
+            newasks = []
+            for ask in asks:
+                eachask = {}
+                eachask["price_int"] = float2int(ask[0],self.currency)
+                eachask["amount_int"] = float2int(ask[1],"BTC")
+                newasks.append(eachask)
+            smalldepthmaindict["data"] = {}
+            smalldepthmaindict["data"]["bids"]=newbids
+            smalldepthmaindict["data"]["asks"]=newasks
+            self.signal_fulldepth(self, smalldepthmaindict)
 
         start_thread(smalldepth_thread)        
 
@@ -802,22 +798,21 @@ class WebsocketClient(BaseClient):
         """connect to the webocket and tart receiving inan infinite loop.
         Try to reconnect whenever connection is lost. Each received json
         string will be dispatched with a signal_recv signal"""
+        self._recv_thread_started = True
         reconnect_time = 0
         use_ssl = self.config.get_bool("gox", "use_ssl")
         wsp = {True: "wss://", False: "ws://"}[use_ssl]
         while not self._terminate.is_set():  #loop 0 (connect, reconnect)
             try:
                 self._terminate.wait(reconnect_time)
-                reconnect_time = 15
                 ws_url = wsp + self.WEBSOCKET_HOST + "/mtgox?Currency=" + self.gox.currency
 
                 self.debug("trying plain old Websocket: %s" % ws_url)
 
                 self.socket = websocket.WebSocket()
                 self.socket.connect(ws_url)
-                if self.socket.connected:
-                    self.debug("connected. subscribing to channels")
-                    self.connected = True
+                self.connected = True
+                self.debug("connected. subscribing to channels")
                 self.channel_subscribe()
                 
                 self.debug("waiting for data...")
@@ -825,14 +820,16 @@ class WebsocketClient(BaseClient):
                     str_json = self.socket.recv()
                     if str_json[0] == "{":
                         self._time_last_received = time.time()
+                        #self.debug("Data Received over WebSocket.", self._time_last_received)
                         self.signal_recv(self, (str_json))
 
             except Exception as exc:
-                self.debug(exc, "\n\t\t\t\t\tReconnecting in %i seconds..." % reconnect_time)
-                if self.socket:
-                    self.socket._closeInternal()
-                    self.connected = False
-                self._terminate.set()
+                self.connected = False
+                if not self._terminate.is_set():
+                    reconnect_time = 15
+                    self.debug(exc, "\n\t\t\t\t\tReconnecting in %i seconds..." % reconnect_time)
+                    if self.socket:
+                        self.socket._closeInternal()
 
     def send(self, json_str):
         """send the json encoded string over the websocket"""
@@ -917,22 +914,19 @@ class SocketIOClient(BaseClient):
         connect and then read (blocking) on the socket in an infinite
         loop. SocketIO messages ('2::', etc.) are handled here immediately
         and all received json strings are dispathed with signal_recv."""
+        self._recv_thread_started = True
         use_ssl = self.config.get_bool("gox", "use_ssl")
         wsp = {True: "wss://", False: "ws://"}[use_ssl]
-        reconnect_time = 0
         while not self._terminate.is_set(): #loop 0 (connect, reconnect)
             try:
-                self._terminate.wait(reconnect_time)
-                reconnect_time = 5
                 ws_url = wsp + self.hostname + "/socket.io/1"
 
                 self.debug("trying Socket.IO: %s" % ws_url)
                 self.socket = SocketIO()
                 self.socket.connect(ws_url, query="Currency=" + self.gox.currency)
 
-                if self.socket.connected:
-                    self.debug("connected. subscribing to channels")
-                    self.connected = True
+                self.connected = True
+                self.debug("connected. subscribing to channels")
                 
                 self.channel_subscribe()
                 self.socket.send("1::/mtgox")
@@ -946,6 +940,8 @@ class SocketIOClient(BaseClient):
                 while not self._terminate.is_set(): #loop1 (read messages)
                     msg = self.socket.recv()
                     if msg == "2::":
+#commented out. we dont need to see ping/pong.
+                        #self.debug("### ping -> pong")
                         self.socket.send("2::")
                         continue
                     prefix = msg[:10]
@@ -953,15 +949,16 @@ class SocketIOClient(BaseClient):
                         str_json = msg[10:]
                         if str_json[0] == "{":
                             self._time_last_received = time.time()
+                            #self.debug("Data Received over SocketIO.", self._time_last_received)
                             self.signal_recv(self, (str_json))
 
             except Exception as exc:
-                self.debug(exc.__class__.__name__, exc, "reconnecting in 5 seconds...")
-                if self.socket:
-                    self.socket._closeInternal()
-                    self.connected = False
-                self._terminate.set()
-                    
+                self.connected = False
+                if not self._terminate.is_set():
+                    self.debug(exc.__class__.__name__, exc, "reconnecting in 5 seconds...")
+                    if self.socket:
+                        self.socket._closeInternal()
+                    self._terminate.wait(5)
 
     def send(self, json_str):
         """send a string to the websocket. This method will prepend it
@@ -1048,24 +1045,23 @@ class Gox(BaseObject):
 ##New
         self._switchclient = Timer(10)
         self._switchclient.connect(self.slot_switchclient)
-
 ##Code to switch between SocketIO/websocket/HTTP ticker
     def slot_switchclient(self, _sender, _data):
         """find out if the socket is blank in regular intervals, and if it is, request new HTTP depth"""
 
         self.fulldepth_time = self.orderbook.fulldepth_time
-        silent = time.time() - self.client._time_last_received
-        if silent > 20:
-            self.debug("NO DATA received over SocketIO for %d seconds!!!!!! Restarting SocketIO Client" % silent)
+
+        if time.time() - self.client._time_last_received > 20:
+            self.debug("NO DATA received over SocketIO for 20 seconds!!!!!! Restarting SocketIO Client")
             self.client.stop()
             self.client.start()
-            if time.time() - self.orderbook.fulldepth_time > 20 and not self.client_backup.connected:
+            if time.time() - self.orderbook.fulldepth_time > 20 and self.client_backup.connected == False:
                 self.client.request_ticker()
                 self.client.request_smalldepth()
-            if self.client_backup._terminate.isSet() and not self.client_backup.connected:
+            if self.client_backup.connected == False and self.client_backup._recv_thread_started == False:
                 self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
                 self.client_backup.start()
-        elif silent < 20 and not self.client_backup._terminate.isSet():
+        elif time.time() - self.client._time_last_received < 20 and self.client_backup._recv_thread_started == True:
             self.debug("SocketIO is actively sending data. Stopping WebSocket client.")
             self.client_backup.stop()
 

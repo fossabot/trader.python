@@ -137,7 +137,6 @@ class Client:
                                 print ServerError(data["error"])
                     except ValueError as e:
                         print "JSON Error: %s." % e
-                        print resp.read()
                         continue
                 else:
                     data = resp.read()

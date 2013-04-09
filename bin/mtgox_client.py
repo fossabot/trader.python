@@ -58,14 +58,14 @@ class LogWriter():
         else:
             logging.debug("%s:%s", sender.__class__.__name__, msg)       #change this to .info to see the messages on screen.
 
-config = mtgox_prof7bitapi.GoxConfig()#"../goxtool.ini")      #deprecated
+config = mtgox_prof7bitapi.GoxConfig()
 secret = mtgox_prof7bitapi.Secret()
 secret.decrypt(mtgox.enc_password)
 gox = mtgox_prof7bitapi.Gox(secret, config)
 logwriter = LogWriter(gox)
 gox.start()
 print "Starting to download fulldepth from mtgox....",
-socketbook = mtgox_prof7bitapi.OrderBook(gox)
+socketbook = gox.orderbook
 while socketbook.fulldepth_downloaded == False:
     time.sleep(0.1)
 print "Finished."
@@ -261,7 +261,7 @@ class Shell(cmd.Cmd):
     def do_balance(self,args):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
         btc,usd = bal()
-        last = D(mtgox.get_ticker2()['last']['value'])
+        last = D(str(mtgox.get_ticker()['last']))
         print 'Your balance is %s BTC and $%.2f USD ' % (btc,usd)
         print 'Account Value: $%.2f @ Last BTC Price of $%s' % (btc*last+usd,last)
 
@@ -272,7 +272,7 @@ class Shell(cmd.Cmd):
             while(not notifier_stop.is_set()):
                 btcnew,usdnew = bal()
                 if btcnew > btc or usdnew > usd:
-                    last = D(mtgox.get_ticker2()['last']['value'])
+                    last = D(str(mtgox.get_ticker()['last']))
                     print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
                     for x in xrange(0,3):
                         winsound.Beep(1200,1000)
