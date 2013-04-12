@@ -9,13 +9,15 @@ import cmd
 import time
 import json
 import traceback
-import winsound         #plays beeps for alerts 
 import threading        #for subthreads
 import datetime
 from decimal import Decimal as D    #renamed to D for simplicity.
 import os
 import logging
 import csv
+import os
+if os.name == 'nt':
+    import winsound         #plays beeps for alerts 
 
 from book import *
 from common import *
@@ -58,6 +60,7 @@ class LogWriter():
         else:
             logging.debug("%s:%s", sender.__class__.__name__, msg)       #change this to .info to see the messages on screen.
 
+
 config = mtgox_prof7bitapi.GoxConfig()
 secret = mtgox_prof7bitapi.Secret()
 secret.decrypt(mtgox.enc_password)
@@ -73,7 +76,11 @@ print "Finished."
 
 # data partial path directory
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
+if os.name == 'nt':
+    partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+    partialpath=os.path.join(fullpath + '/../data/' + site)
+
 
 """
 def decideto():
@@ -275,8 +282,11 @@ class Shell(cmd.Cmd):
                     last = D(str(mtgox.get_ticker()['last']))
                     print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
                     for x in xrange(0,3):
-                        winsound.Beep(1200,1000)
-                        winsound.Beep(1800,1000)
+                        if os.name == 'nt':
+                            winsound.Beep(1200,1000)
+                            winsound.Beep(1800,1000)
+                        else:
+                            print '\a\a'
                     btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
 
@@ -344,10 +354,10 @@ class Shell(cmd.Cmd):
         download = prompt("Download a new history?",False)
         if download:
             btchistory=mtgox.get_history_btc().decode('utf-8')
-            print "%s" % btchistory
             with open(filename,'w') as f:
                 f.write(btchistory.encode('utf8'))
                 print "Finished writing file."
+        print "%s" % btchistory.encode('utf8')                
         csvfile = open(filename, 'rb')
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         fulllist = []
@@ -378,7 +388,10 @@ class Shell(cmd.Cmd):
                 allfees += onefee.quantize(D('0.00000001'))
             if item["Type"] == "in" or item["Type"] == "out":
                 info = item["Info"]
-                price=D(info[info.find("$")+1:])
+                try:
+                    price=D(info[info.find("$")+1:])
+                except:
+                    price=D(info[info.find("BTC at")+7:info.find("\xe2")-2])
                 amount=D(item["Value"])
             if item["Type"] == "in":
                 amtbtcin += amount
@@ -400,10 +413,10 @@ class Shell(cmd.Cmd):
         download = prompt("Download a new history?",False)
         if download:
             usdhistory=mtgox.get_history_usd().decode('utf-8')
-            print "%s" % usdhistory
             with open(filename,'w') as f:
                 f.write(usdhistory.encode('utf8'))
                 print "Finished writing file."
+        print "%s" % usdhistory.encode('utf8')                
         csvfile = open(filename, 'rb')
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         fulllist = []
@@ -582,13 +595,6 @@ class Shell(cmd.Cmd):
         Feesubroutine().cmdloop()
 
 
-    def do_functest(self,args):
-        """test function to test out high/low"""
-        #mtgox.order_quote("bid",1000,socketbook.bid/1E5)
-        #s = self.do_readtickerlog("5")
-        #print "THIS IS TE NEW S"
-        print mtgox.last_order()
-
     def do_getaddress(self,args):
         """Generate a new personal bitcoin deposit address for your mtgox account (needs deposit priveleges to work)"""
         mtgox.bitcoin_address()
@@ -598,13 +604,6 @@ class Shell(cmd.Cmd):
         lag = mtgox.lag()
         print "Current order lag is %r seconds " % (lag['lag_secs'])
 
-
-    def do_new(self,args):
-        """New function to test out new depth functions"""
-        try:
-            depthparser.goxnewcalc(mtgox,args)
-        except Exception as e:
-            print "Was expecting 3-4 arguments: (bid|ask), (btc|usd), amount, price=optional"
     
 
     def do_obip(self, args):
@@ -884,8 +883,11 @@ class Shell(cmd.Cmd):
                         pass
                     elif last >= high:
                         print "ALERT!! Ticker has risen above range %s-%s. Price is now: %s" % (low,high,last)
-                        for x in range(2,25):
-                            winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                        for x in range(2,25):           #ascending beeps
+                            if os.name == 'nt':
+                                winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                            else:
+                                print '\a\a\a\a\a\a'
                         low = high - 0.5
                         high = low + 3
                         #decideto()
@@ -896,8 +898,11 @@ class Shell(cmd.Cmd):
                         print "ALERT!! Ticker is exactly on the boundary of %s" % (last)
                     else:
                         print "ALERT!! Ticker has fallen below range %s-%s. Price is now: %s" % (low,high,last)
-                        for x in range(25,2,-1):
-                            winsound.Beep(x*100,90)
+                        for x in range(25,2,-1):        #descending beeps
+                            if os.name == 'nt':
+                                winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                            else:
+                                print '\a\a\a\a\a\a'
                         high = low + 1
                         low = high -3
                         #decideto()
@@ -922,6 +927,7 @@ class Shell(cmd.Cmd):
             print "An error occurred."
             self.onecmd('help updown')
 
+
     def do_withdraw(self,args):
         """Withdraw Bitcoins to an address (needs withdraw priveleges to work)"""
         address = raw_input("Enter the address you want to withdraw to: ")
@@ -935,7 +941,6 @@ class Shell(cmd.Cmd):
             amount = D(raw_input("Enter the amount of BTC to withdraw: "))
         else:
             amount,_ = bal()
-        
         mtgox.bitcoin_withdraw(address,amount*D(1E8),fee*D(1E8))
 
 
@@ -943,14 +948,12 @@ class Shell(cmd.Cmd):
         """Exits the program"""
         return self.do_exit(args)
 
-
     def do_exit(self,args):      #standard way to exit
         """Exits the program"""   
         print "\n"
         print "Session Terminating......."
         print "Exiting......"           
         return True
-
 
     def help_help(self):
         print 'Prints the help screen'

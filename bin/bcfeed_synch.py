@@ -24,8 +24,11 @@ auto_move_output = 1
 begintiming = time.time()
 
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
-
+if os.name == 'nt':
+    partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+    partialpath=os.path.join(fullpath + '/../data/' + site)
+    
 try:
     for line in open(os.path.join(partialpath + 'download_mtgoxUSD.csv')):pass
     line = line.split(',')[0]

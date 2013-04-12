@@ -36,7 +36,10 @@ def lock():
     salt = os.urandom(32)                   #requires Python 2.4  = 32 bytes or 256 bits of randomness
     """salt = hashlib.sha512(pre_salt).digest()    #hashing does not add any new randomness """
     fullpath = os.path.dirname(os.path.realpath(__file__))
-    partialpath=os.path.join(fullpath + '\\..\\keys\\' + site)
+    if os.name == 'nt':
+        partialpath=os.path.join(fullpath + '\\..\\keys\\' + site)
+    else:
+        partialpath=os.path.join(fullpath + '/../keys/' + site)
     f = open(os.path.join(partialpath + '_salt.txt'),'w')
     f.write(salt)
     f.close()

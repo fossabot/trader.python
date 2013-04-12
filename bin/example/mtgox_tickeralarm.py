@@ -13,7 +13,10 @@ import os
 
 # data partial path directory
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
+if os.name == 'nt':
+    partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+    partialpath=os.path.join(fullpath + '/../data/' + site)
 
 def floatify(l):
     if isinstance(l, (list, tuple)):
