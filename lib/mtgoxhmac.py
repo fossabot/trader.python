@@ -221,10 +221,13 @@ class Client:
         return self.request('history_' + CURRENCY + '.csv',None,JSON=False)
     def get_info(self):
         return self.request('generic/info',None,API_VERSION=1)["return"]
-    def get_ticker2(self):
-        return self.request(PAIR + "/money/ticker",None,API_VERSION=2,GET=True)["data"]
     def get_ticker(self):
         return self.request("ticker.php",None,GET=True)["ticker"]
+    def get_ticker2(self):
+        return self.request(PAIR + "/money/ticker",None,API_VERSION=2,GET=True)["data"]
+    def get_tickerfast(self):
+        return self.request(PAIR + "/money/ticker_fast",None,API_VERSION=2,GET=True)["data"]
+
     def get_depth(self):
         return self.request("data/getDepth.php", {"Currency":CURRENCY})
     def get_fulldepth(self):

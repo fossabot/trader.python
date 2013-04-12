@@ -518,7 +518,7 @@ class BaseClient(BaseObject):
         self._terminate.set()
         if self.connected:
             self.debug("closing socket")
-            self.socket._closeInternal()
+            self.socket.close()
             self.connected = False
             self.socket = None
 
@@ -529,7 +529,7 @@ class BaseClient(BaseObject):
                 self.socket.send(raw_data)
             except Exception as exc:
                 self.debug(exc)
-                self.socket._closeInternal()
+                self.socket.close()
 
     def send(self, json_str):
         """there exist 2 subtly different ways to send a string over a
@@ -830,7 +830,7 @@ class WebsocketClient(BaseClient):
             except Exception as exc:
                 self.debug(exc, "\n\t\t\t\t\tReconnecting in %i seconds..." % reconnect_time)
                 if self.socket:
-                    self.socket._closeInternal()
+                    self.socket.close()
                     self.connected = False
                 self._terminate.set()
 
@@ -958,7 +958,7 @@ class SocketIOClient(BaseClient):
             except Exception as exc:
                 self.debug(exc.__class__.__name__, exc, "reconnecting in 5 seconds...")
                 if self.socket:
-                    self.socket._closeInternal()
+                    self.socket.close()
                     self.connected = False
                 self._terminate.set()
                     
@@ -1046,7 +1046,7 @@ class Gox(BaseObject):
         self.client.signal_fulldepth.connect(self.signal_fulldepth)
         self.client.signal_fullhistory.connect(self.signal_fullhistory)
 ##New
-        self._switchclient = Timer(10)
+        self._switchclient = Timer(30)
         self._switchclient.connect(self.slot_switchclient)
 
 ##Code to switch between SocketIO/websocket/HTTP ticker
@@ -1055,17 +1055,18 @@ class Gox(BaseObject):
 
         self.fulldepth_time = self.orderbook.fulldepth_time
         silent = time.time() - self.client._time_last_received
-        if silent > 20:
-            self.debug("NO DATA received over SocketIO for %d seconds!!!!!! Restarting SocketIO Client" % silent)
-            self.client.stop()
-            self.client.start()
-            if time.time() - self.orderbook.fulldepth_time > 20 and not self.client_backup.connected:
-                self.client.request_ticker()
-                self.client.request_smalldepth()
-            if self.client_backup._terminate.isSet() and not self.client_backup.connected:
-                self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
-                self.client_backup.start()
-        elif silent < 20 and not self.client_backup._terminate.isSet():
+        if silent > 60:
+            if time.time() - self.created > 60:
+                self.debug("NO DATA received over SocketIO for %d seconds!!!!!! Restarting SocketIO Client" % silent)
+                self.client.stop()
+                self.client.start()
+                if time.time() - self.orderbook.fulldepth_time > 60 and not self.client_backup.connected:
+                    #self.client.request_ticker()
+                    self.client.request_fulldepth()
+                if self.client_backup._terminate.isSet() and not self.client_backup.connected:
+                    self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
+                    self.client_backup.start()
+        elif silent < 60 and not self.client_backup._terminate.isSet():
             self.debug("SocketIO is actively sending data. Stopping WebSocket client.")
             self.client_backup.stop()
 
@@ -1074,11 +1075,13 @@ class Gox(BaseObject):
         """connect to MtGox and start receiving events."""
         self.debug("starting gox streaming API, currency=" + self.currency)
         self.client.start()
+        self.created = time.time()
 
     def stop(self):
         """shutdown the client"""
         self.debug("shutdown...")
         self.client.stop()
+        self.created = 0
 
     def order(self, typ, price, volume):
         """place pending order. If price=0 then it will be filled at market"""

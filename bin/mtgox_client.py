@@ -822,7 +822,26 @@ class Shell(cmd.Cmd):
                 print "BTCUSD ticker | %s = %s" % (args,ticker[args])
             except:
                 print "Invalid args. Expecting a valid ticker subkey."
-                self.onecmd('help ticker')
+                self.onecmd('help ticker2')
+
+    def do_tickerfast(self,args):
+        """Print the entire ticker out or use one of the following options:\n""" \
+        """[--buy|--sell|--last """
+        args = stripoffensive(args)
+        ticker = mtgox.get_tickerfast()
+        svrtime = D(int(ticker["now"]) / 1E6).quantize(D("0.001"))
+        if not args:
+            print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, "  % \
+                (ticker['buy']['value'], ticker['sell']['value'], \
+                D(ticker['sell']['value']) - D(ticker['buy']['value']), \
+                ticker['last']['value'])
+            print "Time of ticker: ", datetime.datetime.fromtimestamp(svrtime).strftime("%Y-%m-%d %H:%M:%S"), "Ticker Lag: %.3f" % (D(time.time())-svrtime)
+        else:
+            try:
+                print "BTCUSD ticker | %s = %s" % (args,ticker[args])
+            except:
+                print "Invalid args. Expecting a valid ticker subkey."
+                self.onecmd('help tickerfast')
 
 
     def do_tradehist24(self,args):
