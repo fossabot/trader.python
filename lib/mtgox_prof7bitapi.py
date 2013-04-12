@@ -808,7 +808,7 @@ class WebsocketClient(BaseClient):
         while not self._terminate.is_set():  #loop 0 (connect, reconnect)
             try:
                 self._terminate.wait(reconnect_time)
-                reconnect_time = 15
+                reconnect_time = 20
                 ws_url = wsp + self.WEBSOCKET_HOST + "/mtgox?Currency=" + self.gox.currency
 
                 self.debug("trying plain old Websocket: %s" % ws_url)
@@ -818,6 +818,7 @@ class WebsocketClient(BaseClient):
                 if self.socket.connected:
                     self.debug("connected. subscribing to channels")
                     self.connected = True
+                    self.created = time.time()
                 self.channel_subscribe()
                 
                 self.debug("waiting for data...")
@@ -829,10 +830,10 @@ class WebsocketClient(BaseClient):
 
             except Exception as exc:
                 self.debug(exc, "\n\t\t\t\t\tReconnecting in %i seconds..." % reconnect_time)
-                if self.socket:
-                    self.socket.close()
-                    self.connected = False
-                self._terminate.set()
+                # if self.socket:
+                #     self.socket.close()
+                #     self.connected = False
+                # self._terminate.set()
 
     def send(self, json_str):
         """send the json encoded string over the websocket"""
@@ -912,6 +913,7 @@ class SocketIOClient(BaseClient):
         self.hostname = self.SOCKETIO_HOST
         self._keepalive_timer.connect(self.slot_keepalive_timer)
 
+
     def _recv_thread_func(self):
         """this is the main thread that is running all the time. It will
         connect and then read (blocking) on the socket in an infinite
@@ -923,7 +925,7 @@ class SocketIOClient(BaseClient):
         while not self._terminate.is_set(): #loop 0 (connect, reconnect)
             try:
                 self._terminate.wait(reconnect_time)
-                reconnect_time = 5
+                reconnect_time = 1
                 ws_url = wsp + self.hostname + "/socket.io/1"
 
                 self.debug("trying Socket.IO: %s" % ws_url)
@@ -933,6 +935,7 @@ class SocketIOClient(BaseClient):
                 if self.socket.connected:
                     self.debug("connected. subscribing to channels")
                     self.connected = True
+                    self.created = time.time()
                 
                 self.channel_subscribe()
                 self.socket.send("1::/mtgox")
@@ -956,11 +959,11 @@ class SocketIOClient(BaseClient):
                             self.signal_recv(self, (str_json))
 
             except Exception as exc:
-                self.debug(exc.__class__.__name__, exc, "reconnecting in 5 seconds...")
-                if self.socket:
-                    self.socket.close()
-                    self.connected = False
-                self._terminate.set()
+                self.debug(exc.__class__.__name__, exc, "reconnecting ASAP...")
+                #if self.socket:
+                #    self.socket.close()
+                #    self.connected = False
+                #self._terminate.set()
                     
 
     def send(self, json_str):
@@ -1056,7 +1059,7 @@ class Gox(BaseObject):
         self.fulldepth_time = self.orderbook.fulldepth_time
         silent = time.time() - self.client._time_last_received
         if silent > 60:
-            if time.time() - self.created > 60:
+            if time.time() - self.client.created > 60:
                 self.debug("NO DATA received over SocketIO for %d seconds!!!!!! Restarting SocketIO Client" % silent)
                 self.client.stop()
                 self.client.start()
@@ -1075,13 +1078,13 @@ class Gox(BaseObject):
         """connect to MtGox and start receiving events."""
         self.debug("starting gox streaming API, currency=" + self.currency)
         self.client.start()
-        self.created = time.time()
+        self.client.created = time.time()
 
     def stop(self):
         """shutdown the client"""
         self.debug("shutdown...")
         self.client.stop()
-        self.created = 0
+        self.client.created = 0
 
     def order(self, typ, price, volume):
         """place pending order. If price=0 then it will be filled at market"""

@@ -58,8 +58,8 @@ class Client:
         self.clock_last = time.time()
         self.clock = time.time()
         self.query_count = 0
-        self.query_limit_per_time_slice = 9
-        self.query_time_slice = 6
+        self.query_limit_per_time_slice = 20
+        self.query_time_slice = 10
         
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')

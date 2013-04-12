@@ -742,7 +742,7 @@ class Shell(cmd.Cmd):
                 while(not stop_event.is_set()):
                     last = D(socketbook.ask)
                     percent = percent / D('100')
-                    if price*percent > last:
+                    if price*percent < last:
                         order = mtgox.order_new('ask',amount,protection=False)
                         while found == False:
                             stop_event.wait(2)
