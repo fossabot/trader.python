@@ -28,7 +28,7 @@ class LogWriter():
     """connects to gox.signal_debug and logs it all to the logfile"""
     def __init__(self, gox):
         self.gox = gox
-        logging.basicConfig(filename='goxtool.log'
+        logging.basicConfig(filename='orderbook.log'
                            ,filemode='a'
                            ,format='%(asctime)s:%(levelname)s %(message)s'
                            ,level=logging.DEBUG
@@ -77,6 +77,7 @@ while True:
             print "Finished."
         elif vintage > 60:
             gox.client.request_smalldepth()
+        print ""
         printOrderBooks(socketbook.asks,socketbook.bids,20)
         time.sleep(1)
     except KeyboardInterrupt as e:

@@ -66,12 +66,15 @@ secret = mtgox_prof7bitapi.Secret()
 secret.decrypt(mtgox.enc_password)
 gox = mtgox_prof7bitapi.Gox(secret, config)
 logwriter = LogWriter(gox)
+logging.debug("### Initializing the mtgox_client.")
 gox.start()
-print "Starting to download fulldepth from mtgox....",
 socketbook = gox.orderbook
-while socketbook.fulldepth_downloaded == False:
-    time.sleep(0.1)
-print "Finished."
+def request_socketbook():
+    print "Starting to download fulldepth from mtgox....",
+    while socketbook.fulldepth_downloaded == False:
+        time.sleep(0.1)
+    print "Finished."
+request_socketbook()
 
 
 # data partial path directory
@@ -95,7 +98,7 @@ def refreshbook(maxage=180):
     entirebook = Book.parse(fulldepth["data"],goxfulldepth=True)
     entirebook.sort()      #sort it
     return entirebook
-def printorderbookapi0(length=15,maxage=60):
+def printorderbookapi0(length=15):
     entirebook = Book.parse(mtgox.get_depth())
     entirebook.sort()
     #start printing part of the order book (first 15 asks and 15 bids)
@@ -314,21 +317,20 @@ class Shell(cmd.Cmd):
         """Uses the constantly updated data from the websocket/socket.io depth/trades/ticker channels\n""" \
         """usage: book [length]"""
         try:
-            length = stripoffensive(length)
-            length = int(length)
             vintage = (time.time() - socketbook.fulldepth_time)
             if vintage > 300:
-                print "Starting to download fulldepth from mtgox....",
-                gox.client.request_fulldepth()
-                while socketbook.fulldepth_downloaded == False:
-                    time.sleep(0.1)
-                print "Finished."
+                request_socketbook()
+
+            length = stripoffensive(length)
+            length = int(length)
+
             printOrderBooks(socketbook.asks,socketbook.bids,length)
         except:
             printOrderBooks(socketbook.asks,socketbook.bids)
 
     def do_bookfull(self,length):
         """Downloads the API 2 Full Depth at most once every 3 minutes, then prints out the order book."""
+        """usage: book [length]"""
         entirebook = refreshbook()
         try:
             length = stripoffensive(length)
@@ -337,8 +339,14 @@ class Shell(cmd.Cmd):
         except:
             printbothbooks(entirebook.asks,entirebook.bids,15)
 
+    def do_bookrefresh(self,length):
+        """Refresh a new copy of the entire order book and then run the 'book' command to print it."""
+        request_socketbook()
+        self.onecmd('book')
+
     def do_bookquick(self,length):
-        """Downloads API 0 getDepth at most once every 60 seconds, then prints out the order book."""
+        """Downloads a new API 0 getDepth each time, then prints out the order book."""
+        """usage: book [length]"""
         try:
             length = stripoffensive(length)
             length = int(length)
@@ -453,23 +461,30 @@ class Shell(cmd.Cmd):
         print "Sum of all usd sold is: $%s USD" % amtusdout
 
     def do_buy(self, args):
-        """(market order): buy volume \n""" \
-        """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
-        """(limit order): buy volume price \n""" \
-        """(spread order): buy volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
-        # adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox.
+        """(market order): buy <#BTC> \n""" \
+        """(limit order) : buy <#BTC> <price> \n""" \
+        """(spend-X market order): buy usd <#USD>         (specify the $ amount in #USD, and use the last ticker price-market)\n"""\
+        """(spend-X limit order) : buy usd <#USD> <price> (same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): buy volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)\n"""\
+        """                adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if len(newargs) == 1:
-                mtgox.order_new('bid',*newargs)
-            elif "usd" in newargs:                      #place an order of $X USD
-                buyprice = mtgox.get_ticker()["buy"]    
-                amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
-                mtgox.order_new('bid',amt.quantize(bPrec),buyprice)  #goes as a limit order (can be market also if you delete buyprice here)           
-            elif not(len(newargs) == 3):
-                spread('mtgox',mtgox,'bid', *newargs)
+            if "usd" in newargs:                                  #places an order of $X USD 
+                newargs.remove("usd")
+                if len(newargs) == 1:                                  #goes as a market order
+                    rate = D(mtgox.get_tickerfast()["buy"]["value"])
+                    amt = newargs[0] / rate
+                    buyprice = None    
+                elif len(newargs) == 2:                                  #goes as a limit order  
+                    buyprice = newargs[1]                           
+                    amt = newargs[0] / buyprice                        #convert USD to BTC.
+                newargs = tuple(amt.quantize(bPrec),buyprice)         #get the arguments ready
+            elif len(newargs) in (1,2):
+                mtgox.order_new('bid',*newargs) 
+            elif len(newargs) >= 4:
+                spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
             else:
                 raise UserError
         except Exception as e:
@@ -525,7 +540,7 @@ class Shell(cmd.Cmd):
                         OPX = 'X'
                     else:
                         OPX = '|'
-                    print '%s = %s %s %s BTC @ $%s %s' % (numorder,ordertype,OPX,order['price'],order['amount'],order['oid'])
+                    print '%3s = %4s %s $%9s @ %12s BTC %s' % (numorder,ordertype,OPX,order['price'],order['amount'],order['oid'])
                 print "Use spaces or commas to seperate order numbers: 1,2,3"
                 print "Use a - to specify a range: 1-20. "
             while True:         #loop until quit
@@ -673,7 +688,7 @@ class Shell(cmd.Cmd):
                     OPX = 'X'
                 else:
                     OPX = '|'
-                print '%s = %s %s %s BTC @ $%s %s' % (numorder,ordertype,OPX,order['price'],order['amount'],order['oid'])
+                print '%3s = %4s %s $%9s @ %12s BTC %s' % (numorder,ordertype,OPX,order['price'],order['amount'],order['oid'])
                 if order['type'] == 2:
                     buytotal += D(order['price'])*D(order['amount'])
                     numbuys += D('1')

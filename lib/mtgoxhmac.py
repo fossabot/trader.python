@@ -58,9 +58,9 @@ class Client:
         self.query_now = time.time()
         self.query_last = time.time()
         self.query_count = 0
-        self.query_limit_per_time_slice = 2
-        self.query_time_slice = 1
-        self.query_timeout = 3
+        self.query_limit_per_time_slice = 60
+        self.query_time_slice = 30
+        self.query_timeout = 5
         
         self.order_now = time.time()
         self.order_last = time.time()
@@ -256,7 +256,7 @@ class Client:
         info = self.get_info()["Wallets"]
         balance = { "usds":info[CURRENCY]["Balance"]["value"], "btcs":info[PRODUCT]["Balance"]["value"] }
         return balance
-        
+
     def get_ticker(self):
         return self.request("ticker.php",None,GET=True)["ticker"]
     def get_ticker2(self):
@@ -266,12 +266,13 @@ class Client:
 
     def get_depth(self):
         return self.request("data/getDepth.php", {"Currency":CURRENCY})
+    def get_fetchdepth(self):
+        return self.request(PAIR + "/money/depth/fetch",None,API_VERSION=2,GET=True)
     def get_fulldepth(self):
         return self.request(PAIR + "/money/depth/full",None,API_VERSION=2,GET=True)
 
     def get_trades(self):
         return self.request("data/getTrades.php",None,GET=True)
-
     def entire_trade_history(self):
         return self.request(PAIR + "/money/trades/fetch",None,API_VERSION=2,GET=True)
 

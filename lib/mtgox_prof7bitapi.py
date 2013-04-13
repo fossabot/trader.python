@@ -42,14 +42,12 @@ import json
 import logging
 import Queue
 import socket
+import ssl
 import time
 import traceback
 import threading
-from urllib2 import Request as URLRequest
-from urllib2 import urlopen
+import urllib
 import urllib2
-import ssl
-from urllib import urlencode
 import weakref
 import websocket
 
@@ -97,11 +95,11 @@ def float2int(value_float, currency):
 
 def http_request(url):
     """request data from the HTTP API, returns a string"""
-    request = URLRequest(url)
+    request = urllib2.Request(url)
     request.add_header('Accept-encoding', 'gzip')
     data = ""
     try:
-        with contextlib.closing(urlopen(request)) as response:
+        with contextlib.closing(urllib2.urlopen(request)) as response:
             if response.info().get('Content-Encoding') == 'gzip':
                 with io.BytesIO(response.read()) as buf:
                     with gzip.GzipFile(fileobj=buf) as unzipped:
@@ -110,7 +108,6 @@ def http_request(url):
                 data = response.read()
         return data
     #Try to catch a number of possible errors. 
-    #Since this is used for debugging, logging.debug() should really be used instead
     except urllib2.HTTPError as e:
         #HTTP Error ie: 500/502/503 etc
         logging.debug('HTTP Error %s: %s' % (e.code, e.msg))
@@ -168,27 +165,16 @@ class GoxConfig(SafeConfigParser):
                 ,["goxtool", "set_xterm_title", "True"]
                 ]
 
-    def __init__(self): #, filename):
-        #self.filename = filename
+    def __init__(self): 
         SafeConfigParser.__init__(self)
-        #self.load()
         for (sect, opt, default) in self._DEFAULTS:
             self._default(sect, opt, default)
-#commented out
-    # def save(self):
-    #     """save the config to the .ini file"""
-    #     with open(self.filename, 'wb') as configfile:
-    #         self.write(configfile)
 
-    # def load(self):
-    #     """(re)load the onfig from the .ini file"""
-    #     self.read(self.filename)
 
     def get_safe(self, sect, opt):
         """get value without throwing exception."""
         try:
             return self.get(sect, opt)
-
         # pylint: disable=W0702
         except:
             for (dsect, dopt, default) in self._DEFAULTS:
@@ -211,9 +197,7 @@ class GoxConfig(SafeConfigParser):
             self.add_section(section)
         if not self.has_option(section, option):
             self.set(section, option, default)
-#commented out
-#(no need for the config file.)
-            #self.save() 
+
 
 class Signal():
     """callback functions (so called slots) can be connected to a signal and
@@ -489,7 +473,6 @@ class BaseClient(BaseObject):
         self.signal_fullhistory = Signal()
 #added        
         self.signal_backupticker = Signal()
-
         self._keepalive_timer = Timer(60)
 
         self.currency = gox.currency
@@ -502,12 +485,14 @@ class BaseClient(BaseObject):
         self._recv_thread = None
         self._http_thread = None
         self._terminate = threading.Event()
-        self._terminate.set()
 #changed
+        self._terminate.set()
         self._time_last_received = 0
+        self.subscribe_success = False
 
     def start(self):
         """start the client"""
+        self.debug("starting SocketIO client, currency=" + self.currency)
         self._terminate.clear()
         if not self.connected:
             self._recv_thread = start_thread(self._recv_thread_func)
@@ -517,7 +502,7 @@ class BaseClient(BaseObject):
         """stop the client"""
         self._terminate.set()
         if self.connected:
-            self.debug("closing socket")
+            self.debug("Shutting down client & closing socket")
             self.socket.close()
             self.connected = False
             self.socket = None
@@ -560,7 +545,8 @@ class BaseClient(BaseObject):
             and then terminate. This is called in a separate thread after
             the streaming API has been connected."""
             try:
-                self.debug("requesting initial full depth")
+                fdtdelta = time.time() - self.gox.fulldepth_time
+                self.debug("### Requesting /api/2/BTC" + self.currency + "/money/depth/full. Updated %.3f ago" % fdtdelta)
                 fulldepth = http_request("https://" +  self.HTTP_HOST \
                     + "/api/2/BTC" + self.currency + "/money/depth/full")
                 self.signal_fulldepth(self, (json.loads(fulldepth)))
@@ -569,13 +555,32 @@ class BaseClient(BaseObject):
 
         start_thread(fulldepth_thread)
 
+
+    def request_fetchdepth(self):
+        """start the fetchdepth thread"""
+
+        def fetchdepth_thread():
+            """request the partial market depth, initialize the order book
+            and then terminate. This is called in a separate thread after
+            the streaming API has been connected."""
+            try:
+                fdtdelta = time.time() - self.gox.fulldepth_time
+                self.debug("### Requesting /api/2/BTC" + self.currency + "/money/depth/fetch. Updated %.3f ago" % fdtdelta)
+                fulldepth = http_request("https://" +  self.HTTP_HOST \
+                    + "/api/2/BTC" + self.currency + "/money/depth/fetch")
+                self.signal_fulldepth(self, (json.loads(fulldepth)))
+            except Exception as e:
+                self.debug("###request_fetchdepth: Error:",e)
+
+        start_thread(fetchdepth_thread)
+
     def request_history(self):
-        """request trading history"""
+        """request 24h trading history"""
 
         def history_thread():
             try:
                 """request trading history"""
-                self.debug("requesting history")
+                self.debug("Requesting /api/2/BTC" + self.currency + "/money/trades")
                 json_hist = http_request("https://" +  self.HTTP_HOST \
                     + "/api/2/BTC" + self.currency + "/money/trades")
                 history = json.loads(json_hist)
@@ -591,23 +596,24 @@ class BaseClient(BaseObject):
         def ticker_thread():
             try:
                 """request ticker"""
-                self.debug("Requesting Ticker")
+                self.debug("Requesting /api/2/" + self.currency + "/money/ticker_fast")
                 json_ticker = http_request("https://" +  self.HTTP_HOST \
-                    + "/api/0/ticker.php?Currency=" + self.currency)
-                ticker = json.loads(json_ticker)["ticker"]
-                data = (float2int(ticker["buy"],self.currency),float2int(ticker["sell"],self.currency))
+                    + "/api/2/BTC" + self.currency + "/money/ticker_fast" )
+                ticker = json.loads(json_ticker)["data"]
+                data = (float2int(ticker["buy"]["value"],self.currency), \
+                    float2int(ticker["sell"]["value"],self.currency))
                 self.signal_backupticker(self,data)
             except:
                 self.debug("###request_ticker: Error:",e)
 
         start_thread(ticker_thread)
 
-    def request_smalldepth(self):
-        """request smalldepth using API 0 - most accurate."""
-        def smalldepth_thread():
+    def request_getdepthapi0(self):
+        """request getDepth using API 0 - fastest"""
+        def getdepth_thread():
             try:
-                """request ticker"""
-                self.debug("Requesting Small Depth")
+                """request getDepth api 0"""
+                self.debug("Requesting /api/0/getDepth.php")
                 json_smalldepth = http_request("https://" +  self.HTTP_HOST \
                     + "/api/0/data/getDepth.php?Currency=" + self.currency)
                 smalldepth = json.loads(json_smalldepth)
@@ -631,9 +637,9 @@ class BaseClient(BaseObject):
                 smalldepthmaindict["data"]["asks"]=newasks
                 self.signal_fulldepth(self, smalldepthmaindict)
             except:
-                self.debug("###request_smalldepth: Error:",e)
+                self.debug("###request_getdepthapi0: Error:",e)
 
-        start_thread(smalldepth_thread)        
+        start_thread(getdepth_thread)        
 
     def _recv_thread_func(self):
         """this will be executed as the main receiving thread, each type of
@@ -654,51 +660,56 @@ class BaseClient(BaseObject):
         #This lag one is not automatic.        
         #self.send(json.dumps({"op":"mtgox.subscribe", "type":"lag"}))
 
-        if self.gox.client.connected == True and self.gox.client_backup.connected == True:
-            if self.gox._idkey:
-                self.debug("### got key, subscribing to account messages")
-                self.send(json.dumps({"op":"mtgox.subscribe", "key":self.gox._idkey}))
-        elif self.gox.client.connected == True or self.gox.client_backup.connected == True:
-            if time.time() - self.gox.fulldepth_time > 120:
-
+        #if self.gox.client.connected == True and self.gox.client_backup.connected == True:
+        if self.gox.client.connected == True or self.gox.client_backup.connected == True:
+            if self.subscribe_success == False:
                 if FORCE_HTTP_API or self.config.get_bool("gox", "use_http_api"):
-                    self.enqueue_http_request("money/orders", {}, "orders")
                     self.enqueue_http_request("money/idkey", {}, "idkey")
-                    self.enqueue_http_request("money/info", {}, "info")
-                else:
-                    self.send_signed_call("private/orders", {}, "orders")
-                    self.send_signed_call("private/idkey", {}, "idkey")
-                    self.send_signed_call("private/info", {}, "info")
+                    #self.debug("Calling HTTP API's for: orders/idkey/info")
+                    #self.enqueue_http_request("money/orders", {}, "orders")
+                    #self.enqueue_http_request("money/info", {}, "info")
+                #else:
+                    #self.debug("Sending Socket messages requesting: orders/idkey/info")
+                    #self.send_signed_call("private/orders", {}, "orders")
+                    #self.send_signed_call("private/idkey", {}, "idkey")
+                    #self.send_signed_call("private/info", {}, "info")
+
+            # if self.config.get_bool("gox", "load_history"):
+            #     if not FORCE_NO_HISTORY:
+            #         self.request_history()
+
+            fdtdelta = time.time() - self.gox.fulldepth_time
+            if fdtdelta > 120:
 
                 if self.config.get_bool("gox", "load_fulldepth"):
                     if not FORCE_NO_FULLDEPTH:
                         self.request_fulldepth()
 
-                if self.config.get_bool("gox", "load_history"):
-                    if not FORCE_NO_HISTORY:
-                        self.request_history()
+            elif fdtdelta > 15:
+                self.request_fetchdepth()
+
 
     def _http_thread_func(self):
         """send queued http requests to the http API (only used when
         http api is forced, normally this is much slower)"""
-        while not self._terminate:
+        while not(self._terminate.isSet()):
             (api_endpoint, params, reqid) = self.http_requests.get(True)
             try:
-                answer = self.http_signed_call(api_endpoint, params)
-                if answer["result"] == "success":
-                    # the fiollowing will reformat the answer in such a way
-                    # that we can pass it directly to signal_recv()
-                    # as if it had come directly from the websocket
-                    ret = {"op": "result", "id": reqid, "result": answer["data"]}
-                    self.signal_recv(self, (json.dumps(ret)))
-                else:
-                    self.debug("### error:", answer, reqid)
-                    #self.enqueue_http_request((api_endpoint, params, reqid))
-
+                success = False
+                while success == False:
+                    answer = self.http_signed_call(api_endpoint, params)
+                    if answer["result"] == "success":
+                        # the fiollowing will reformat the answer in such a way
+                        # that we can pass it directly to signal_recv()
+                        # as if it had come directly from the websocket
+                        ret = {"op": "result", "id": reqid, "result": answer["data"]}
+                        self.signal_recv(self, (json.dumps(ret)))
+                        success = True
+                    else:
+                        self.debug("### Error,retrying...:", answer, reqid)                
             except Exception as exc:
-                self.debug("### error:", exc, api_endpoint, params, reqid)
-                self.enqueue_http_request(api_endpoint, params, reqid)
-
+                self.debug("### Error,failure:", exc, api_endpoint, params, reqid)
+                
             self.http_requests.task_done()
 
     def enqueue_http_request(self, api_endpoint, params, reqid):
@@ -717,7 +728,7 @@ class BaseClient(BaseObject):
         sec = self.secret.secret
 
         params["nonce"] = self.get_nonce()
-        post = urlencode(params)
+        post = urllib.urlencode(params)
         prefix = api_endpoint + chr(0)
         # pylint: disable=E1101
         sign = hmac.new(base64.b64decode(sec), prefix + post, hashlib.sha512).digest()
@@ -730,8 +741,8 @@ class BaseClient(BaseObject):
 
         url = "https://" + self.HTTP_HOST + "/api/2/" + api_endpoint
         self.debug("### (http) calling %s" % url)
-        req = URLRequest(url, post, headers)
-        with contextlib.closing(urlopen(req, post)) as res:
+        req = urllib2.Request(url, post, headers)
+        with contextlib.closing(urllib2.urlopen(req, post)) as res:
             return json.load(res)
 
 
@@ -819,7 +830,7 @@ class WebsocketClient(BaseClient):
                 self.socket = websocket.WebSocket()
                 self.socket.connect(ws_url)
                 if self.socket.connected:
-                    self.debug("connected. subscribing to channels")
+                    self.debug("connected.")
                     self.connected = True
                     self.created = time.time()
                 self.channel_subscribe()
@@ -832,7 +843,8 @@ class WebsocketClient(BaseClient):
                         self.signal_recv(self, (str_json))
 
             except Exception as exc:
-                self.debug(exc, "\n\t\t\t\t\tReconnecting in %i seconds..." % reconnect_time)
+                self.debug(exc, "\n"+("\t"*6)+"Reconnecting in %i seconds..." % reconnect_time)
+                self.subscribe_success = False
                 # if self.socket:
                 #     self.socket.close()
                 #     self.connected = False
@@ -936,7 +948,7 @@ class SocketIOClient(BaseClient):
                 self.socket.connect(ws_url, query="Currency=" + self.gox.currency)
 
                 if self.socket.connected:
-                    self.debug("connected. subscribing to channels")
+                    self.debug("connected.")
                     self.connected = True
                     self.created = time.time()
                 
@@ -945,8 +957,8 @@ class SocketIOClient(BaseClient):
                 #self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))
                 #self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))
 
-                self.debug(self.socket.recv())
-                self.debug(self.socket.recv())
+                #self.debug(self.socket.recv())
+                #self.debug(self.socket.recv())
                
                 self.debug("waiting for data...")
                 while not self._terminate.is_set(): #loop1 (read messages)
@@ -962,7 +974,9 @@ class SocketIOClient(BaseClient):
                             self.signal_recv(self, (str_json))
 
             except Exception as exc:
-                self.debug(exc.__class__.__name__, exc, "reconnecting ASAP...")
+                self.debug(exc.__class__.__name__, exc, "reconnecting to SocketIO...")
+                self.subscribe_success = False
+                self.gox.client_backup.start()
                 #if self.socket:
                 #    self.socket.close()
                 #    self.connected = False
@@ -978,8 +992,6 @@ class SocketIOClient(BaseClient):
 
     def slot_keepalive_timer(self, _sender, _data):
         """send a keepalive, just to make sure our socket is not dead"""
-#commented out. we dont need to see sending keepalive.        
-        #self.debug("sending keepalive")
         self._try_send_raw("2::")
         self.request_order_lag()
 
@@ -1018,7 +1030,7 @@ class Gox(BaseObject):
         self.signal_keypress        = Signal()
         self.signal_strategy_unload = Signal()
 
-        self._idkey      = ""
+        self._idkey = ""
         self.wallet = {}
         self.order_lag = 0
 #added        
@@ -1052,7 +1064,7 @@ class Gox(BaseObject):
         self.client.signal_fulldepth.connect(self.signal_fulldepth)
         self.client.signal_fullhistory.connect(self.signal_fullhistory)
 ##New
-        self._switchclient = Timer(30)
+        self._switchclient = Timer(15)
         self._switchclient.connect(self.slot_switchclient)
 
 ##Code to switch between SocketIO/websocket/HTTP ticker
@@ -1065,28 +1077,29 @@ class Gox(BaseObject):
             if time.time() - self.client.created > 60:
                 self.debug("NO DATA received over SocketIO for %d seconds!!!!!! Restarting SocketIO Client" % silent)
                 self.stop()
+                time.sleep(2)
                 self.start()
-                if time.time() - self.orderbook.fulldepth_time > 60 and not self.client_backup.connected:
-                    self.client.request_fulldepth()
                 if self.client_backup._terminate.isSet() and not self.client_backup.connected:
                     self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
                     self.client_backup.start()
-        elif silent < 60 and not self.client_backup._terminate.isSet():
+            if time.time() - self.orderbook.fulldepth_time > 20 and not(self.client_backup.connected):
+                self.client.request_fetchdepth()
+               
+        elif silent <= 60 and not(self.client_backup._terminate.isSet()):
             self.debug("SocketIO is actively sending data. Stopping WebSocket client.")
             self.client_backup.stop()
 
 
     def start(self):
         """connect to MtGox and start receiving events."""
-        self.debug("starting gox streaming API, currency=" + self.currency)
         self.client.start()
         self.client.created = time.time()
 
     def stop(self):
         """shutdown the client"""
-        self.debug("shutdown...")
         self.client.stop()
         self.client.created = 0
+        self.subscribe_success = False
 
     def order(self, typ, price, volume):
         """place pending order. If price=0 then it will be filled at market"""
@@ -1147,6 +1160,7 @@ class Gox(BaseObject):
     def _on_op_subscribe(self, msg):
         """handle subscribe messages (op:subscribe)"""
         self.debug("subscribed channel", msg["channel"])
+        self.subscribe_success = True
 
     def _on_op_unsubscribe(self, msg):
         """handle unsubscribe messages (op:unsubscribe)"""
@@ -1158,7 +1172,7 @@ class Gox(BaseObject):
         reqid = msg["id"]
 
         if reqid == "idkey":
-            self.debug("### got key, subscribing to account messages")
+            self.debug("### got idkey, subscribing to account messages")
             self._idkey = result
             self.client.send(json.dumps({"op":"mtgox.subscribe", "key":result}))
 

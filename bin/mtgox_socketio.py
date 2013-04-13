@@ -197,7 +197,6 @@ class BaseClient(BaseObject):
         if self.socket:
             self.debug("""closing socket""")
             self.socket.sock.close()
-        #self._recv_thread.join()
 
     def _try_send_raw(self, raw_data):
         """send raw data to the websocket or disconnect and close"""
@@ -317,18 +316,12 @@ class SocketIOClient(BaseClient):
 #                self.send(json.dumps({"op":"mtgox.subscribe", "type":"trades"}))
 #                # Once you join 1::/mtgox these are automaticlaly subscribed to
 
-#                self.debug(self.socket.recv())
-#                self.debug(self.socket.recv())
-               
-#                self.channel_subscribe()
-
                 self.debug("waiting for data...")
                 while not self._terminating: #loop1 (read messages)
                     msg = self.socket.recv()
                     self._time_last_received = time.time()
                     if msg == "2::":
-#commented. do not want to see ping pong all the damn time.
-#                        self.debug("### ping -> pong")
+
                         self.socket.send("2::")
                         continue
                     prefix = msg[:10]
