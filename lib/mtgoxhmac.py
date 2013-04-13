@@ -66,8 +66,9 @@ class Client:
         self.order_last = time.time()
         self.order_count = 0
         self.order_limit_per_time_slice = 9
-        self.order_time_slice = 6
-        self.order_timeout = 52
+        self.order_time_slice = 50
+        self.order_timeout = 10
+        self.throttled = False
         
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')
@@ -90,12 +91,19 @@ class Client:
             self.order_now = time.time()
             tdelta = self.order_now - self.order_last
             if tdelta > self.order_time_slice:
-                self.order_count = 0
+                if self.throttled == False:
+                    self.order_count = 0
+                if self.throttled == True:
+                    self.order_count = 1
                 self.order_last = time.time()
             self.order_count += 1
             if self.order_count > self.order_limit_per_time_slice:
                 print "### Throttled ###"
+                self.throttled=True
                 time.sleep(self.order_timeout)    #throttle the connection
+            else:
+                self.throttled=False
+
        
     def perform(self, path, params,JSON=True,API_VERSION=0,GZIP=True,GET=False):
         while True:
@@ -236,12 +244,19 @@ class Client:
 
     def lag(self):
         return self.request('generic/order/lag',None,API_VERSION=1,GET=True)["return"]
+
     def get_history_btc(self):
         return self.request('history_' + PRODUCT + '.csv',None,JSON=False)
     def get_history_usd(self):
         return self.request('history_' + CURRENCY + '.csv',None,JSON=False)
+
     def get_info(self):
         return self.request('generic/info',None,API_VERSION=1)["return"]
+    def get_balance(self):
+        info = self.get_info()["Wallets"]
+        balance = { "usds":info[CURRENCY]["Balance"]["value"], "btcs":info[PRODUCT]["Balance"]["value"] }
+        return balance
+        
     def get_ticker(self):
         return self.request("ticker.php",None,GET=True)["ticker"]
     def get_ticker2(self):
@@ -253,12 +268,10 @@ class Client:
         return self.request("data/getDepth.php", {"Currency":CURRENCY})
     def get_fulldepth(self):
         return self.request(PAIR + "/money/depth/full",None,API_VERSION=2,GET=True)
+
     def get_trades(self):
         return self.request("data/getTrades.php",None,GET=True)
-    def get_balance(self):
-        info = self.get_info()["Wallets"]
-        balance = { "usds":info[CURRENCY]["Balance"]["value"], "btcs":info[PRODUCT]["Balance"]["value"] }
-        return balance
+
     def entire_trade_history(self):
         return self.request(PAIR + "/money/trades/fetch",None,API_VERSION=2,GET=True)
 

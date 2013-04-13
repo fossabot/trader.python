@@ -113,23 +113,23 @@ def http_request(url):
     #Since this is used for debugging, logging.debug() should really be used instead
     except urllib2.HTTPError as e:
         #HTTP Error ie: 500/502/503 etc
-        self.debug('HTTP Error %s: %s' % (e.code, e.msg))
-        self.debug("URL: %s" % (e.filename))
+        logging.debug('HTTP Error %s: %s' % (e.code, e.msg))
+        logging.debug("URL: %s" % (e.filename))
         if e.fp:
             datastring = e.fp.read()
             if "error" in datastring:
                 if "<!DOCTYPE HTML>" in datastring:
-                    self.debug("Error: Cloudflare - Website Currently Unavailable.")
+                    logging.debug("Error: Cloudflare - Website Currently Unavailable.")
                 elif "Order not found" in datastring:
                     return json.loads(datastring)
                 else:
-                    self.debug("Error: %s" % datastring)
+                    logging.debug("Error: %s" % datastring)
     except urllib2.URLError as e:
-        self.debug("URL Error:", e)
+        logging.debug("URL Error:", e)
     except ssl.SSLError as e:
-        self.debug("SSL Error: %s." % e)  #Read error timeout. (Removed timeout variable)
+        logging.debug("SSL Error: %s." % e)  #Read error timeout. (Removed timeout variable)
     except Exception as e:
-        self.debug("General Error: %s" % e)
+        logging.debug("General Error: %s" % e)
 
 
 def start_thread(thread_func):
@@ -573,13 +573,16 @@ class BaseClient(BaseObject):
         """request trading history"""
 
         def history_thread():
-            """request trading history"""
-            self.debug("requesting history")
-            json_hist = http_request("https://" +  self.HTTP_HOST \
-                + "/api/2/BTC" + self.currency + "/money/trades")
-            history = json.loads(json_hist)
-            if history["result"] == "success":
-                self.signal_fullhistory(self, history["data"])
+            try:
+                """request trading history"""
+                self.debug("requesting history")
+                json_hist = http_request("https://" +  self.HTTP_HOST \
+                    + "/api/2/BTC" + self.currency + "/money/trades")
+                history = json.loads(json_hist)
+                if history["result"] == "success":
+                    self.signal_fullhistory(self, history["data"])
+            except:
+                self.debug("###request_history: Error:",e)
 
         start_thread(history_thread)
 
@@ -595,7 +598,7 @@ class BaseClient(BaseObject):
                 data = (float2int(ticker["buy"],self.currency),float2int(ticker["sell"],self.currency))
                 self.signal_backupticker(self,data)
             except:
-                pass
+                self.debug("###request_ticker: Error:",e)
 
         start_thread(ticker_thread)
 
@@ -628,7 +631,7 @@ class BaseClient(BaseObject):
                 smalldepthmaindict["data"]["asks"]=newasks
                 self.signal_fulldepth(self, smalldepthmaindict)
             except:
-                pass
+                self.debug("###request_smalldepth: Error:",e)
 
         start_thread(smalldepth_thread)        
 
@@ -805,7 +808,7 @@ class WebsocketClient(BaseClient):
         reconnect_time = 0
         use_ssl = self.config.get_bool("gox", "use_ssl")
         wsp = {True: "wss://", False: "ws://"}[use_ssl]
-        while not self._terminate.is_set():  #loop 0 (connect, reconnect)
+        while not(self._terminate.is_set()):  #loop 0 (connect, reconnect)
             try:
                 self._terminate.wait(reconnect_time)
                 reconnect_time = 20
@@ -922,7 +925,7 @@ class SocketIOClient(BaseClient):
         use_ssl = self.config.get_bool("gox", "use_ssl")
         wsp = {True: "wss://", False: "ws://"}[use_ssl]
         reconnect_time = 0
-        while not self._terminate.is_set(): #loop 0 (connect, reconnect)
+        while not(self._terminate.is_set()): #loop 0 (connect, reconnect)
             try:
                 self._terminate.wait(reconnect_time)
                 reconnect_time = 1
@@ -1061,8 +1064,8 @@ class Gox(BaseObject):
         if silent > 60:
             if time.time() - self.client.created > 60:
                 self.debug("NO DATA received over SocketIO for %d seconds!!!!!! Restarting SocketIO Client" % silent)
-                self.client.stop()
-                self.client.start()
+                self.stop()
+                self.start()
                 if time.time() - self.orderbook.fulldepth_time > 60 and not self.client_backup.connected:
                     self.client.request_fulldepth()
                 if self.client_backup._terminate.isSet() and not self.client_backup.connected:

@@ -23,14 +23,6 @@ from book import *
 from common import *
 import depthparser
 import mtgox_prof7bitapi
-import mtgoxhmac
-
-mtgox = mtgoxhmac.Client()
-
-bPrec = mtgox.bPrec
-cPrec = mtgox.cPrec
-
-threadlist = {}
 
 class LogWriter():
     """connects to gox.signal_debug and logs it all to the logfile"""
@@ -63,7 +55,7 @@ class LogWriter():
 
 config = mtgox_prof7bitapi.GoxConfig()
 secret = mtgox_prof7bitapi.Secret()
-secret.decrypt(mtgox.enc_password)
+#secret.decrypt(mtgox.enc_password)
 gox = mtgox_prof7bitapi.Gox(secret, config)
 logwriter = LogWriter(gox)
 gox.start()
@@ -74,17 +66,22 @@ while socketbook.fulldepth_downloaded == False:
 print "Finished."
 
 
-
-try:
-    length = stripoffensive(length)
-    length = int(length)
-    vintage = (time.time() - socketbook.fulldepth_time)
-    if vintage > 300:
-        print "Starting to download fulldepth from mtgox....",
-        gox.client.request_fulldepth()
-        while socketbook.fulldepth_downloaded == False:
-            time.sleep(0.1)
-        print "Finished."
-    printOrderBooks(socketbook.asks,socketbook.bids,length)
-except:
-    printOrderBooks(socketbook.asks,socketbook.bids)
+while True:
+    try:
+        vintage = (time.time() - socketbook.fulldepth_time)
+        if vintage > 240:
+            print "Starting to download fulldepth from mtgox....",
+            gox.client.request_fulldepth()
+            while socketbook.fulldepth_downloaded == False:
+                time.sleep(0.1)
+            print "Finished."
+        elif vintage > 60:
+            gox.client.request_smalldepth()
+        printOrderBooks(socketbook.asks,socketbook.bids,20)
+        time.sleep(1)
+    except KeyboardInterrupt as e:
+        print "got Ctrl+C, trying to shut down cleanly."
+        gox.stop()
+        break
+    except Exception:
+        gox.debug(traceback.format_exc())

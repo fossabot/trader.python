@@ -507,7 +507,7 @@ class Shell(cmd.Cmd):
         """Use with arguments after the cancel command, or without to view the list and prompt you"""
         try:
             orders = mtgox.get_orders()['orders']
-            orders = sorted(orders, key=lambda x: x['price'])
+            orders = sorted(orders, key=lambda x: float(x['price']))
             numorder = 0
             numcancelled = 0            
             useargs = False
@@ -525,7 +525,7 @@ class Shell(cmd.Cmd):
                         OPX = 'X'
                     else:
                         OPX = '|'
-                    print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['oid'],order['amount'],order['price'])
+                    print '%s = %s %s %s BTC @ $%s %s' % (numorder,ordertype,OPX,order['price'],order['amount'],order['oid'])
                 print "Use spaces or commas to seperate order numbers: 1,2,3"
                 print "Use a - to specify a range: 1-20. "
             while True:         #loop until quit
@@ -656,7 +656,7 @@ class Shell(cmd.Cmd):
         try:
             args = stripoffensive(args)
             orders = mtgox.get_orders()['orders']
-            orders = sorted(orders, key=lambda x: x['price'])
+            orders = sorted(orders, key=lambda x: float(x['price']))
             buytotal,selltotal = 0,0
             numbuys,numsells = 0,0
             amtbuys,amtsells = 0,0
@@ -673,7 +673,7 @@ class Shell(cmd.Cmd):
                     OPX = 'X'
                 else:
                     OPX = '|'
-                print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['oid'],order['amount'],order['price'])
+                print '%s = %s %s %s BTC @ $%s %s' % (numorder,ordertype,OPX,order['price'],order['amount'],order['oid'])
                 if order['type'] == 2:
                     buytotal += D(order['price'])*D(order['amount'])
                     numbuys += D('1')
