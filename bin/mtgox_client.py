@@ -84,7 +84,7 @@ fullpath = os.path.dirname(os.path.realpath(__file__))
 if os.name == 'nt':
     partialpath=os.path.join(fullpath + '\\..\\data\\')
 else:
-    partialpath=os.path.join(fullpath + '/../data/' + site)
+    partialpath=os.path.join(fullpath + '/../data/')
 
 
 """
