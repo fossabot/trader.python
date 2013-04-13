@@ -128,6 +128,7 @@ class Feesubroutine(cmd.Cmd):
         self.prompt = 'Fees CMD>'
         self.use_rawinput = False
         self.onecmd('help')
+
     def do_getfee(self,args):
         """Print out the current trade fee"""
         print "Your current trading fee is: {:.2%}".format(get_tradefee())
@@ -162,8 +163,9 @@ class Feesubroutine(cmd.Cmd):
         print 'Prints the help screen'
 
 class Shell(cmd.Cmd):
-    def emptyline(self):      
-        pass                #Do nothing on empty input line instead of re-executing the last command
+    def emptyline(self): 
+        self.onecmd('book')     #changed, so we are re-printing the orderbook on every blank press of ENTER.
+        #pass                   #don't re-execute the last command
     def __init__(self):
         cmd.Cmd.__init__(self)
         self.prompt = 'MtGox CMD>'      # The prompt for a new user input commands
@@ -203,69 +205,69 @@ class Shell(cmd.Cmd):
     printOrderBooks(socketbook.asks,socketbook.bids,15)
 
     #give a little user interface       
-    print 'Type exit to exit gracefully or Ctrl+Z or Ctrl+C to force quit'
-    print 'Type help to show the available commands'
-    print 'sample trade example: '
-    print '   buy 2.8 140 145 64 = buys 2.8 BTC between $140 to $145 using 64 chunks'
-
+    print 'To exit: exit,Ctrl+C,Ctrl+Z or Ctrl+Pause/Break to force quit'
+    print 'Type help to show the available commands.'
+    print "syntax: command subcommand <required> [optional] ['word']"
 
     def do_asks(self,args):
-        """Calculate the amount of bitcoins for sale at or under [pricetarget].\n""" \
-        """If 'over' option is given, find coins or at or over [pricetarget]."""
+        """Calculate the amount of bitcoins for sale at or UNDER(default) the <targetprice>.\n""" \
+        """If 'over' option is given, find coins or at or OVER(optional) the <targetprice>."""
+        """usage: asks ['over'] <targetprice>"""
         #Using the Socketbook 
 
         args = stripoffensive(args)
         try:
-            pricetarget = float(args)
+            targetprice = float(args)
             response = 'under'
         except:
             try:
-                response, pricetarget = args.split()
-                pricetarget = float(pricetarget)
+                response, targetprice = args.split()
+                targetprice = float(targetprice)
             except:
                 self.onecmd('help asks')
                 return
         if response == 'over':
-            f = lambda price,pricetarget: price >= pricetarget*1E5
+            f = lambda price,targetprice: price >= targetprice*1E5
         else:
-            f = lambda price,pricetarget: price <= pricetarget*1E5
+            f = lambda price,targetprice: price <= targetprice*1E5
         n_coins = 0.0
         total = 0.0
 
         for ask in reversed(socketbook.asks):
-            if f(ask.price, pricetarget):
+            if f(ask.price, targetprice):
                 n_coins += ask.volume/1E8
                 total += (ask.volume/1E8 * ask.price/1E5)
-        print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, pricetarget, total)
+        print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, targetprice, total)
 
     def do_bids(self,args):
-        """Calculate the amount of bitcoin demanded at or over [pricetarget].\n""" \
-        """If 'under' option is given, find coins or at or under [pricetarget]"""
+        """Calculate the amount of bitcoin demanded at or OVER(default) the <targetprice> .\n""" \
+        """If 'under' option is given, find coins or at or UNDER(optional) the <targetprice>"""
+        """usage: bids ['under'] <targetprice>"""
         #Using the Socketbook 
 
         args = stripoffensive(args)
         try:
-            pricetarget = float(args)
+            targetprice = float(args)
             response = 'over'
         except:
             try:
-                response, pricetarget = args.split()
-                pricetarget = float(pricetarget)
+                response, targetprice = args.split()
+                targetprice = float(targetprice)
             except:
                 self.onecmd('help bids')
                 return
         if response == 'under':
-            f = lambda price,pricetarget: price <= pricetarget*1E5
+            f = lambda price,targetprice: price <= targetprice*1E5
         else:
-            f = lambda price,pricetarget: price >= pricetarget*1E5
+            f = lambda price,targetprice: price >= targetprice*1E5
         n_coins = 0.0
         total = 0.0
 
         for bid in socketbook.bids:
-            if f(bid.price, pricetarget):
+            if f(bid.price, targetprice):
                 n_coins += bid.volume/1E8
                 total += (bid.volume/1E8 * bid.price/1E5)
-        print "There are %.11g bitcoins demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,pricetarget, total)
+        print "There are %.11g bitcoins demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,targetprice, total)
 
 
     def do_balance(self,args):
@@ -462,10 +464,10 @@ class Shell(cmd.Cmd):
 
     def do_buy(self, args):
         """(market order): buy <#BTC> \n""" \
-        """(limit order) : buy <#BTC> <price> \n""" \
+        """(limit  order): buy <#BTC> <price> \n""" \
         """(spend-X market order): buy usd <#USD>         (specify the $ amount in #USD, and use the last ticker price-market)\n"""\
-        """(spend-X limit order) : buy usd <#USD> <price> (same as above, but specify a price so it goes as a limit order)\n"""\
-        """(spread order): buy volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)\n"""\
+        """(spend-X limit  order): buy usd <#USD> <price> (same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): buy <volume> <price_lower> <price_upper> <chunks> ['random'] (random makes chunk amounts slightly different)\n"""\
         """                adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
         try:
             args = stripoffensive(args)
@@ -493,29 +495,37 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
 
     def do_sell(self, args):
-        """(market order): sell volume \n""" \
-        """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n""" \
-        """(limit order): sell volume price \n""" \
-        """(spread order): sell volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(market order): sell <#BTC> \n""" \
+        """(limit  order): sell <#BTC> <price> \n""" \
+        """(spend-X market order): sell usd <#USD>         (specify the $ amount in #USD, and use the last ticker price-market)\n"""\
+        """(spend-X limit  order): sell usd <#USD> <price> (same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): sell <volume> <price_lower> <price_upper> <chunks> ['random'] (random makes chunk amounts slightly different)\n"""\
+        """                adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if len(newargs) == 1:
-                mtgox.order_new('ask',*newargs)
-            elif "usd" in newargs:                      #place an order of $X USD
-                sellprice = mtgox.get_ticker()["sell"]
-                amt = D(newargs[0]) / D(sellprice)       #convert USD to BTC.
-                mtgox.order_new('ask',amt.quantize(bPrec),sellprice) #goes as a limit order (can be market also if you delete buyprice here)
-            elif not(len(newargs) == 3):
-                spread('mtgox',mtgox,'ask', *newargs)
+            if "usd" in newargs:                                  #places an order of $X USD 
+                newargs.remove("usd")
+                if len(newargs) == 1:                                  #goes as a market order
+                    rate = D(mtgox.get_tickerfast()["sell"]["value"])
+                    amt = newargs[0] / rate
+                    buyprice = None    
+                elif len(newargs) == 2:                                  #goes as a limit order  
+                    buyprice = newargs[1]                           
+                    amt = newargs[0] / buyprice                        #convert USD to BTC.
+                newargs = tuple(amt.quantize(bPrec),buyprice)         #get the arguments ready
+            elif len(newargs) in (1,2):
+                mtgox.order_new('bid',*newargs) 
+            elif len(newargs) >= 4:
+                spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
             else:
                 raise UserError
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help sell')
-    
+
 
     def do_cancel(self,args):
         """Cancel an order by number,ie: 7 or by range, ie: 10 - 25\n""" \
@@ -584,7 +594,7 @@ class Shell(cmd.Cmd):
 
     def do_depth(self,args):
         """Shortcut for the 2 depth functions in common.py\n""" \
-        """usage: depth (sum/price) (bids/asks)"""
+        """usage: depth <sum/price> <bids/asks>"""
         try:
             args = stripoffensive(args)
             args = args.split()
@@ -625,8 +635,8 @@ class Shell(cmd.Cmd):
         """Calculate the "order book implied price", by finding the weighted\n""" \
         """average price of coins <width> BTC up and down from the spread.\n""" \
         """Order book implied price. Weighted avg price of BTC <width> up and down from the spread.\n""" \
-        """Usage: <width> optional:(BTC/USD) \n""" \
-        """usage: obip amount "USD"/"BTC"(optional) \n"""
+        """Usage: obip <width> [BTC/USD] \n""" \
+
         def obip(amount,isBTCUSD="BTC"):
             amount = float(amount)
             def calc_obip(l,amount,isBTCUSD="BTC"):
@@ -749,7 +759,7 @@ class Shell(cmd.Cmd):
 
     def do_stoploss(self,args):
       #Finished. Works.
-        """Usage: stoploss amount of position , avg position price, percent willing to accept\n""" \
+        """Usage: stoploss <amount of position> <avg position price> <percent willing to accept>\n""" \
         """   ie: stoploss 13.88512098 136.50 95"""
         def stoplossbot(firstarg,stop_event,amount,price,percent):
             try:
@@ -799,7 +809,7 @@ class Shell(cmd.Cmd):
 
     def do_ticker(self,arg):
         """Print the entire ticker out or use one of the following options:\n""" \
-        """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
+        """usage: ticker [buy|sell|last|high|low|vol|vwap|avg] """
         ticker = mtgox.get_ticker()
         if not arg:
             print "BTCUSD ticker | Best bid: %s, Best ask: %s, Bid-ask spread: %.5f, Last trade: %s, " \
@@ -818,7 +828,7 @@ class Shell(cmd.Cmd):
 
     def do_ticker2(self,args):
         """Print the entire ticker out or use one of the following options:\n""" \
-        """[--buy|--sell|--last|--high|--low|--vol|--vwap|--avg] """
+        """usage: ticker2 [buy|sell|last|high|low|vol|vwap|avg] """
         args = stripoffensive(args)
         ticker = mtgox.get_ticker2()
         svrtime = D(int(ticker["now"]) / 1E6).quantize(D("0.001"))
@@ -840,7 +850,7 @@ class Shell(cmd.Cmd):
 
     def do_tickerfast(self,args):
         """Print the entire ticker out or use one of the following options:\n""" \
-        """[--buy|--sell|--last """
+        """usage: tickerfast [buy|sell|last] """
         args = stripoffensive(args)
         ticker = mtgox.get_tickerfast()
         svrtime = D(int(ticker["now"]) / 1E6).quantize(D("0.001"))
