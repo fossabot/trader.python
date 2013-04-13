@@ -463,25 +463,25 @@ class Shell(cmd.Cmd):
     def do_buy(self, args):
         """(market order): buy <#BTC> \n""" \
         """(limit  order): buy <#BTC> <price> \n""" \
-        """(spend-X market order): buy usd <#USD>         (specify the $ amount in #USD, and use the last ticker price-market)\n"""\
-        """(spend-X limit  order): buy usd <#USD> <price> (same as above, but specify a price so it goes as a limit order)\n"""\
-        """(spread order): buy <volume> <price_lower> <price_upper> <chunks> ['random'] (random makes chunk amounts slightly different)\n"""\
-        """                adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
+        """(spend-X market order): buy usd <#USD>         \n(specify the $ amount in #USD, and use the last ticker price-market)\n"""\
+        """(spend-X limit  order): buy usd <#USD> <price> \n(same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): buy <volume> <price_lower> <price_upper> <chunks> ['random'] \n(random makes chunk amounts slightly different)\n"""\
+        """ ^-adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if "usd" in newargs:                                  #places an order of $X USD 
-                newargs.remove("usd")
-                if len(newargs) == 1:                                  #goes as a market order
+            if "usd" in newargs:                                        #places an order of $X USD 
+                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)
+                if len(newargs) == 1:                                  #for a market order
                     rate = D(mtgox.get_tickerfast()["buy"]["value"])
                     amt = newargs[0] / rate
                     buyprice = None    
-                elif len(newargs) == 2:                                  #goes as a limit order  
+                elif len(newargs) == 2:                                  # or as a limit order  
                     buyprice = newargs[1]                           
                     amt = newargs[0] / buyprice                        #convert USD to BTC.
-                newargs = tuple(amt.quantize(bPrec),buyprice)         #get the arguments ready
-            elif len(newargs) in (1,2):
+                newargs = (amt.quantize(bPrec),buyprice)         #get the arguments ready
+            if len(newargs) in (1,2):
                 mtgox.order_new('bid',*newargs) 
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
@@ -495,28 +495,28 @@ class Shell(cmd.Cmd):
     def do_sell(self, args):
         """(market order): sell <#BTC> \n""" \
         """(limit  order): sell <#BTC> <price> \n""" \
-        """(spend-X market order): sell usd <#USD>         (specify the $ amount in #USD, and use the last ticker price-market)\n"""\
-        """(spend-X limit  order): sell usd <#USD> <price> (same as above, but specify a price so it goes as a limit order)\n"""\
-        """(spread order): sell <volume> <price_lower> <price_upper> <chunks> ['random'] (random makes chunk amounts slightly different)\n"""\
-        """                adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
+        """(spend-X market order): sell usd <#USD>         \n(specify the $ amount in #USD, and use the last ticker price-market)\n"""\
+        """(spend-X limit  order): sell usd <#USD> <price> \n(same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): sell <volume> <price_lower> <price_upper> <chunks> ['random'] \n(random makes chunk amounts slightly different)\n"""\
+        """ ^-adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if "usd" in newargs:                                  #places an order of $X USD 
-                newargs.remove("usd")
-                if len(newargs) == 1:                                  #goes as a market order
+            if "usd" in newargs:                                        #places an order of $X USD 
+                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)
+                if len(newargs) == 1:                                  #for a market order
                     rate = D(mtgox.get_tickerfast()["sell"]["value"])
                     amt = newargs[0] / rate
-                    buyprice = None    
-                elif len(newargs) == 2:                                  #goes as a limit order  
-                    buyprice = newargs[1]                           
-                    amt = newargs[0] / buyprice                        #convert USD to BTC.
-                newargs = tuple(amt.quantize(bPrec),buyprice)         #get the arguments ready
-            elif len(newargs) in (1,2):
-                mtgox.order_new('bid',*newargs) 
+                    sellprice = None    
+                elif len(newargs) == 2:                                  #or as a limit order  
+                    sellprice = newargs[1]                           
+                    amt = newargs[0] / sellprice                        #convert USD to BTC.
+                newargs = (amt.quantize(bPrec),sellprice)         #get the arguments ready
+            if len(newargs) in (1,2):
+                mtgox.order_new('ask',*newargs) 
             elif len(newargs) >= 4:
-                spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
+                spread('mtgox',mtgox,'ask', *newargs)               #use spread logic
             else:
                 raise UserError
         except Exception as e:
