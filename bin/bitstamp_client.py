@@ -182,8 +182,11 @@ class Shell(cmd.Cmd):
                     last = D(bitstamp.ticker()['last'])
                     print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
                     for x in xrange(0,3):
-                        winsound.Beep(1200,1000)
-                        winsound.Beep(1800,1000)
+                        if os.name == 'nt':
+                            winsound.Beep(1200,1000)
+                            winsound.Beep(1800,1000)
+                        else:
+                            print '\a\a'
                     btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
 
@@ -213,25 +216,32 @@ class Shell(cmd.Cmd):
             printorderbook()        
 
 #################################
-   
+
     def do_buy(self, args):
-        """(market order): buy volume \n""" \
-        """(spend-x order): buy $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
-        """(limit order): buy volume price \n""" \
-        """(spread order): buy volume price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
-            # adds a multitude of orders between price A and price B of equal volumed # of chunks on Bitstamp.
+        """(market order): buy <#BTC> \n""" \
+        """(limit  order): buy <#BTC> <price> \n""" \
+        """(spend-X market order): buy usd <#USD>         \n(specify the $ amount in #USD, and use the last ticker price-market)\n"""\
+        """(spend-X limit  order): buy usd <#USD> <price> \n(same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): buy <volume> <price_lower> <price_upper> <chunks> ['random'] \n(random makes chunk amounts slightly different)\n"""\
+        """ ^-adds a multitude of orders between price A and price B of equal volumed # of chunks on Bitstamp."""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if len(newargs) == 1:
-                bitstamp.order_new(0,*newargs,price=1000)    #market order simulated by buying for $1000
-            elif "usd" in newargs:                      #place an order of $X USD
-                lastprice = bitstamp.ticker()["last"]    
-                amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
-                bitstamp.order_new(0,amt.quantize(bPrec),lastprice)  #goes as a limit order (can be market also if you delete buyprice here)           
-            elif not(len(newargs) == 3):
-                spread('bitstamp',bitstamp,0,*newargs)
+            if "usd" in newargs:                                        #places an order of $X USD 
+                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)  #remove usd arg once found
+                if len(newargs) == 1:                                  #for a market order
+                    rate = D(bitstamp.ticker()["ask"] )                  #use the opposite side's best price
+                    amt = newargs[0] / rate
+                    buyprice = 9999    
+                elif len(newargs) == 2:                                  # or as a limit order  
+                    buyprice = newargs[1]                           
+                    amt = newargs[0] / buyprice                        #convert USD to BTC.
+                newargs = (amt.quantize(bPrec),buyprice)         #get the arguments ready
+            if len(newargs) in (1,2):
+                bitstamp.order_new(0,*newargs) 
+            elif len(newargs) >= 4:
+                spread('bitstamp',bitstamp,0, *newargs)               #use spread logic
             else:
                 raise UserError
         except Exception as e:
@@ -239,62 +249,73 @@ class Shell(cmd.Cmd):
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help buy')
 
+
+ 
     def do_sell(self, args):
-        """(market order): sell volume \n""" \
-        """(spend-x order): sell $USD$ usd (specify the amount of $USD$, and get the last ticker price-market) \n"""\
-        """(limit order): sell volume price \n""" \
-        """(spread order): sell volume price_lower price_upper chunks ["random"] (random makes chunk amounts slightly different)"""
-            # adds a multitude of orders between price A and price B of equal volumed # of chunks on Bitstamp.
+        """(market order): sell <#BTC> \n""" \
+        """(limit  order): sell <#BTC> <price> \n""" \
+        """(spend-X market order): sell usd <#USD>         \n(specify the $ amount in #USD, and use the last ticker price-market)\n"""\
+        """(spend-X limit  order): sell usd <#USD> <price> \n(same as above, but specify a price so it goes as a limit order)\n"""\
+        """(spread order): sell <volume> <price_lower> <price_upper> <chunks> ['random'] \n(random makes chunk amounts slightly different)\n"""\
+        """ ^-adds a multitude of orders between price A and price B of equal volumed # of chunks on Bitstamp."""
         try:
             args = stripoffensive(args)
             args = args.split()
             newargs = tuple(decimalify(args))
-            if len(newargs) == 1:
-                bitstamp.order_new(1,*newargs,price=1000)    #market order simulated by buying for $1000
-            elif "usd" in newargs:                      #place an order of $X USD
-                lastprice = bitstamp.ticker()["last"]    
-                amt = D(newargs[0]) / D(buyprice)       #convert USD to BTC.
-                bitstamp.order_new(1,amt.quantize(bPrec),lastprice)  #goes as a limit order (can be market also if you delete buyprice here)           
-            elif not(len(newargs) == 3):
-                spread('bitstamp',bitstamp,1,*newargs)
+            if "usd" in newargs:                                        #places an order of $X USD 
+                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)  #remove usd arg once found
+                if len(newargs) == 1:                                  #for a market order
+                    rate = D(bitstamp.ticker()["bid"] )                 #use the opposite side's best price
+                    amt = newargs[0] / rate
+                    sellprice = 9999    
+                elif len(newargs) == 2:                                  # or as a limit order  
+                    sellprice = newargs[1]                           
+                    amt = newargs[0] / sellprice                        #convert USD to BTC.
+                newargs = (amt.quantize(bPrec),sellprice)         #get the arguments ready
+            if len(newargs) in (1,2):
+                bitstamp.order_new(0,*newargs) 
+            elif len(newargs) >= 4:
+                spread('bitstamp',bitstamp,0, *newargs)               #use spread logic
             else:
                 raise UserError
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
             self.onecmd('help buy')
+
 
 #################################
 
     def do_cancel(self,args):
         """Cancel an order by number,ie: 7 or by range, ie: 10 - 25\n""" \
         """Use with arguments after the cancel command, or without to view the list and prompt you\n""" \
-        """usage: cancel [number/range]"""
+        """usage: cancel <number/range>"""
         try:
             useargs = False
             if args:
                 useargs = True
             orders = bitstamp.open_orders()
-            orders = sorted(orders, key=lambda x: x['price'])
+            orders = sorted(orders, key=lambda x: float(x['price']))
             numorder = 0
             numcancelled = 0
             for order in orders:
                 ordertype="Sell" if order['type'] == 1 else "Buy"
                 numorder += 1
-                OPX = 'O'
-                print '%s = %s %s %s | %s BTC @ $%s' % (numorder,ordertype,OPX,order['id'],order['amount'],order['price'])
+                print '%s = %s | $%s @ %s BTC %s' % (numorder,ordertype,order['price'],order['amount'],order['id'])
             print "Use spaces or commas to seperate order numbers: 1,2,3"
             print "Use a - to specify a range: 1-20. "
-            while True:
+            while True:         #loop until quit
+                userange=False
+                numorder = 0
                 if useargs == True:
                     orderlist = args
                     useargs = False
                 else:
                     orderlist = ""
-                    userange = False
-                    numorder = 0
                     orderlist = raw_input("Which order numbers would you like to cancel?: [ENTER] quits.\n")
                 if orderlist == "":
+                    if numcancelled > 1:
+                        print "%s Orders have been Cancelled!!!!!" % numcancelled
                     break
                 orderlist = stripoffensive(orderlist,',-')
                 if "," in orderlist:
@@ -317,8 +338,6 @@ class Shell(cmd.Cmd):
                         if result:
                             numcancelled += 1
                             print "Order %s Cancelled" % order['id']
-                if numcancelled > 1:
-                    print "%s Orders have been Cancelled!!!!!" % numcancelled
         except Exception as e:
             print "Unexpected Error: %s" % e
             self.onecmd('help cancel')        
@@ -446,8 +465,8 @@ class Shell(cmd.Cmd):
 ######################################
 
     def do_checkmarketbuy(self, args):
-        """working on new market trade buy function\n""" \
-        """usage: checkmarketbuy amount lowprice highprice"""
+        """Dummy Simulation. working on new market trade buy function\n"""\
+        """usage: checkmarketbuy <amount> <lowprice> <highprice>"""
         entirebook = refreshbook()
         try:
             args = args.split()
@@ -460,8 +479,8 @@ class Shell(cmd.Cmd):
             self.onecmd('help checkmarketbuy')
 
     def do_checkmarketsell(self, args):
-        """working on new market trade sell function\n""" \
-        """usage: checkmarketsell amount lowprice highprice"""
+        """Dummy Simulation. working on new market trade sell function\n"""\
+        """usage: checkmarketsell <amount> <lowprice> <highprice>"""
         entirebook = refreshbook()
         try:
             args = args.split()
@@ -481,7 +500,7 @@ class Shell(cmd.Cmd):
         """Print a list of all your open orders"""
         try:
             orders = bitstamp.open_orders()
-            orders = sorted(orders, key=lambda x: x['price'])
+            orders = sorted(orders, key=lambda x: float(x['price']))
             buytotal,selltotal = 0,0
             numbuys,numsells = 0,0
             amtbuys,amtsells = 0,0
@@ -490,7 +509,7 @@ class Shell(cmd.Cmd):
             for order in orders:
                 ordertype="Sell" if order['type'] == 1 else "Buy"
                 numorder += 1
-                print '%s = %s %s | %s BTC @ $%s' % (numorder,ordertype,order['id'],order['amount'],order['price'])                
+                print '%s = %s | $%s @ %s BTC %s' % (numorder,ordertype,order['price'],order['amount'],order['id'])              
                 if order['type'] == 0:
                     buytotal += D(order['price'])*D(order['amount'])
                     numbuys += D('1')
@@ -512,8 +531,9 @@ class Shell(cmd.Cmd):
 ######################################
 #coded for but not tested on bitstamp.
     def do_sellwhileaway(self,args):
+        """#coded for but not tested on bitstamp."""
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
-        """Usage: sellwhileaway amount price"""
+        """Usage: sellwhileaway <amount> <price>"""
         args = args.split()
         amount,price = tuple(decimalify(args))
         #seed initial balance data so we can check it during first run of the while loop
@@ -543,10 +563,11 @@ class Shell(cmd.Cmd):
             last = D(bitstamp.ticker()['last'])
             btc,usd = bal()
 
-#coded for but not tested on bitstamp.
+
     def do_sellwhileaway2(self,args):
+        """#coded for but not tested on bitstamp."""
         """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
-        """Usage: sellwhileaway2 amount price"""
+        """Usage: sellwhileaway2 <amount> <price>"""
         try:
             args = args.split()
             amount,price = tuple(decimalify(args))
@@ -596,7 +617,7 @@ class Shell(cmd.Cmd):
 
     def do_ticker(self,args):
         """Print the entire ticker out or use one of the following options:\n""" \
-        """usage: ticker [--bid|--ask|--last|--volume|--low|--high]"""
+        """usage: ticker [bid|ask|last|volume|low|high]"""
         args = stripoffensive(args)
         ticker = floatify(bitstamp.ticker())
         last = ticker['last']

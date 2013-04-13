@@ -197,8 +197,8 @@ class Shell(cmd.Cmd):
 
 
     def do_buy(self, arg):
-        """(limit order): buy volume price \n""" \
-        """(spread order): buy volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(limit order): buy <volume> <price> \n""" \
+        """(spread order): buy <volume> <price_lower> <price_upper> <chunks> ["random"] (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
@@ -212,8 +212,8 @@ class Shell(cmd.Cmd):
             self.onecmd('help buy')
             
     def do_sell(self, arg):
-        """(limit order): sell volume price \n""" \
-        """(spread order): sell volume price_lower price_upper chunks ("random") (random makes chunk amounts slightly different)"""
+        """(limit order): sell <volume> <price> \n""" \
+        """(spread order): sell <volume> <price_lower> <price_upper> <chunks> ["random"] (random makes chunk amounts slightly different)"""
         try:
             args = arg.split()
             newargs = tuple(decimalify(args))
@@ -232,7 +232,7 @@ class Shell(cmd.Cmd):
         """Use with arguments after the cancel command, or without to view the list and prompt you"""
         try:
             orders = bitfloor.orders()
-            orders = sorted(orders, key=lambda x: x['price'])
+            orders = sorted(orders, key=lambda x: float(x['price']))
             numorder = 0
             numcancelled = 0            
             useargs = False
@@ -242,8 +242,7 @@ class Shell(cmd.Cmd):
                 for order in orders:
                     numorder += 1
                     ordertype="Sell" if order['side'] == 1 else "Buy"
-                    OPX = '|'
-                    print '%s = %s %s %s | %s BTC @ $%.2f' % (numorder,ordertype,OPX,order['order_id'],order['size'],float(order['price']))
+                    print '%s = %s | $%.2f @ %s BTC %s' % (numorder,ordertype,float(order['price']),order['size'],order['order_id'])
                 print "Use spaces or commas to seperate order numbers: 1 2 3 or 1,2,3"
                 print "Or use a - to specify a range: 1-20. "
             while True:         #loop until quit
@@ -269,18 +268,21 @@ class Shell(cmd.Cmd):
                     orderlist = orderlist.split()
                 for order in orders:
                     result = ""
+                    cancel = False
                     numorder += 1
                     if userange == True:
                         if numorder >= int(orderlist[0]) and numorder <= int(orderlist[1]):
-                            result = bitfloor.order_cancel(order['order_id'])
+                            cancel = True
                     elif str(numorder) in orderlist:
+                        cancel = True
+                    if cancel == True:
                         result = bitfloor.order_cancel(order['order_id'])
-                    if not("error" in result):
-                        if "order_id" in result:
-                            print 'OID: %s Successfully Cancelled!' % (order['order_id'])
-                            numcancelled += 1
-                    else:
-                        print "Order not found!!"
+                        if not("error" in result):
+                            if "order_id" in result:
+                                print 'OID: %s Successfully Cancelled!' % (order['order_id'])
+                                numcancelled += 1     
+                        else:
+                            print "Order not found!!"      
         except Exception as e:
             print e
             return
@@ -291,7 +293,7 @@ class Shell(cmd.Cmd):
 
 
     def do_liquidbot(self,args):
-        """incomplete - supposed to take advantage of the -0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
+        """incomplete - supposed to take advantage of the 0.1% provider bonus by placing linked buy/sell orders on the books (that wont be auto-completed)"""
         def liquidthread(firstarg,stop_event,initcountbuys,initcountsells):
             # make a pair of orders 1 cent ABOVE/BELOW the spread (DOES change the spread)(fairly risky, price can change. least profit per run, most likely to work)
             # so far this works. needs a whole bunch more work though.
@@ -491,8 +493,8 @@ class Shell(cmd.Cmd):
 
 
     def do_checkmarketbuy(self, arg):
-        """Dummy Simulation. working on new market trade buy function"""
-        """usage: checkmarketbuy amount lowprice highprice"""
+        """Dummy Simulation. working on new market trade buy function\n"""\
+        """usage: checkmarketbuy <amount> <lowprice> <highprice>"""
         entirebook = refreshbook()
         try:
             args = arg.split()
@@ -505,8 +507,8 @@ class Shell(cmd.Cmd):
             self.onecmd('help checkmarketbuy')
 
     def do_checkmarketsell(self, arg):
-        """Dummy Simulation. working on new market trade sell function"""
-        """usage: checkmarketsell amount lowprice highprice"""
+        """Dummy Simulation. working on new market trade sell function\n"""\
+        """usage: checkmarketsell <amount> <lowprice> <highprice>"""
         entirebook = refreshbook()
         try:
             args = arg.split()
@@ -524,7 +526,7 @@ class Shell(cmd.Cmd):
         try:
             time.sleep(1)
             orders = bitfloor.orders()
-            orders = sorted(orders, key=lambda x: x['price'])
+            orders = sorted(orders, key=lambda x: float(x['price']))
             buytotal,selltotal = 0,0
             numbuys,numsells = 0,0
             amtbuys,amtsells = 0,0
@@ -532,10 +534,8 @@ class Shell(cmd.Cmd):
             numorder = 0        
             for order in orders:
                 numorder += 1
-                uuid = order['order_id']
-                shortuuid = uuid[:8]+'-??-'+uuid[-12:]
                 ordertype="Sell" if order['side']==1 else "Buy"
-                print '%s order %r. Price $%.5f @ Amount: %.5f' % (ordertype,shortuuid,float(order['price']),float(order['size']))
+                print '%s = %s | $%.2f @ %s BTC %s' % (numorder,ordertype,float(order['price']),order['size'],order['order_id'])
                 if order['side'] == 0:
                     buytotal += D(order['price'])*D(order['size'])
                     numbuys += D('1')
@@ -552,19 +552,18 @@ class Shell(cmd.Cmd):
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
             print e
-            return
 
                     
     def do_sellwhileaway(self,arg):
-        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
-        """Usage: sellwhileaway amount price"""
+        """Check balance every 60 seconds for <volume> and once we have received it, sell! But only for more than <price>.\n""" \
+        """Usage: sellwhileaway <volume> <price>"""
         args = arg.split()
-        amount,price = tuple(decimalify(args))
+        volume,price = tuple(decimalify(args))
         #seed initial balance data so we can check it during first run of the while loop
         balance = decimalify(bitfloor.accounts())
         #seed the last price just in case we have the money already and the while loop never triggers
         last = D(bitfloor.ticker()['price'])
-        while btc < amount:
+        while btc < volume:
             btc,usd = bal()
             last = D(bitfloor.ticker()['price'])
             print 'Your balance is %.8g BTC and $%.2f USD ' % (btc,usd)
@@ -589,16 +588,16 @@ class Shell(cmd.Cmd):
             
 
     def do_sellwhileaway2(self,arg):
-        """Check balance every 60 seconds for <amount> and once we have received it, sell! But only for more than <price>.\n""" \
-        """Usage: sellwhileaway2 amount price"""
+        """Check balance every 60 seconds for <volume> and once we have received it, sell! But only for more than <price>.\n""" \
+        """Usage: sellwhileaway2 <volume> <price>"""
         try:
             args = arg.split()
-            amount,price = tuple(decimalify(args))
+            volume,price = tuple(decimalify(args))
             #seed initial balance data so we can check it during first run of the while loop
             btc,usd = bal()
             #seed the last price just in case we have the money already and the while loop never triggers
             last = D(bitfloor.ticker()['price'])
-            while btc < amount:
+            while btc < volume:
                 btc,usd = bal()
                 last = D(bitfloor.ticker()['price'])
                 print 'Your balance is %.8g BTC and $%.2f USD ' % (btc,usd)
@@ -626,7 +625,7 @@ class Shell(cmd.Cmd):
 
     def do_ticker(self,arg):
         """Print the entire ticker out or use one of the following options:\n""" \
-        """[--buy|--sell|--last|--vol|--low|--high]"""
+        """usage: ticker [buy|sell|last|vol|low|high]"""
         last = floatify(bitfloor.ticker()['price'])
         dayinfo = floatify(bitfloor.dayinfo())
         low,high,vol = dayinfo['low'],dayinfo['high'],dayinfo['volume']
@@ -667,11 +666,9 @@ class Shell(cmd.Cmd):
         print "Exiting......"           
         return True
 
-
     def do_EOF(self,arg):        #exit out if Ctrl+Z is pressed
         """Exits the program"""
         return self.do_exit(arg)
-
 
     def help_help(self):
         print 'Prints the help screen'

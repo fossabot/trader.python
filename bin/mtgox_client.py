@@ -355,7 +355,6 @@ class Shell(cmd.Cmd):
             printorderbookapi0(length=15)
 
 
-
     def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions"""
         filename = os.path.join(partialpath + 'mtgox_btchistory.csv')
@@ -383,7 +382,6 @@ class Shell(cmd.Cmd):
                 listoflist.append(onelist)
                 fulldict = {x[0]:x[1] for x in listoflist}
             fulllist.append(fulldict)
-
         #print fulllist
         allfees = D('0')
         amtbtcin = D('0')
@@ -407,8 +405,6 @@ class Shell(cmd.Cmd):
             if item["Type"] == "out":
                 amtbtcout += amount
                 valueout += D(price*amount).quantize(D('0.00001'))
-
-
         print "Sum of all fees is: %s BTC" % allfees
         print "Sum of all BTC bought is %s BTC:" % amtbtcin
         print "Sum of all BTC sold is: %s BTC" % amtbtcout
@@ -442,7 +438,6 @@ class Shell(cmd.Cmd):
                 listoflist.append(onelist)
                 fulldict = {x[0]:x[1] for x in listoflist}
             fulllist.append(fulldict)
-
         #print fulllist
         allfees = D('0')
         amtusdin = D('0')
@@ -472,9 +467,9 @@ class Shell(cmd.Cmd):
             args = args.split()
             newargs = tuple(decimalify(args))
             if "usd" in newargs:                                        #places an order of $X USD 
-                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)
+                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)#remove usd arg once found
                 if len(newargs) == 1:                                  #for a market order
-                    rate = D(mtgox.get_tickerfast()["buy"]["value"])
+                    rate = D(mtgox.get_tickerfast()["sell"]["value"])    #use the opposite side's best price
                     amt = newargs[0] / rate
                     buyprice = None    
                 elif len(newargs) == 2:                                  # or as a limit order  
@@ -504,9 +499,9 @@ class Shell(cmd.Cmd):
             args = args.split()
             newargs = tuple(decimalify(args))
             if "usd" in newargs:                                        #places an order of $X USD 
-                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)
+                newargs = list(newargs);newargs.remove("usd");newargs = tuple(newargs)#remove usd arg once found
                 if len(newargs) == 1:                                  #for a market order
-                    rate = D(mtgox.get_tickerfast()["sell"]["value"])
+                    rate = D(mtgox.get_tickerfast()["buy"]["value"])     #use the opposite side's best price
                     amt = newargs[0] / rate
                     sellprice = None    
                 elif len(newargs) == 2:                                  #or as a limit order  
@@ -561,6 +556,8 @@ class Shell(cmd.Cmd):
                     orderlist = ""
                     orderlist = raw_input("Which order numbers would you like to cancel?: [ENTER] quits.\n")
                 if orderlist == "":
+                    if numcancelled > 1:
+                        print "%s Orders have been Cancelled!!!!!" % numcancelled
                     break
                 orderlist = stripoffensive(orderlist,',-')
                 if "," in orderlist:
@@ -571,16 +568,17 @@ class Shell(cmd.Cmd):
                 else:
                     orderlist = orderlist.split()
                 for order in orders:
+                    cancel = False
                     numorder += 1
                     if userange == True:
                         if numorder >= int(orderlist[0]) and numorder <= int(orderlist[1]):
-                            result = mtgox.cancel_one(order['oid'])
-                            numcancelled += 1
+                            cancel = True
                     elif str(numorder) in orderlist:
+                        cancel = True
+                    if cancel == True:
                         result = mtgox.cancel_one(order['oid'])
-                        numcancelled += 1
-                if numcancelled > 1:
-                    print "%s Orders have been Cancelled!!!!!" % numcancelled
+                        if result:
+                            numcancelled += 1
         except Exception as e:
             print e
             return
@@ -625,7 +623,7 @@ class Shell(cmd.Cmd):
     def do_lag(self,args):
         """Shows the current Mt.Gox trading engine lag time"""
         lag = mtgox.lag()
-        print "Current order lag is %r seconds " % (lag['lag_secs'])
+        print "Current order lag is %r seconds. Queue length is: %s" % (lag['lag_secs'],lag['length'])
 
     
 
