@@ -113,7 +113,7 @@ def bal():
 def get_tradefee():
     return (D(mtgox.get_info()['Trade_Fee'])/100)
 def calc_fees():
-    last = mtgox.get_ticker()['last']
+    last = D(mtgox.get_tickerfast()['last']['value'])
     btcbalance,usdbalance = bal()
     tradefee = get_tradefee()
     totalfees = btcbalance * tradefee * last
@@ -271,7 +271,7 @@ class Shell(cmd.Cmd):
     def do_balance(self,args):
         """Shows your current account balance and value of your portfolio based on last ticker price"""
         btc,usd = bal()
-        last = D(str(mtgox.get_ticker()['last']))
+        last = D(mtgox.get_tickerfast()['last']['value'])
         print 'Your balance is %s BTC and $%.2f USD ' % (btc,usd)
         print 'Account Value: $%.2f @ Last BTC Price of $%s' % (btc*last+usd,last)
 
@@ -282,7 +282,7 @@ class Shell(cmd.Cmd):
             while(not notifier_stop.is_set()):
                 btcnew,usdnew = bal()
                 if btcnew > btc or usdnew > usd:
-                    last = D(str(mtgox.get_ticker()['last']))
+                    last = D(mtgox.get_tickerfast()['last']['value'])
                     print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
                     for x in xrange(0,3):
                         if os.name == 'nt':
@@ -341,6 +341,7 @@ class Shell(cmd.Cmd):
 
     def do_bookrefresh(self,length):
         """Refresh a new copy of the entire order book and then run the 'book' command to print it."""
+        gox.client.request_fulldepth()
         request_socketbook()
         self.onecmd('book')
 
@@ -761,12 +762,13 @@ class Shell(cmd.Cmd):
             try:
                 found = False
                 while(not stop_event.is_set()):
-                    last = D(socketbook.ask)
+                    last = D(socketbook.ask/1E5)
                     percent = percent / D('100')
                     if price*percent < last:
                         order = mtgox.order_new('ask',amount,protection=False)
+                        lag = mtgox.lag()['lag_secs']
                         while found == False:
-                            stop_event.wait(2)
+                            stop_event.wait(lag)
                             response = mtgox.get_ask_history(order['data'])
                             if not(response["result"] == "error"):
                                 found = True
@@ -893,8 +895,8 @@ class Shell(cmd.Cmd):
             #Log lastprice to the ticker log file
             with open(os.path.join(partialpath + 'mtgox_last.txt'),'a') as f:
                 while(not tickeralert_stop.is_set()):
-                    ticker =mtgox.get_ticker()
-                    last = float(ticker['last'])
+                    ticker = mtgox.get_tickerfast()
+                    last = float(ticker['last']['value'])
                     text = json.dumps({"time":time.time(),"lastprice":last})
                     f.write(text)
                     f.write("\n")
