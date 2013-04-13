@@ -53,13 +53,21 @@ class Client:
         self.key,self.secret,self.enc_password = unlock_api_key.unlock("mtgox")
         
         self.buff = ""
-        self.timeout = 3
         self.__url_parts = "https://data.mtgox.com/api/"
-        self.clock_last = time.time()
-        self.clock = time.time()
+        
+        self.query_now = time.time()
+        self.query_last = time.time()
         self.query_count = 0
-        self.query_limit_per_time_slice = 20
-        self.query_time_slice = 10
+        self.query_limit_per_time_slice = 2
+        self.query_time_slice = 1
+        self.query_timeout = 3
+        
+        self.order_now = time.time()
+        self.order_last = time.time()
+        self.order_count = 0
+        self.order_limit_per_time_slice = 9
+        self.order_time_slice = 6
+        self.order_timeout = 52
         
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')
@@ -67,21 +75,34 @@ class Client:
         self.orders = []
         self.fulldepth = []
 
-    def throttle(self):
-        self.clock = time.time()
-        tdelta = self.clock - self.clock_last
-        if tdelta > self.query_time_slice:
-            self.query_count = 0
-            self.clock_last = time.time()
-        self.query_count += 1
-        if self.query_count > self.query_limit_per_time_slice:
-            #throttle the connection
-            print "### Throttled ###"
-            time.sleep(self.query_time_slice - tdelta)
+    def throttle(self,ordering=False):
+        if ordering == False:
+            self.query_now = time.time()
+            tdelta = self.query_now - self.query_last
+            if tdelta > self.query_time_slice:
+                self.query_count = 0
+                self.query_last = time.time()
+            self.query_count += 1
+            if self.query_count > self.query_limit_per_time_slice:
+                print "### Throttled ###"
+                time.sleep(self.query_timeout)    #throttle the connection
+        if ordering == True:
+            self.order_now = time.time()
+            tdelta = self.order_now - self.order_last
+            if tdelta > self.order_time_slice:
+                self.order_count = 0
+                self.order_last = time.time()
+            self.order_count += 1
+            if self.order_count > self.order_limit_per_time_slice:
+                print "### Throttled ###"
+                time.sleep(self.order_timeout)    #throttle the connection
        
     def perform(self, path, params,JSON=True,API_VERSION=0,GZIP=True,GET=False):
         while True:
-            self.throttle()
+            if "/money/order/add" in path:
+                self.throttle(ordering=True)
+            else:
+                self.throttle()
             try:
                 nonce =  str(int(time.time()*1000))
                 if params != None:

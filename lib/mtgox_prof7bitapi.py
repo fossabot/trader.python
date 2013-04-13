@@ -1064,7 +1064,6 @@ class Gox(BaseObject):
                 self.client.stop()
                 self.client.start()
                 if time.time() - self.orderbook.fulldepth_time > 60 and not self.client_backup.connected:
-                    #self.client.request_ticker()
                     self.client.request_fulldepth()
                 if self.client_backup._terminate.isSet() and not self.client_backup.connected:
                     self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
