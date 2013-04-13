@@ -26,6 +26,7 @@ Just omit a price to place a market order.
 ##Commands: 
 
 ####" " is the command name, but in the program you have to use lowercase.
+- [X] Tab completion of commands, and command history
 
 - [x] **"Buy"/"Sell"** Simple - X amount of BTC   (or in USD - add usd to the command line)
 
@@ -344,6 +345,8 @@ Where it says "Enter an encryption password: (This is the password required to 	
 
 - [x] **mtgox_entiretrades.txt** - written when you call tradehist24 (downloads the 24 hour trading history of mtgox)
 
+- [x] **mtgox_fulldepth.txt** - written when you call bookfull (downloads the HTTP API fulldepth - not relied on much)
+
 
 ###keys\
 
@@ -364,9 +367,6 @@ Where it says "Enter an encryption password: (This is the password required to 	
 --------------------------------
 ##NOT implemented
 --------------------------------
-- [ ] Tab completion of commands.
-
-(tab completion was phased out in favor of command history (on windows))
 
 - [ ] Abort commands with SIGINT (ctrl-c on - [x] nix) without exiting, f Mt. Gox is being slow (soon)
 
@@ -386,9 +386,12 @@ Where it says "Enter an encryption password: (This is the password required to 	
 -------------------------------
 ##ADDENDUM
 -------------------------------
-(The following solution fails to live up to expectations, but it can't hurt.)
+(The following solution is to enable persistent command history tab completion on windows with the "pyreadline" module)
 
 This command only enables command history INSIDE the python interpreter(which is not what we want).
 ```
-    copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.ini" %HOMEPATH%
+    copy "C:\Python27\Lib\site-packages\pyreadline\configuration\pyreadlineconfig.ini" %USERPROFILE%
+    copy "C:\Python27\Lib\site-packages\pyreadline\configuration\startup.py" %USERPROFILE%\.pythonstartup
+    set PYTHONSTARTUP=%USERPROFILE%\\.pythonstartup
+    setx PYTHONSTARTUP %PYTHONSTARTUP%
 ```

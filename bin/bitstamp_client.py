@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # bitstamp_client.py
-# Created by genBTC 4/4/2013
+# Created by genBTC 4/13/2013
 # Universal Client for all things bitstamp
-
 
 import bitstampapi 
 import cmd
@@ -16,7 +15,11 @@ import traceback
 import logging
 import sys
 import socket
-import winsound
+import os
+if os.name == 'nt':
+    import winsound
+    import pyreadline
+    import commandhistory   #enable command line completion and command history
 
 #################################
 
@@ -111,7 +114,6 @@ class Shell(cmd.Cmd):
     def __init__(self):
         cmd.Cmd.__init__(self)
         self.prompt = 'Bitstamp CMD>'   # The prompt for a new user input command
-        self.use_rawinput = False
         self.onecmd('help')
 
     #Shut down all threads cleanly.        
@@ -146,12 +148,10 @@ class Shell(cmd.Cmd):
     #start out by printing the order book
     printorderbook()
 
-    #give a little user interface
-    print 'Type exit to exit gracefully or Ctrl+Z or Ctrl+C to force quit'
-    print 'Typing help will show you the list of commands'
-    print 'sample trade example: '
-    print '   buy 2.8 140 145 64 = buys 2.8 BTC between $140 to $145 using 64 chunks'
-    print ' '
+    #give a little user interface       
+    print 'To exit: exit,Ctrl+C,Ctrl+Z or Ctrl+Pause/Break to force quit'
+    print 'Type help to show the available commands.'
+    print "syntax: command subcommand <required> [optional] ['word']"
 
 
     def do_balance(self,args):

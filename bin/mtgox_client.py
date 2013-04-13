@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Created by genBTC 3/10/2013 Updated 4/4/2013 
+# Created by genBTC 3/10/2013 Updated 4/13/2013 
 # mtgox_client.py
 # Universal Client for all things mtgox
 # A complete command line Client with a menu
@@ -18,6 +18,8 @@ import csv
 import os
 if os.name == 'nt':
     import winsound         #plays beeps for alerts 
+    import pyreadline
+    import commandhistory   #enable command line completion and command history
 
 from book import *
 from common import *
@@ -126,7 +128,6 @@ class Feesubroutine(cmd.Cmd):
         print 'Calculate your fees: type back to go back\n'
         # The prompt for a new user input command
         self.prompt = 'Fees CMD>'
-        self.use_rawinput = False
         self.onecmd('help')
 
     def do_getfee(self,args):
@@ -169,9 +170,6 @@ class Shell(cmd.Cmd):
     def __init__(self):
         cmd.Cmd.__init__(self)
         self.prompt = 'MtGox CMD>'      # The prompt for a new user input commands
-        #the trading command prompt did not allow cmd.exe to store a history beyond multiple sessions
-        #now it does store a history but we lose tab completion. This is what use_rawinput = false means.
-        self.use_rawinput = False
         self.onecmd('help')             #print out the possible commands (help) on first run
         
     #Shut down all threads cleanly.
@@ -321,8 +319,8 @@ class Shell(cmd.Cmd):
         try:
             vintage = (time.time() - socketbook.fulldepth_time)
             if vintage > 300:
+                gox.client.request_fulldepth()
                 request_socketbook()
-
             length = stripoffensive(length)
             length = int(length)
 

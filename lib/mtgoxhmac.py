@@ -1,8 +1,8 @@
 """
-MtGoxHMAC v0.31
+MtGoxHMAC v0.32
 
 Copyright 2011 Brian Monkaba
-Modified 4/2/2013 by genBTC 
+Modified 4/13/2013 by genBTC 
 
 This file *was* part of ga-bitbot. It was modified heavily and is now part of genBTC's program.
 
@@ -39,12 +39,12 @@ from decimal import Decimal as D
 import traceback
 
 from common import UserError,ServerError
-import unlock_api_key
 
 CURRENCY = "USD"
 PRODUCT = "BTC"     #maybe future litecoin implementations can work off this
 PAIR = PRODUCT + CURRENCY
 
+import unlock_api_key   #comment this out and read below if you dont need authenticated commands
 
 class Client:
     def __init__(self, enc_password=""):
