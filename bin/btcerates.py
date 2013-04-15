@@ -17,7 +17,7 @@ fullpath = os.path.dirname(os.path.realpath(__file__))
 if os.name == 'nt':
     partialpath=os.path.join(fullpath + '\\..\\data\\')
 else:
-    partialpath=os.path.join(fullpath + '/../data/' + site)
+    partialpath=os.path.join(fullpath + '/../data/')
 BTC_api_key,BTC_api_secret,unused = unlock_api_key.unlock("btc-e") 
 
 #you must have a nonce_state_btce file located in your ..\data\ directory with an integer number inside the file  

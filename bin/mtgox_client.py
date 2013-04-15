@@ -112,43 +112,64 @@ def bal():
     return btcbalance,usdbalance
 def get_tradefee():
     return (D(mtgox.get_info()['Trade_Fee'])/100)
-def calc_fees():
+def calc_fees(amount,feerate):
     last = D(mtgox.get_tickerfast()['last']['value'])
-    btcbalance,usdbalance = bal()
-    tradefee = get_tradefee()
-    totalfees = btcbalance * tradefee * last
-    return btcbalance,totalfees,last
+    totalfees = amount * feerate * last
+    return totalfees,last
 def print_calcedfees(amount,last,totalfees):
-    print 'Balance of %f BTC worth $%.2f USD Value total' % (amount,amount*last)
-    print 'Total Fees are $%.2f USD total @ $%.2f per BTC' % (totalfees,last)
+    print '%f BTC worth $%.2f USD Value total' % (amount,amount*last)
+    print 'Total Fees are $%.5f USD total @ $%.5f per BTC' % (totalfees,last)
 
 class Feesubroutine(cmd.Cmd):
     def __init__(self):
         cmd.Cmd.__init__(self)
-        print 'Calculate your fees: type back to go back\n'
         # The prompt for a new user input command
         self.prompt = 'Fees CMD>'
         self.onecmd('help')
+        self.doc_header = "Type back to go back."
+        self.feerate = self.do_getfee(self)
+        
 
     def do_getfee(self,args):
         """Print out the current trade fee"""
-        print "Your current trading fee is: {:.2%}".format(get_tradefee())
+        fee = get_tradefee()
+        print "Your current trading fee is: {:.2%}".format(fee)
+        return fee
+    def do_price(self,price):
+        """Calculate the price you need to break even"""
+        """Usage: price <price>"""
+        try:
+            if not(price):
+                price = raw_input("Enter the price: ")
+            price = D(str(price))
+            print "Was this your buy price or your sell price?"
+            buysell = prompt("YES = buy / no = sell ",True)
+            if buysell:
+                print "The minimum sell price is: $%.5f" % (price*(1+self.feerate)*(1+self.feerate))
+            else:
+                print "The maximum buy price is: $%.5f" % (price/(1+self.feerate)/(1+self.feerate))
+
+        except Exception as e: 
+            self.onecmd('help price')
+            print "Invalid Args. Expected: <price>"
+
     def do_balance(self,args):
         """Calculate how much fees will cost if you sold off your entire BTC Balance"""
-        btcbalance,totalfees,last = calc_fees()
+        btcbalance,_ = bal()
+        totalfees,last = calc_fees(btcbalance,self.feerate)
         print_calcedfees(btcbalance,last,totalfees)
-        self.do_getfee(self)
-    def do_calc(self,amount):
-        """Calculate how much fees will cost on X amount\n""" \
-        """Give X amount as a paramter ie: calc 50"""
+    def do_btc(self,amount):
+        """Calculate how much fees will cost on X amount BTC\n""" \
+        """Give BTC_amount as a paramter ie: calc 5.3513"""
         try:
+            if not(amount):
+                amount = raw_input("Enter the amount in BTC you want to calculate the fee of: ")
             amount = D(str(amount))
-            btcbalance,totalfees,last = calc_fees()
+            totalfees,last = calc_fees(amount,self.feerate)
             print_calcedfees(amount,last,totalfees)
-            self.do_getfee(self)
         except Exception as e: 
-            self.onecmd('help calc')
-            print "Invalid Args. Expected: amount"
+            self.onecmd('help amount')
+            print "Invalid Args. Expected: <amount>"
     def do_back(self,args):
         """Exits out of the fee menu and goes back to the main level"""
         print '\nGoing back a level...'
@@ -359,13 +380,16 @@ class Shell(cmd.Cmd):
     def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions"""
         filename = os.path.join(partialpath + 'mtgox_btchistory.csv')
+        f = open(filename,'r+')
         download = prompt("Download a new history?",False)
         if download:
-            btchistory=mtgox.get_history_btc().decode('utf-8')
-            with open(filename,'w') as f:
-                f.write(btchistory.encode('utf8'))
-                print "Finished writing file."
-        print "%s" % btchistory.encode('utf8')                
+            btchistory=mtgox.get_history_btc()
+            f.write(btchistory)
+            print "Finished writing file."
+        else:
+            btchistory = f.read()
+        f.close()
+        print "%s" % btchistory
         csvfile = open(filename, 'rb')
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         fulllist = []
@@ -416,12 +440,15 @@ class Shell(cmd.Cmd):
         """Prints out your entire trading history of USD transactions"""
         filename = os.path.join(partialpath + 'mtgox_usdhistory.csv')
         download = prompt("Download a new history?",False)
+        f = open(filename,'r+')
         if download:
-            usdhistory=mtgox.get_history_usd().decode('utf-8')
-            with open(filename,'w') as f:
-                f.write(usdhistory.encode('utf8'))
-                print "Finished writing file."
-        print "%s" % usdhistory.encode('utf8')                
+            usdhistory=mtgox.get_history_usd()
+            f.write(usdhistory)
+            print "Finished writing file."
+        else:
+            usdhistory = f.read()
+        f.close()
+        print "%s" % usdhistory
         csvfile = open(filename, 'rb')
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         fulllist = []
@@ -478,7 +505,8 @@ class Shell(cmd.Cmd):
                     amt = newargs[0] / buyprice                        #convert USD to BTC.
                 newargs = (amt.quantize(bPrec),buyprice)         #get the arguments ready
             if len(newargs) in (1,2):
-                mtgox.order_new('bid',*newargs) 
+                result = mtgox.order_new('bid',*newargs)
+                if result: print result["data"]
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
             else:
@@ -510,7 +538,8 @@ class Shell(cmd.Cmd):
                     amt = newargs[0] / sellprice                        #convert USD to BTC.
                 newargs = (amt.quantize(bPrec),sellprice)         #get the arguments ready
             if len(newargs) in (1,2):
-                mtgox.order_new('ask',*newargs) 
+                result = mtgox.order_new('ask',*newargs)
+                if result: print result["data"]
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'ask', *newargs)               #use spread logic
             else:

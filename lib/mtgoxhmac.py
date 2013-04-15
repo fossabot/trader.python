@@ -58,18 +58,20 @@ class Client:
         self.query_now = time.time()
         self.query_last = time.time()
         self.query_count = 0
-        self.query_limit_per_time_slice = 60
-        self.query_time_slice = 30
+        self.query_limit_per_time_slice = 40
+        self.query_time_slice = 20
         self.query_timeout = 5
         
         self.order_now = time.time()
         self.order_last = time.time()
         self.order_count = 0
-        self.order_limit_per_time_slice = 9
-        self.order_time_slice = 50
-        self.order_timeout = 10
+        self.order_limit_per_time_slice = 1
+        self.order_time_slice = 1
+        self.order_timeout = 1
+        self.order_ban = 0
         self.throttled = False
-        
+
+
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')
 
@@ -100,7 +102,8 @@ class Client:
             if self.order_count > self.order_limit_per_time_slice:
                 print "### Throttled ###"
                 self.throttled=True
-                time.sleep(self.order_timeout)    #throttle the connection
+                time.sleep(self.order_timeout+self.order_ban)    #throttle the connection
+                self.order_ban = 0
             else:
                 self.throttled=False
 
@@ -109,6 +112,7 @@ class Client:
         while True:
             if "/money/order/add" in path:
                 self.throttle(ordering=True)
+                print time.time()
             else:
                 self.throttle()
             try:
@@ -183,6 +187,10 @@ class Client:
                             print "Error: Cloudflare - Website Currently Unavailable."
                         elif "Order not found" in datastring:
                             return json.loads(datastring)
+                        elif "Too many orders" in datastring:
+                            self.wait = int(datastring[datastring.find("wait")+5:datastring.find("secs")-1])
+                            self.order_ban = self.wait - self.order_timeout
+                            print "ERROR: Too many orders. Please wait %s seconds..." % self.wait
                         else:
                             print "Error: %s" % datastring                            
             except urllib2.URLError as e:
