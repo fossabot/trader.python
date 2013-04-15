@@ -407,3 +407,10 @@ This command only enables command history INSIDE the python interpreter(which is
     set PYTHONSTARTUP=%USERPROFILE%\\.pythonstartup
     setx PYTHONSTARTUP %PYTHONSTARTUP%
 ```
+
+To keep the program up to date, GIT is recommended. Once you have the repo set up locally: type:
+```
+    git stash
+    git pull
+    git apply pop
+```

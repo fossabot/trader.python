@@ -62,14 +62,15 @@ class Client:
         self.query_time_slice = 20
         self.query_timeout = 5
         
+        self.order_first = 0
         self.order_now = time.time()
         self.order_last = time.time()
         self.order_count = 0
-        self.order_limit_per_time_slice = 3
-        self.order_time_slice = 2
-        self.order_timeout = 1
+        self.order_limit_per_time_slice = 6
+        self.order_time_slice = 6
+        self.order_timeout = 0.1
         self.order_ban = 0
-        self.throttled = False
+        #self.throttled = False
 
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')
@@ -89,22 +90,27 @@ class Client:
                 print "### Throttled ###"
                 time.sleep(self.query_timeout)    #throttle the connection
         if ordering == True:
+            if not self.order_first:
+                self.order_first = time.time()
             self.order_now = time.time()
+            print "Unix time is: ", self.order_now,
             tdelta = self.order_now - self.order_last
             if tdelta > self.order_time_slice:
-                if self.throttled == False:
-                    self.order_count = 0
-                if self.throttled == True:
-                    self.order_count = 1
+                self.order_count = 0
                 self.order_last = time.time()
             self.order_count += 1
             if self.order_count > self.order_limit_per_time_slice:
-                print "### Throttled ###", "Unix time is: ", time.time()
-                self.throttled=True
-                time.sleep(self.order_timeout+self.order_ban)    #throttle the connection
-                self.order_ban = 0
+                print "### Throttled ###"
+                self.order_window_length = self.order_now-self.order_first
+                time.sleep(self.order_timeout+(self.order_time_slice-self.order_window_length))    #throttle the connection
+                self.order_first = time.time()
             else:
-                self.throttled=False
+                self.order_first = 0
+                self.order_last = time.time()
+            if self.order_ban:    
+                time.sleep(self.order_ban)      #wait for the ban timeout to elapse
+                self.order_ban = 0
+
 
        
     def perform(self, path, params,JSON=True,API_VERSION=0,GZIP=True,GET=False):

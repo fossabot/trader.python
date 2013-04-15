@@ -664,7 +664,7 @@ class BaseClient(BaseObject):
                 if FORCE_HTTP_API or self.config.get_bool("gox", "use_http_api"):
                     self.enqueue_http_request("money/idkey", {}, "idkey")
             else:
-                self.debug("### already have idkey, subscribing to account messages"% self.gox._idkey)
+                self.debug("### already have idkey, subscribing to account messages:")
                 self.gox.client.send(json.dumps({"op":"mtgox.subscribe", "key":self.gox._idkey}))
                     #self.debug("Calling HTTP API's for: orders/idkey/info")
                     #self.enqueue_http_request("money/orders", {}, "orders")
@@ -814,7 +814,7 @@ class WebsocketClient(BaseClient):
         BaseClient.__init__(self, gox, secret, config)
 
     def _recv_thread_func(self):
-        """connect to the webocket and tart receiving inan infinite loop.
+        """connect to the webocket and start receiving in an infinite loop.
         Try to reconnect whenever connection is lost. Each received json
         string will be dispatched with a signal_recv signal"""
         reconnect_time = 0
@@ -1442,7 +1442,7 @@ class OrderBook(BaseObject):
 
         else:
             voldiff = -volume
-            if typ == "bid":  # tryde_type=bid means an ask order was filled
+            if typ == "bid":  # trade_type=bid means an ask order was filled
                 self._repair_crossed_asks(price)
                 if len(self.asks):
                     if self.asks[0].price == price:
