@@ -65,12 +65,11 @@ class Client:
         self.order_now = time.time()
         self.order_last = time.time()
         self.order_count = 0
-        self.order_limit_per_time_slice = 1
-        self.order_time_slice = 1
+        self.order_limit_per_time_slice = 3
+        self.order_time_slice = 2
         self.order_timeout = 1
         self.order_ban = 0
         self.throttled = False
-
 
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')
@@ -100,7 +99,7 @@ class Client:
                 self.order_last = time.time()
             self.order_count += 1
             if self.order_count > self.order_limit_per_time_slice:
-                print "### Throttled ###"
+                print "### Throttled ###", "Unix time is: ", time.time()
                 self.throttled=True
                 time.sleep(self.order_timeout+self.order_ban)    #throttle the connection
                 self.order_ban = 0
@@ -112,7 +111,6 @@ class Client:
         while True:
             if "/money/order/add" in path:
                 self.throttle(ordering=True)
-                print time.time()
             else:
                 self.throttle()
             try:

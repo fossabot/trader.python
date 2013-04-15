@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from decimal import Decimal as D
+from decimal import Decimal
 import cjson
 import sys
 import time
@@ -32,7 +32,7 @@ class JsonParser:
 
 class DepthParser(object):
     def __init__(self, currencyDecimals, args = []):
-        self._cPrec = D(1) / 10 ** currencyDecimals
+        self._cPrec = Decimal(1) / 10 ** currencyDecimals
         self.__sides = ("asks","bids")
         try:
             for arg,value in (arg.split("=") for arg in args):
@@ -84,7 +84,7 @@ class DepthParser(object):
     @low.setter
     def low(self, value):
         if value:
-            self._minPrice = D(value)
+            self._minPrice = Decimal(value)
         else:
             self._minPrice = None
 
@@ -98,7 +98,7 @@ class DepthParser(object):
     @high.setter
     def high(self, value):
         if value:
-            self._maxPrice = D(value)
+            self._maxPrice = Decimal(value)
         else:
             self._maxPrice = None
 
@@ -112,7 +112,7 @@ class DepthParser(object):
     @amount.setter
     def amount(self, value):
         if value:
-            self._maxAmount = D(value)
+            self._maxAmount = Decimal(value)
         else:
             self._maxAmount = None
         
@@ -126,7 +126,7 @@ class DepthParser(object):
     @value.setter
     def value(self, value):
         if value:
-            self._maxValue = D(value)
+            self._maxValue = Decimal(value)
         else:
             self._maxValue = None
         
@@ -188,106 +188,12 @@ class DepthParser(object):
             return bool(value)
         else:
             return False
-    def _stepList(self, orders, side, min, max):
-        u"Slice a big list of orders and merge each slice to one order," + \
-        u" lists of bids needs to be reversed when passed as argument."
-        stepList = list()
-        if side == "asks":
-            stepvolume = (max - min) / self.steps
-            # Price increases for each ask
-            stepEnd = min + stepvolume
-            withinStep = lambda orderPrice: orderPrice <= stepEnd
-        else:
-            # Reverse if not allready done (roughly tuple/list, not generator)
-            if hasattr(orders, "__getitem__"):
-                if orders[-1] < orders[0]:
-                    orders = reversed(orders)
-            # Price decreases for each bid
-            stepvolume = (max - min) * -1 / self.steps
-            withinStep = lambda orderPrice: orderPrice >= stepEnd
-            stepEnd = max + stepvolume
-        if self.iv:
-            # Values included in orders
-            calcStep = lambda amount, orderAmount, orderPrice, value: \
-                ( amount + orderAmount , value + (orderAmount * orderPrice) )
-        else:
-            # Don't include value
-            calcStep = lambda amount, orderAmount, orderPrice, value: \
-                ( amount + orderAmount, False )
-        amount,value,stamp = 0,0,0
-        for order in orders:
-            orderPrice  = order[0]
-            orderAmount = order[1]
-            orderStamp = time.time()
-            price  = orderPrice
-            if withinStep(orderPrice):
-                # Return total amount and value of step
-                amount, value = calcStep(amount, orderAmount, orderPrice, value)
-                price         = orderPrice
-                stamp = time.time()
-            else:
-                stepList.append(
-                    self._manipulateOrder(
-                        dict(),
-                        price_int  = price,
-                        amount_int = amount,
-                        stamp      = stamp,
-                        precision  = self._cPrec,
-                        iv         = value
-                        )
-                    )
-                # Set Amount,Value,Stamp to this order's values
-                if not self.cumulate:
-                    amount, value = calcStep(0, orderAmount, orderPrice, 0)
-                stamp = orderStamp
-                # Set next step end
-                stepEnd += stepvolume
-        else:
-            if withinStep(price):
-                # Add step if orders has been parsed since last step was added
-                stepList.append(
-                    self._manipulateOrder(
-                        dict(),
-                        price_int  = price,
-                        amount_int = amount,
-                        stamp      = stamp,
-                        precision  = self._cPrec,
-                        iv         = value
-                        )
-                    )
-        return stepList
-
-    def _stripRange(self, orders, side, minPrice, maxPrice):
-        u"Strip list of all orders outside of the range between minPrice" + \
-        u" and maxPrice. All generator-objects is treated like they're"   + \
-        u" allready reversed when parsing bids."
-        if side == "asks":
-            # Allow all orders above minPrice
-            withinRange = lambda price: iprice >= minPrice
-            # Break when iteration has reached order above maxPrice
-            breakPoint  = lambda price: price >  maxPrice
-        else:
-            if hasattr(orders, "__getitem__"):
-                if orders[-1] < orders[0]:
-                    orders = reversed(orders)
-            # Allow all orders below maxPrice
-            withinRange = lambda price: price <= maxPrice
-            # Break when iteration has reached order below minPrice
-            breakPoint  = lambda price: price <  minPrice
-        # Iterate over list,
-        #  Asks: Low  -> High
-        #  Bids: High -> Low
-        for order in orders:
-            if withinRange(order[u"price_int"]):
-                if breakPoint(order[u"price_int"]):
-                    break
-                else:
-                    yield order
         
-            
+        
     def process(self, json, raw = True):
         u"Parse depth-table from Mt.Gox, returning orders matching arguments"
-        # Check if user has applied any arguments
+        # Check if user has applied any arguments so we need to parse and strip the json
+        json      = JsonParser.parse(json)["return"]
         steps     = self.steps
         oMinPrice = self.low
         oMaxPrice = self.high
@@ -297,7 +203,7 @@ class DepthParser(object):
         iv        = self.iv
         # Get the decimal precision for currency
         cPrec    = self._cPrec
-        bPrec    = D("0.00000001")
+        bPrec    = Decimal("0.00000001")
         # Setup empty table
         gen      = (i for i in json.iteritems() if i[0] not in ("asks","bids"))
         table    = dict(( (key, value) for key, value in gen ))
@@ -309,27 +215,22 @@ class DepthParser(object):
             else:
                 table["asks"] = []
         else:
-#            print "The else case of process() meaning self.side was not given"
-            lowask = json["asks"][0][0]
-            highbid = json["bids"][-1][0]
-            spread = lowask - highbid
             table["gap"] = dict()
-            table["gap"]["lowask"]     = lowask
-            table["gap"]["highbid"]     = highbid
-            table["gap"]["spread"] = spread
-#        print "The bid/ask spread is: ", spread
+            table["gap"]["upper"]     = json["asks"][0]["price"]
+            table["gap"]["upper_int"] = json["asks"][0]["price_int"]
+            table["gap"]["lower"]     = json["bids"][-1]["price"]
+            table["gap"]["lower_int"] = json["bids"][-1]["price_int"]
         for side in self.__sides:
             # Parse sides independently
             orders = json[side]
             # Read lowest and highest price of orders on current side
-            lowest  = orders[0][0]
-            highest = orders[-1][0]
-            print side, "Lowest %r and Highest %r" % (lowest,highest)
+            lowest  = int(orders[0][u"price_int"])
+            highest = int(orders[-1][u"price_int"])
             # Convert minimum and maximum price from arguments to int
             #  and check if any orders are within that range.
             if oMinPrice == None: minPrice = None
             else:
-                minPrice = oMinPrice
+                minPrice = int(oMinPrice / cPrec)
                 if minPrice > highest:
                     # Argument input totally out of range, return empty
                     table[side] = []
@@ -339,7 +240,7 @@ class DepthParser(object):
                     minPrice = lowest
             if oMaxPrice == None: maxPrice = None
             else:
-                maxPrice = oMaxPrice
+                maxPrice = int(oMaxPrice / cPrec)
                 if maxPrice < lowest:
                     # Argument input totally out of range, return empty
                     table[side] = []
@@ -392,11 +293,11 @@ class DepthParser(object):
                         #  them into one order per slice.
                         if any((maxAmount, maxValue)):
                             if side == "asks":
-                                min = orders[0][0]
-                                max = orders[-1][0]
+                                min = int( orders[0]["price_int"])
+                                max = int(orders[-1]["price_int"])
                             else:
-                                min = orders[-1][0]
-                                max = orders[0][0]
+                                min = int(orders[-1]["price_int"])
+                                max = int( orders[0]["price_int"])
                         else:
                             min = minPrice
                             max = maxPrice
@@ -438,8 +339,163 @@ class DepthParser(object):
                 "return":table,
                 "result":"success"
                 }
-        return json
-        #return JsonParser.build(json) if raw else json
+        return JsonParser.build(json) if raw else json
+
+    def _stepItemList(self, items, steps, kind="trades"):
+        u"Old stepList, but will work to step trades instead when creating" \
+        u" RSI and stuff."
+        if not hasattr(orders, "__delslice__"):
+            # Convert generator or tuple to lists, assume all objects that have
+            #  __delslice__ also has __getitem__ and __getslice__
+            orders = list(orders)
+        subs = list()
+        length = len(orders)
+        # Calculate size of step and then adjust to whole integer
+        # Round to make sure no orders 
+        step = round( float(length) / steps ) * steps
+        if length/steps * steps >= length:
+            stepSize = length / teps
+        else:
+            stepSize = length/steps+1
+        while orders:
+            # Take slices of orderlist in stepsize
+            subs.append(orders[0:stepSize])
+            del orders[0:stepSize]
+        else:
+            if not self.cumulate:
+                for step in subs:
+                    # Merge each slice of list to one order
+                    proc = self.getattr("_merge_{0}".format(kind))(*args)
+                    step = self._processList(
+                        step, side,
+                        precision = self._cPrec,
+                        cumulate  = True,
+                        iv        = iv
+                        )
+                    # Last order contains amount and value of earlier orders
+                    step          = step[-1]
+                    step["stamp"] = str(self.latestStamp)
+                    orders.append(step)
+            else:
+                # Merge each slice of list to one order while cumulating the
+                #  last layer being created
+                totalA = 0
+                totalV = 0
+                for step in subs:
+                    step = self._processList(
+                        step, side,
+                        precision = self._cPrec,
+                        cumulate  = True,
+                        iv        = iv
+                        )
+                    order   = step[-1]
+                    totalA  += int(order["amount_int"])
+                    totalV  += int(order["value_int"])
+                    # Cumulate orders
+                    order = self._manipulateOrder(
+                        order,
+                        amount_int = totalA,
+                        precision  = self._cPrec,
+                        iv         = totalV
+                        )
+                    orders.append(order)
+            return orders if side == "ask" else reversed(orders)
+
+    def _stepList(self, orders, side, min, max):
+        u"Slice a big list of orders and merge each slice to one order," + \
+        u" lists of bids needs to be reversed when passed as argument."
+        stepList = list()
+        if side == "asks":
+            stepSize = (max - min) / self.steps
+            # Price increases for each ask
+            stepEnd = min + stepSize
+            withinStep = lambda orderPrice: orderPrice <= stepEnd
+        else:
+            # Reverse if not allready done (roughly tuple/list, not generator)
+            if hasattr(orders, "__getitem__"):
+                if orders[-1] < orders[0]:
+                    orders = reversed(orders)
+            # Price decreases for each bid
+            stepSize = (max - min) * -1 / self.steps
+            withinStep = lambda orderPrice: orderPrice >= stepEnd
+            stepEnd = max + stepSize
+        if self.iv:
+            # Values included in orders
+            calcStep = lambda amount, orderAmount, orderPrice, value: \
+                ( amount + orderAmount , value + (orderAmount * orderPrice) )
+        else:
+            # Don't include value
+            calcStep = lambda amount, orderAmount, orderPrice, value: \
+                ( amount + orderAmount, False )
+        amount,value,stamp = 0,0,0
+        for order in orders:
+            orderPrice  = int(order["price_int"])
+            orderAmount = int(order["amount_int"])
+            orderStamp  = int(order["stamp"])
+            if withinStep(orderPrice):
+                # Return total amount and value of step
+                amount, value = calcStep(amount, orderAmount, orderPrice, value)
+                price         = orderPrice
+                # Replace stamp if this one is newer
+                if stamp < orderStamp: stamp = orderStamp
+            else:
+                stepList.append(
+                    self._manipulateOrder(
+                        dict(),
+                        price_int  = price,
+                        amount_int = amount,
+                        stamp      = stamp,
+                        precision  = self._cPrec,
+                        iv         = value
+                        )
+                    )
+                # Set Amount,Value,Stamp to this order's values
+                if not self.cumulate:
+                    amount, value = calcStep(0, orderAmount, orderPrice, 0)
+                stamp = orderStamp
+                # Set next step end
+                stepEnd += stepSize
+        else:
+            if withinStep(price):
+                # Add step if orders has been parsed since last step was added
+                stepList.append(
+                    self._manipulateOrder(
+                        dict(),
+                        price_int  = price,
+                        amount_int = amount,
+                        stamp      = stamp,
+                        precision  = self._cPrec,
+                        iv         = value
+                        )
+                    )
+        return stepList
+
+    def _stripRange(self, orders, side, minPrice, maxPrice):
+        u"Strip list of all orders outside of the range between minPrice" + \
+        u" and maxPrice. All generator-objects is treated like they're"   + \
+        u" allready reversed when parsing bids."
+        if side == "asks":
+            # Allow all orders above minPrice
+            withinRange = lambda price: int(price) >= minPrice
+            # Break when iteration has reached order above maxPrice
+            breakPoint  = lambda price: int(price) >  maxPrice
+        else:
+            if hasattr(orders, "__getitem__"):
+                if orders[-1] < orders[0]:
+                    orders = reversed(orders)
+            # Allow all orders below maxPrice
+            withinRange = lambda price: int(price) <= maxPrice
+            # Break when iteration has reached order below minPrice
+            breakPoint  = lambda price: int(price) <  minPrice
+        # Iterate over list,
+        #  Asks: Low  -> High
+        #  Bids: High -> Low
+        for order in orders:
+            if withinRange(order[u"price_int"]):
+                if breakPoint(order[u"price_int"]):
+                    break
+                else:
+                    yield order
 
     def _processList(self,
             orders, side,
@@ -447,7 +503,7 @@ class DepthParser(object):
             precision = None,
             maxAmount = False,
             maxValue  = False,
-            iv        = True):
+            iv        = False):
         u"Iterates over orders. Adds value and/or cumulate amounts. If list" + \
         u" is a generator it is bids being parsed the generator needs to"    + \
         u" contain a reversed list."
@@ -457,7 +513,7 @@ class DepthParser(object):
         current = []
         # Reverse bid-orders if not allready done or if object is a generator.
         if side == "bids" and hasattr(orders, "__getitem__"):
-            if orders[1][0] < orders[0][0]:
+            if orders[1] < orders[0]:
                 orders = reversed(orders)
         # Set up lambdas to get rid of some code when iterating over orders.
         if iv:
@@ -500,18 +556,21 @@ class DepthParser(object):
                         )
         for order in orders:
             # Read each order, decrementing by price if bids
-#            if maxAmount and totalA > maxAmount: break
-#            if maxValue and totalV > maxValue: break
-            amount = order[1]
-            price  = order[0]
+            if maxAmount and totalA > maxAmount: break
+            if maxValue and totalV > maxValue: break
+            amount = int(order[u"amount_int"])
+            price  = int(order[u"price_int"])
+            stamp  = int(order[u"stamp"])
             value   = amount * price
             # Increase total amount and total value in currency
             totalA += amount
             totalV += value
+            if stamp < latestStamp:
+                latestStamp = stamp
             # Generate new order and append to (current) orders
             order   = lambda_add(order, amount, totalA, value, totalV)
             current.append(order)
-#        print current
+        self.latestStamp = latestStamp
         return current
 
     def _manipulateOrder(self, order,
@@ -521,90 +580,34 @@ class DepthParser(object):
             precision  = False,
             iv         = False):
         u"Update existing order with new data such as price, amount or value."
-        #print "AMOUNT IS: ",amount_int, "BTC and PRICE IS: $",price_int
-        bPrec = D("0.00000001")
+        bPrec = Decimal("0.00000001")
         if not any([price_int, amount_int, stamp, precision, iv]):
             return order
         if price_int:
+            # Converting price integer to decimal with proper length
             if precision:
-                # Converting price to decimal with proper length
-                price = D(price_int).quantize(precision)
+                # Converting amount integer to decimal with proper length
+                price = Decimal(price_int) * precision
+                price = price.quantize(precision)
                 # Saving as float for cjson encoding
-                order[0] = float(price)
+                order["price"]     = float(price)
+                order["price_int"] = price_int
             else:
                 raise AttributeError("precision")
         if amount_int:
-            # Converting amount to decimal with proper length
-            amount = D(amount_int).quantize(bPrec)
+            # Converting amount integer to decimal with proper length
+            amount = Decimal(amount_int) * bPrec
+            amount = amount.quantize(bPrec)
             # Saving as float for cjson encoding
-            order[1] = float(amount)
+            order["amount"]     = float(amount)
+            order["amount_int"] = str(amount_int)
+        if stamp:
+            # Replacing stamp
+            order["stamp"] = str(stamp)
         if iv:
-            value = iv
-            value = float(D(value).quantize(precision))
-            order.append(value)
+            # Adds BTC value in currency to result
+            value = iv * precision * bPrec
+            value = value.quantize(precision)
+            order["value"]     = float(value)
+            order["value_int"] = int(iv)
         return order
-
-    def _error(self,*args):
-        u"Prints errormessages."
-        if len(args) == 1:
-            message,arg = args[0],""
-        elif len(args) == 2:
-            message,arg = args
-        else:
-            e = "_error takes at most 3 argument (%s given)" % len(args)+1
-            raise TypeError(e)
-        print "{message} {arg}".format( message = message, arg = arg )
-
-def goxnewcalc(mtgox,args):
-# 	u"Takes arguments: (bid|ask), (btc|usd), amount, price=optional"
-    decimals=5
-    bPrec = D("0.00000001")
-    cPrec = D(D(1) / 10 ** decimals)
-    if len(args.split()) > 3:
-        kind,opts,amount,price = args.split()  
-    else: 
-        price = None
-        try:
-            kind,opts,amount = args.split()
-        except ValueError:
-            raise InputError("Expected 3 or 4 arguments, got %s" % len(args.split()))
-    amount = D(amount)
-    if price:
-        price = D(price)
-        # Create order with specified price and amount
-        if opts == 'usd':
-            # Convert amount specified in currency (value) to BTC
-            amount = amount / price
-    else:
-        # Generate order with a certain amount or value
-        side   = "bids" if kind == "ask" else "asks"
-        json   = mtgox.get_depth()
-        depth  = DepthParser(decimals)
-        depth.side  = side
-        totalamount = amount
-        totalprice = 0
-        if opts == 'btc':
-            # Get price
-            print 'How do you want to slice this list'
-            depth.steps  = raw_input()
-            depth.amount = amount
-            json  = depth.process(json, raw = False)
-            price = json["return"][side][0][0]
-            print "this is the price is opts = btc", price
-        else:
-            # Amount given in currency-value.
-            depth.value = amount
-            depth.iv    = True
-            orders  = depth.process(json, raw = False)
-            orders = orders["return"][side]
-            for order in orders:
-                # Count amount of all orders up to the last one.
-                totalprice += D(order[2])
-                totalamount  += D(order[1])
-                # Take price and the rest of the amount that's needed.
-            avgprice  = totalprice / totalamount
-    #amount, price = str(amount), str(price)
-    avgprice = price
-
-    #return self.api.add_order(kind, amount, price, currency)
-    print "kind ", kind, " totalamount ", float(totalamount), " avg price ", float(avgprice), "total price ", float(totalprice)

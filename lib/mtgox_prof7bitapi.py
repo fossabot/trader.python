@@ -471,30 +471,28 @@ class BaseClient(BaseObject):
         self.signal_recv        = Signal()
         self.signal_fulldepth   = Signal()
         self.signal_fullhistory = Signal()
-#added        
+
         self.signal_backupticker = Signal()
         self._keepalive_timer = Timer(60)
-
+        
         self.currency = gox.currency
         self.gox = gox
         self.secret = secret
         self.config = config
-        self.socket = None
+
         self.http_requests = Queue.Queue()
+        self.socket = None
         self.connected = False
-        self._recv_thread = None
-        self._http_thread = None
+        self.created = 0
         self._terminate = threading.Event()
-#changed
         self._terminate.set()
         self._time_last_received = 0
-        self.subscribe_success = False
-
+        
     def start(self):
         """start the client"""
-        self.debug("starting SocketIO client, currency=" + self.currency)
         self._terminate.clear()
         if not self.connected:
+            self.debug("Starting Client, currency=" + self.currency)
             self._recv_thread = start_thread(self._recv_thread_func)
             self._http_thread = start_thread(self._http_thread_func)
 
@@ -509,17 +507,17 @@ class BaseClient(BaseObject):
 
     def _try_send_raw(self, raw_data):
         """send raw data to the websocket or disconnect and close"""
-        if self.socket.connected:
+        if self.connected:
             try:
                 self.socket.send(raw_data)
             except Exception as exc:
                 self.debug(exc)
                 self.socket.close()
 
-    def send(self, json_str):
-        """there exist 2 subtly different ways to send a string over a
-        websocket. Each client class will override this send method"""
-        raise NotImplementedError()
+    # def send(self, json_str):
+    #     """there exist 2 subtly different ways to send a string over a
+    #     websocket. Each client class will override this send method"""
+    #     raise NotImplementedError()
 
     def get_nonce(self):
         """produce a unique nonce that is guaranteed to be ever increasing"""
@@ -545,7 +543,7 @@ class BaseClient(BaseObject):
             and then terminate. This is called in a separate thread after
             the streaming API has been connected."""
             try:
-                fdtdelta = time.time() - self.gox.fulldepth_time
+                fdtdelta = time.time() - self.gox.orderbook.fulldepth_time
                 self.debug("### Requesting /api/2/BTC" + self.currency + "/money/depth/full. Updated %.3f ago" % fdtdelta)
                 fulldepth = http_request("https://" +  self.HTTP_HOST \
                     + "/api/2/BTC" + self.currency + "/money/depth/full")
@@ -564,7 +562,7 @@ class BaseClient(BaseObject):
             and then terminate. This is called in a separate thread after
             the streaming API has been connected."""
             try:
-                fdtdelta = time.time() - self.gox.fulldepth_time
+                fdtdelta = time.time() - self.gox.orderbook.fulldepth_time
                 self.debug("### Requesting /api/2/BTC" + self.currency + "/money/depth/fetch. Updated %.3f ago" % fdtdelta)
                 fulldepth = http_request("https://" +  self.HTTP_HOST \
                     + "/api/2/BTC" + self.currency + "/money/depth/fetch")
@@ -641,10 +639,10 @@ class BaseClient(BaseObject):
 
         start_thread(getdepth_thread)        
 
-    def _recv_thread_func(self):
-        """this will be executed as the main receiving thread, each type of
-        client (websocket or socketio) will implement its own"""
-        raise NotImplementedError()
+    # def _recv_thread_func(self):
+    #     """this will be executed as the main receiving thread, each type of
+    #     client (websocket or socketio) will implement its own"""
+    #     raise NotImplementedError()
 
     def channel_subscribe(self):
         """subscribe to the needed channels and alo initiate the
@@ -662,9 +660,12 @@ class BaseClient(BaseObject):
 
         #if self.gox.client.connected == True and self.gox.client_backup.connected == True:
         if self.gox.client.connected == True or self.gox.client_backup.connected == True:
-            if self.subscribe_success == False:
+            if not(self.gox._idkey):
                 if FORCE_HTTP_API or self.config.get_bool("gox", "use_http_api"):
                     self.enqueue_http_request("money/idkey", {}, "idkey")
+            else:
+                self.debug("### already have idkey, subscribing to account messages"% self.gox_idkey)
+                self.gox.client.send(json.dumps({"op":"mtgox.subscribe", "key":self.gox._idkey}))
                     #self.debug("Calling HTTP API's for: orders/idkey/info")
                     #self.enqueue_http_request("money/orders", {}, "orders")
                     #self.enqueue_http_request("money/info", {}, "info")
@@ -678,7 +679,7 @@ class BaseClient(BaseObject):
             #     if not FORCE_NO_HISTORY:
             #         self.request_history()
 
-            fdtdelta = time.time() - self.gox.fulldepth_time
+            fdtdelta = time.time() - self.gox.orderbook.fulldepth_time
             if fdtdelta > 120:
 
                 if self.config.get_bool("gox", "load_fulldepth"):
@@ -843,12 +844,9 @@ class WebsocketClient(BaseClient):
                         self.signal_recv(self, (str_json))
 
             except Exception as exc:
-                self.debug(exc, "\n"+("\t"*6)+"Reconnecting in %i seconds..." % reconnect_time)
-                self.subscribe_success = False
-                # if self.socket:
-                #     self.socket.close()
-                #     self.connected = False
-                # self._terminate.set()
+                self.connected = False
+                self._terminate.set()
+                self.debug(exc, "\n"+("\t"*6)+"Reconnecting to WebSocket in %i seconds..." % reconnect_time)
 
     def send(self, json_str):
         """send the json encoded string over the websocket"""
@@ -974,14 +972,10 @@ class SocketIOClient(BaseClient):
                             self.signal_recv(self, (str_json))
 
             except Exception as exc:
+                self.connected = False
                 self.debug(exc.__class__.__name__, exc, "reconnecting to SocketIO...")
-                self.subscribe_success = False
                 self.gox.client_backup.start()
-                #if self.socket:
-                #    self.socket.close()
-                #    self.connected = False
-                #self._terminate.set()
-                    
+
 
     def send(self, json_str):
         """send a string to the websocket. This method will prepend it
@@ -1030,12 +1024,11 @@ class Gox(BaseObject):
         self.signal_keypress        = Signal()
         self.signal_strategy_unload = Signal()
 
-        self._idkey = ""
+        self._idkey = None
         self.wallet = {}
         self.order_lag = 0
 #added        
         self._time_last_received = 0
-        self.fulldepth_time = 0
         self.LASTTICKER = time.time() - 20
         self.LASTLAG = time.time() - 20  
 
@@ -1071,7 +1064,6 @@ class Gox(BaseObject):
     def slot_switchclient(self, _sender, _data):
         """find out if the socket is blank in regular intervals, and if it is, request new HTTP depth"""
 
-        self.fulldepth_time = self.orderbook.fulldepth_time
         silent = time.time() - self.client._time_last_received
         if silent > 60:
             if time.time() - self.client.created > 60:
@@ -1093,14 +1085,11 @@ class Gox(BaseObject):
     def start(self):
         """connect to MtGox and start receiving events."""
         self.client.start()
-        self.client.created = time.time()
 
     def stop(self):
         """shutdown the client"""
         self.client.stop()
-        self.client.created = 0
-        self.subscribe_success = False
-
+        
     def order(self, typ, price, volume):
         """place pending order. If price=0 then it will be filled at market"""
         self.client.send_order_add(typ, price, volume)
@@ -1160,8 +1149,7 @@ class Gox(BaseObject):
     def _on_op_subscribe(self, msg):
         """handle subscribe messages (op:subscribe)"""
         self.debug("subscribed channel", msg["channel"])
-        self.subscribe_success = True
-
+        
     def _on_op_unsubscribe(self, msg):
         """handle unsubscribe messages (op:unsubscribe)"""
         self.debug("unsubscribed channel", msg["channel"])        

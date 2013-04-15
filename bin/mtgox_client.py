@@ -72,7 +72,11 @@ logging.debug("### Initializing the mtgox_client.")
 gox.start()
 socketbook = gox.orderbook
 def request_socketbook():
-    print "Starting to download fulldepth from mtgox....",
+    if not socketbook.fulldepth_time == 0:
+        fdtdelta = str(time.time() - socketbook.fulldepth_time)+" ago."
+    else:
+        fdtdelta = "never."
+    print "Starting to download fulldepth from MtGox. (Last updated: %s)...." % (fdtdelta),
     while socketbook.fulldepth_downloaded == False:
         time.sleep(0.1)
     print "Finished."
@@ -118,15 +122,18 @@ def calc_fees(amount,feerate):
     return totalfees,last
 def print_calcedfees(amount,last,totalfees):
     print '%f BTC worth $%.2f USD Value total' % (amount,amount*last)
-    print 'Total Fees are $%.5f USD total @ $%.5f per BTC' % (totalfees,last)
+    print 'Total Fees are $%.5f USD @ $%.5f per BTC' % (totalfees,last)
 
 class Feesubroutine(cmd.Cmd):
+    def emptyline(self): 
+        pass                    #do nothing on a blank line.
+
     def __init__(self):
         cmd.Cmd.__init__(self)
         # The prompt for a new user input command
         self.prompt = 'Fees CMD>'
-        self.onecmd('help')
         self.doc_header = "Type back to go back."
+        self.onecmd('help')
         self.feerate = self.do_getfee(self)
         
 
@@ -256,7 +263,7 @@ class Shell(cmd.Cmd):
             if f(ask.price, targetprice):
                 n_coins += ask.volume/1E8
                 total += (ask.volume/1E8 * ask.price/1E5)
-        print "There are %.11g bitcoins offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, targetprice, total)
+        print "There are %.11g BTC offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, targetprice, total)
 
     def do_bids(self,args):
         """Calculate the amount of bitcoin demanded at or OVER(default) the <targetprice> .\n""" \
@@ -286,7 +293,7 @@ class Shell(cmd.Cmd):
             if f(bid.price, targetprice):
                 n_coins += bid.volume/1E8
                 total += (bid.volume/1E8 * bid.price/1E5)
-        print "There are %.11g bitcoins demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,targetprice, total)
+        print "There are %.11g BTC demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,targetprice, total)
 
 
     def do_balance(self,args):
@@ -360,6 +367,63 @@ class Shell(cmd.Cmd):
         except:
             printbothbooks(entirebook.asks,entirebook.bids,15)
 
+
+    def do_bookgroup(self,args):
+        """Group Order Book like on clarkmoody's by specified price increments (ie: 0.05, 1.00) """
+        """Usage: bookgroup <minprice> <maxprice> <grouping>  (ie: bookgrouping 50 150 1)"""
+        try:
+            minprice,maxprice,grouping = decimalify(args.split())
+        except:
+            minprice = D(raw_input("Min Price: "))
+            maxprice = D(raw_input("Max Price: "))
+            grouping = D(raw_input("Price Grouping: "))
+        askcumu = 0 ; bidcumu = 0
+        totalaskcumu = 0; totalbidcumu = 0
+
+        print "-"*20,"ASKS:","-"*20
+        print "Price(USD)\t  Amount(BTC)\t\tSum(Total)"
+        print "-"*45
+        reachedlastask = False ; lastprice = None
+        for ask in socketbook.asks:
+            askcumu += D(ask.volume / (1/bPrec))
+            price = D(ask.price / (1/cPrec))
+            if price > minprice and price < maxprice:
+                if price % grouping == 0:
+                    totalaskcumu += askcumu
+                    print "%10s\t%14s\t%16s" % (price,askcumu,totalaskcumu)
+                    askcumu = 0
+            else:
+                reachedlastask = True
+            if reachedlastask == True:
+                if not lastprice:
+                    lastprice = price
+                    askcumu = 0
+                totalaskcumu += askcumu         
+        print "%10s+\t%14s\t%16s" % (lastprice,askcumu,totalaskcumu) 
+
+        print "-"*20,"BIDS:","-"*20
+        print "Price(USD)\t  Amount(BTC)\t\tSum(Total)"
+        print "-"*45
+        reachedlastbid = False ; lastprice = None
+        for bid in socketbook.bids:
+            bidcumu += D(bid.volume / (1/bPrec))
+            price = D(bid.price / (1/cPrec))
+            if price > minprice and price < maxprice:
+                if price % grouping == 0:
+                    totalbidcumu += bidcumu
+                    print "%10s\t%14s\t%16s" % (price,bidcumu,totalbidcumu)
+                    bidcumu = 0
+            else:
+                reachedlastbid = True
+            if reachedlastbid == True:
+                if not lastprice:
+                    lastprice = price
+                    bidcumu = 0
+                totalbidcumu += bidcumu  
+        print "%10s-\t%14s  %16s" % (lastprice,bidcumu,totalbidcumu)
+
+
+
     def do_bookrefresh(self,length):
         """Refresh a new copy of the entire order book and then run the 'book' command to print it."""
         gox.client.request_fulldepth()
@@ -378,7 +442,8 @@ class Shell(cmd.Cmd):
 
 
     def do_btchistory(self,args):
-        """Prints out your entire history of BTC transactions"""
+        """Prints out your entire history of BTC transactions.\n""" \
+        """This wil have problems if history has anything other than USD/EUR"""
         filename = os.path.join(partialpath + 'mtgox_btchistory.csv')
         f = open(filename,'r+')
         download = prompt("Download a new history?",False)
@@ -408,11 +473,7 @@ class Shell(cmd.Cmd):
                 fulldict = {x[0]:x[1] for x in listoflist}
             fulllist.append(fulldict)
         #print fulllist
-        allfees = D('0')
-        amtbtcin = D('0')
-        valuein = D('0')
-        amtbtcout = D('0')
-        valueout = D('0')
+        allfees = D('0');  amtbtcin = D('0');  valuein = D('0');  amtbtcout = D('0'); valueout = D('0')
         for item in fulllist:
             if item["Type"] == "fee":
                 onefee = D(item["Value"])
@@ -422,7 +483,7 @@ class Shell(cmd.Cmd):
                 try:
                     price=D(info[info.find("$")+1:])
                 except:
-                    price=D(info[info.find("BTC at")+7:info.find("\xe2")-2])
+                    price=D(info[info.find("BTC at")+7:info.find("\xe2")-2])     #Written for Euros
                 amount=D(item["Value"])
             if item["Type"] == "in":
                 amtbtcin += amount
@@ -430,11 +491,42 @@ class Shell(cmd.Cmd):
             if item["Type"] == "out":
                 amtbtcout += amount
                 valueout += D(price*amount).quantize(D('0.00001'))
-        print "Sum of all fees is: %s BTC" % allfees
-        print "Sum of all BTC bought is %s BTC:" % amtbtcin
-        print "Sum of all BTC sold is: %s BTC" % amtbtcout
-        print "Value of all BTC bought is: $%s" % valuein
-        print "Value of all BTC sold is: $%s" % valueout
+        print "Sum of all fees charged as BTC is: %s BTC." % allfees
+        print "Sum of all BTC bought is: %s BTC." % amtbtcin
+        print "Sum of all BTC  sold  is: %s BTC." % amtbtcout
+        print "Value of all BTC bought is: $ %s" % valuein
+        print "Value of all BTC  sold  is: $ %s" % valueout
+        rerun = False
+        rerun = prompt("Re-run again with a certain range?",False)
+        while rerun:
+            allfees = D('0');  amtbtcin = D('0');  valuein = D('0');  amtbtcout = D('0'); valueout = D('0')
+            therange = raw_input("Enter the numbers of the range, (ie 1571-1589) : ")
+            therange = stripoffensive(therange,',-')
+            therange = therange.split('-')
+            for item in fulllist:
+                if int(item["Index"]) >= int(therange[0]) and int(item["Index"]) <= int(therange[1]):
+                    if item["Type"] == "in" or item["Type"] == "out":
+                        info = item["Info"]
+                        try:
+                            price=D(info[info.find("$")+1:])
+                        except:
+                            price=D(info[info.find("BTC at")+7:info.find("\xe2")-2])    #Written for Euros
+                        amount=D(item["Value"])
+                    if item["Type"] == "in":
+                        amtbtcin += amount
+                        valuein += D(price*amount).quantize(D('0.00001'))
+                    if item["Type"] == "out":
+                        amtbtcout += amount
+                        valueout += D(price*amount).quantize(D('0.00001'))
+            print "Sum of all BTC bought is: %s BTC." % amtbtcin
+            print "Sum of all BTC  sold  is: %s BTC." % amtbtcout
+            print "Value of all BTC bought is: $ %s" % valuein
+            print "Value of all BTC  sold  is: $ %s" % valueout
+            vwapin = valuein / amtbtcin
+            vwapout = valueout / amtbtcout
+            print "Avg(VWAP) price of buys = $ %.5f & sells = $ %.5f" % (vwapin,vwapout)
+            rerun = prompt("Re-run again with a certain range?",False)
+
 
     def do_usdhistory(self,args):
         """Prints out your entire trading history of USD transactions"""
@@ -479,9 +571,9 @@ class Shell(cmd.Cmd):
                 amtusdin+=amount
             elif item["Type"] == "spent":
                 amtusdout+=amount
-        print "Sum of all fees is: $%s USD" % allfees
-        print "Sum of all usd bought is: $%s USD" % amtusdin
-        print "Sum of all usd sold is: $%s USD" % amtusdout
+        print "Sum of all fees is: $ %s USD." % allfees
+        print "Sum of all usd earned is: $ %s USD." % amtusdin
+        print "Sum of all usd spent  is: $ %s USD." % amtusdout
 
     def do_buy(self, args):
         """(market order): buy <#BTC> \n""" \
@@ -489,7 +581,7 @@ class Shell(cmd.Cmd):
         """(spend-X market order): buy usd <#USD>         \n(specify the $ amount in #USD, and use the last ticker price-market)\n"""\
         """(spend-X limit  order): buy usd <#USD> <price> \n(same as above, but specify a price so it goes as a limit order)\n"""\
         """(spread order): buy <volume> <price_lower> <price_upper> <chunks> ['random'] \n(random makes chunk amounts slightly different)\n"""\
-        """ ^-adds a multitude of orders between price A and price B of equal volumed # of chunks on Mtgox."""
+        """ ^-adds a multitude of orders between price A and price B of equal volumed # of chunks on MtGox."""
         try:
             args = stripoffensive(args)
             args = args.split()
@@ -506,7 +598,7 @@ class Shell(cmd.Cmd):
                 newargs = (amt.quantize(bPrec),buyprice)         #get the arguments ready
             if len(newargs) in (1,2):
                 result = mtgox.order_new('bid',*newargs)
-                if result: print result["data"]
+                if result: print "Order ID is :",result["data"]
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
             else:
@@ -539,7 +631,7 @@ class Shell(cmd.Cmd):
                 newargs = (amt.quantize(bPrec),sellprice)         #get the arguments ready
             if len(newargs) in (1,2):
                 result = mtgox.order_new('ask',*newargs)
-                if result: print result["data"]
+                if result: print "Order ID is :",result["data"]
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'ask', *newargs)               #use spread logic
             else:
@@ -647,7 +739,7 @@ class Shell(cmd.Cmd):
 
 
     def do_getaddress(self,args):
-        """Generate a new personal bitcoin deposit address for your mtgox account (needs deposit priveleges to work)"""
+        """Generate a new personal bitcoin deposit address for your MtGox account (needs deposit priveleges to work)"""
         mtgox.bitcoin_address()
 
     def do_lag(self,args):
@@ -692,9 +784,9 @@ class Shell(cmd.Cmd):
             obipb,bbtc = calc_obip(socketbook.bids,amount,isBTCUSD)
             obip = (obips+obipb)/2.0
             if isBTCUSD.upper()=='USD':
-                print "The ask side was: %s BTC. The bid side was %s BTC." % (sbtc,bbtc)
+                print "%s BTC on asks side. %s BTC on bids side." % (sbtc,bbtc)
             print "The ask side OBIP was: $%.5f. The bid side OBIP was: $%.5f" % (obips,obipb)
-            print "The VWAP(OBIP) of BTC, %s %s up and down from the spread is: $%.5f USD." % (amount,isBTCUSD,obip)
+            print "The OBIP(vwap) %s %s up and down from the spread is: $%.5f USD." % (amount,isBTCUSD,obip)
 
         args = stripoffensive(args)
         args = args.split()
@@ -745,11 +837,12 @@ class Shell(cmd.Cmd):
 
 
     def do_readtickerlog(self,numlines=15):
-        """Prints the last X lines of the ticker log file"""
+        """Prints the last X lines of the mtgox ticker log file"""
+        """Usage: readtickerlog <numlines>"""
         try:
             numlines = stripoffensive(numlines)
             numlines = int(numlines)
-            with open(os.path.join(partialpath + 'mtgox_last.txt'),'r') as f:
+            with open(os.path.join(partialpath + 'mtgox_ticker.txt'),'r') as f:
                 s = tail(f,numlines)
             print s
             l = s.splitlines()
@@ -876,7 +969,7 @@ class Shell(cmd.Cmd):
                 self.onecmd('help ticker2')
 
     def do_tickerfast(self,args):
-        """Print the entire ticker out or use one of the following options:\n""" \
+        """Always has the best data. The daily data like high/low/vol/vwap/avg is only available in ticker2\n""" \
         """usage: tickerfast [buy|sell|last] """
         args = stripoffensive(args)
         ticker = mtgox.get_tickerfast()
@@ -895,7 +988,7 @@ class Shell(cmd.Cmd):
                 self.onecmd('help tickerfast')
 
 
-    def do_tradehist24(self,args):
+    def do_tradehist24h(self,args):
         """Download the entire trading history of mtgox for the past 24 hours. Write it to a file"""
         print "Starting to download entire trade history from mtgox....",
         eth = mtgox.entire_trade_history()
@@ -922,7 +1015,7 @@ class Shell(cmd.Cmd):
                 print "You need to give a high and low range: low high"
                 return
             #Log lastprice to the ticker log file
-            with open(os.path.join(partialpath + 'mtgox_last.txt'),'a') as f:
+            with open(os.path.join(partialpath + 'mtgox_ticker.txt'),'a') as f:
                 while(not tickeralert_stop.is_set()):
                     ticker = mtgox.get_tickerfast()
                     last = float(ticker['last']['value'])
