@@ -856,7 +856,7 @@ class Shell(cmd.Cmd):
             self.onecmd('help readtickerlog')
 
 
-    def do_readtradehist24(self,args):
+    def do_readtradehist24h(self,args):
         """reading trade history data from a file and gathering stats on it"""
         import tradehistory
         filetype = prompt("Is this a Trade History file (not a full depth file)?",True)

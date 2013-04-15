@@ -28,9 +28,9 @@ Just omit a price to place a market order.
 ####" " is the command name, but in the program you have to use lowercase.
 - [X] Tab completion of commands, and command history
 
-- [x] **"Buy"/"Sell"** Simple - X amount of BTC   (or in USD - add usd to the command line)
+- [x] **"Buy"/"Sell" Simple** - X amount of BTC   (or in USD - add usd to the command line)
 
-- [x] **"Buy"/"Sell"** Spread - X amount of BTC between price A and price B of equally volumed specified # of chunks (use with the word 'random' to randomize this a bit)
+- [x] **"Buy"/"Sell" Spread** - X amount of BTC between price A and price B of equally volumed specified # of chunks (use with the word 'random' to randomize this a bit)
 
 - [x] **"Orders"** - List your orders, How many, & the Average Price (TODO: upgrade to API 2)
 
@@ -40,7 +40,9 @@ Just omit a price to place a market order.
 
 - [x] **"Balance"** - Display account balance (of BTC and USD) and USD value of BTC+USD
 
-- [x] **"Ticker"** - Display ticker (sell,buy,last,vol,vwap,high,low,avg)	"the time frame for high, low, vol, avg, vwap ... is sliding 24 hours"-mtgox.
+- [x] **"Ticker"/"Ticker2"** - Display ticker (sell,buy,last,vol,vwap,high,low,avg)	"the time frame for high, low, vol, avg, vwap ... is sliding 24 hours"-mtgox.
+
+        also **"Tickerfast"** to use the most accurate ticker if there is lag (but does not give 24hour high/low/vol/avg/vwap)
 
 - [x] **"Updown"** - Log the ticker to a file; Rising/Falling Beep Tones Sequences on boundary threshhold change. (also can check logs later)
 
@@ -52,9 +54,17 @@ Just omit a price to place a market order.
 
         Mt Gox book is automatically updated with the freshest possible data by websocket(Socket.IO)
 
+        "bookfull" downloads a new full book at most once every 3 minutes from HTTP that is independent of the socketbook.
+
+        "bookquick" downloads a new quick depth from HTTP (API 0) every time the command is run (can be blank during lag)
+
+        "bookrefresh" causes the socketbook to download a new full depth and rewrite the socket order book
+
+- [x] **"Bookgroup"** - Print the order book(socketbook) with prices grouped as specified (ie: every 1.00 etc, or 0.1 0.05) with cumulative amounts (ie: ClarkMoody)
+
 - [x] **"Withdraw"** - Withdraw bitcoins to an address(needs withdraw API priveleges in your mt.gox API security settings. (Currently available on bitfloor,bitstamp and mt.gox)
 
-- [x] Generate or retrieve your **bitcoin deposit address**
+- [x] **"Getaddress"** - Generate a new bitcoin deposit address
 
 
 ###Depth Functions
@@ -79,7 +89,9 @@ Just omit a price to place a market order.
 ###Fee Submenu ("Fees")
 - [x] **"Getfee"** - Find out your current fee rate (Mt.Gox's commission)
 
-- [x] **"Calc"** - Calculate how much fees will cost on X amount
+- [x] **"Amount"** - Calculate how much fees will cost on X amount
+
+- [x] **"Price"** - Calculate the price you need to break even on a buy or sell
 
 - [x] **"Balance"** - Calculate how much fees will cost if you sold off your entire BTC Balance
 
@@ -87,14 +99,16 @@ Just omit a price to place a market order.
 
 
 ###History 
-- [x] **"btchistory"** or **"usdhistory"** - Prints out your entire trading history of BTC transactions or USD, write it to a file, and do a small analysis (fees, BTC/$in, BTC/$out)= 
+- [x] **"btchistory"** or **"usdhistory"** - Prints out your entire trading history of BTC transactions or USD, write it to a file, and do a small analysis (fees, BTC/$in, BTC/$out), and able to run analysis on a specified range to determine the VWAP buy/sell price of the trades in that range
 
-- [x] **"tradehist24"** - Download the entire trading history of everyone on Mt Gox for the past 24 hours, and write it to a file. 
+- [x] **"tradehist24h"** - Download the entire trading history of everyone on Mt Gox for the past 24 hours, and write it to a file. 
 
-- [x] **"readtradehist24"** - Analyze the above trading history file (High/low/vwap/total/amounts/times)
+- [x] **"readtradehist24h"** - Analyze the above trading history file (High/low/vwap/total/amounts/times)
 
 
 ###Automatic Bot Functions
+- [x] **"Balancenotifier"** - check balance every 30 seconds and beeps everytime your balance is added to (fully functional, and nice for day trading)
+
 - [x] **"Stopbot"** = a stop loss bot! Finally, you can set your position price, position amount, and % willing to accept on your position. ie: 5 BTC @ $149 * 98% and the bot will put a market order in IMMEDIATELY (every 2 seconds it checks if the lowest seller is below your target percentage price, and if it is, sends the order immediately)
 
         (stopbot is for only mtgox so far - it is the only one to support a true market order)
@@ -104,8 +118,6 @@ Just omit a price to place a market order.
         Also Sellwhileaway2 (both are works in progress)
 
 - [x] **"Liquidbot"** - a bot on bitfloor to add liquidity to the market by surfing the spread To take advantage of Bitfloor's 0.1% provider bonus therefore won't incur any trading fees 
-
-- [x] **"Balancenotifier"** - check balance every 30 seconds and beeps everytime your balance is added to (fully functional, and nice for day trading)
 
 
 
