@@ -38,7 +38,7 @@ import io
 from decimal import Decimal as D
 import traceback
 
-from common import UserError,ServerError
+from common import UserError,ServerError,prompt
 
 CURRENCY = "USD"
 PRODUCT = "BTC"     #maybe future litecoin implementations can work off this
@@ -120,7 +120,7 @@ class Client:
             else:
                 self.throttle()
             try:
-                nonce =  str(int(time.time()*1000))
+                nonce =  str(int(time.time()*1E6))
                 if params != None:
                     if isinstance(params, dict):
                         params = params.items()

@@ -883,10 +883,10 @@ class Shell(cmd.Cmd):
         def stoplossbot(firstarg,stop_event,amount,price,percent):
             try:
                 found = False
+                percent = percent / D('100')
                 while(not stop_event.is_set()):
-                    last = D(socketbook.ask/1E5)
-                    percent = percent / D('100')
-                    if price*percent < last:
+                    last = D(socketbook.ask)/D(1E5)
+                    if last < price*percent:
                         order = mtgox.order_new('ask',amount,protection=False)
                         lag = mtgox.lag()['lag_secs']
                         while found == False:
