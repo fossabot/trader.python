@@ -85,7 +85,9 @@ request_socketbook()
 
 # data partial path directory
 fullpath = os.path.dirname(os.path.realpath(__file__))
-if os.name == 'nt':
+if ".exe" in sys.argv[0]:
+    partialpath=os.path.join(fullpath + '\\data\\')
+elif os.name == 'nt':
     partialpath=os.path.join(fullpath + '\\..\\data\\')
 else:
     partialpath=os.path.join(fullpath + '/../data/')
@@ -134,14 +136,11 @@ class Feesubroutine(cmd.Cmd):
         self.prompt = 'Fees CMD>'
         self.doc_header = "Type back to go back."
         self.onecmd('help')
-        self.feerate = self.do_getfee(self)
+        self.feerate = get_tradefee()
         
-
     def do_getfee(self,args):
         """Print out the current trade fee"""
-        fee = get_tradefee()
-        print "Your current trading fee is: {:.2%}".format(fee)
-        return fee
+        print "Your current trading fee is: {:.2%}".format(self.feerate)
     def do_price(self,price):
         """Calculate the price you need to break even"""
         """Usage: price <price>"""
@@ -251,7 +250,6 @@ class Shell(cmd.Cmd):
                 targetprice = float(targetprice)
             except:
                 self.onecmd('help asks')
-                return
         if response == 'over':
             f = lambda price,targetprice: price >= targetprice*1E5
         else:
@@ -281,7 +279,6 @@ class Shell(cmd.Cmd):
                 targetprice = float(targetprice)
             except:
                 self.onecmd('help bids')
-                return
         if response == 'under':
             f = lambda price,targetprice: price <= targetprice*1E5
         else:
@@ -703,7 +700,6 @@ class Shell(cmd.Cmd):
                             numcancelled += 1
         except Exception as e:
             print e
-            return
 
     def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
@@ -833,7 +829,6 @@ class Shell(cmd.Cmd):
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
             print e
-            return
 
 
     def do_readtickerlog(self,numlines=15):
@@ -851,7 +846,6 @@ class Shell(cmd.Cmd):
             tickertime = j['time']
             print "Last ticker was:",datetime.datetime.fromtimestamp(tickertime).strftime("%Y-%m-%d %H:%M:%S")
             print "Current time is:",datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            return s
         except ValueError as e:
             self.onecmd('help readtickerlog')
 
@@ -895,7 +889,7 @@ class Shell(cmd.Cmd):
                             if not(response["result"] == "error"):
                                 found = True
                         avgprice = response['return']['avg_cost']['display']
-                        print "%s Sold with stop-loss @of c %s" % (order['data'],avgprice)
+                        print "\n%s Sold with stop-loss @of c %s\n" % (order['data'],avgprice)
                         stop_event.set()
                     stop_event.wait(2)
             except Exception as e:
@@ -1013,7 +1007,6 @@ class Shell(cmd.Cmd):
                 low, high = floatify(args.split())
             except Exception as e:
                 print "You need to give a high and low range: low high"
-                return
             #Log lastprice to the ticker log file
             with open(os.path.join(partialpath + 'mtgox_ticker.txt'),'a') as f:
                 while(not tickeralert_stop.is_set()):

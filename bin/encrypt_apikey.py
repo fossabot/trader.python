@@ -11,6 +11,7 @@ import random
 import os
 import getpass
 import base64
+import sys
 
 
 
@@ -36,7 +37,9 @@ def lock():
     salt = os.urandom(32)                   #requires Python 2.4  = 32 bytes or 256 bits of randomness
     """salt = hashlib.sha512(pre_salt).digest()    #hashing does not add any new randomness """
     fullpath = os.path.dirname(os.path.realpath(__file__))
-    if os.name == 'nt':
+    if ".exe" in sys.argv[0]:
+        partialpath=os.path.join(fullpath + '\\keys\\' + site)
+    elif os.name == 'nt':
         partialpath=os.path.join(fullpath + '\\..\\keys\\' + site)
     else:
         partialpath=os.path.join(fullpath + '/../keys/' + site)

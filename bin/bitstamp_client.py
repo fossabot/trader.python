@@ -30,6 +30,16 @@ cPrec = bitstamp.cPrec
 
 threadlist = {}
 
+# data partial path directory
+fullpath = os.path.dirname(os.path.realpath(__file__))
+if ".exe" in sys.argv[0]:
+    partialpath=os.path.join(fullpath + '\\data\\')
+elif os.name == 'nt':
+    partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+    partialpath=os.path.join(fullpath + '/../data/')
+
+
 #################################
 
 def bal():
