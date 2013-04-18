@@ -603,6 +603,7 @@ class Shell(cmd.Cmd):
 
                 def test_fulfil(fulfil,oid,*args):
                     breach = True
+                    whenlist[wid]['oid'] = oid
                     orders = mtgox.get_orders()['orders']
                     orders = sorted(orders, key=lambda x: float(x['price']))
                     for order in orders:
@@ -624,14 +625,17 @@ class Shell(cmd.Cmd):
                   test = test_fulfil
                   delay = 30
 
-                while not stop_event.is_set():
-                    last = D(socketbook.ask/1E5)
-                    (breach, command) = test(*args)
-                    if breach:
-                        self.onecmd(command)
-                        stop_event.set()
-                    if not stop_event.is_set():
-                        stop_event.wait(delay)
+                (breach, command) = test(*args)
+                if not breach:
+                    while not stop_event.is_set():
+                        (breach, command) = test(*args)
+                        if breach:
+                            self.onecmd(command)
+                            stop_event.set()
+                        if not stop_event.is_set():
+                            stop_event.wait(delay)
+                else:
+                    print 'Error: Dependency is already in breach (threshold or order missing)'
             except Exception as e:
                 traceback.print_exc()
                 print "An error occurred."
@@ -661,12 +665,12 @@ class Shell(cmd.Cmd):
                 targs = (None,wid,whenbot_stop) + tuple(args)
                 when_thread = threading.Thread(target = when_bot, args=targs)
                 when_thread.daemon = True
-                when_thread.start()
                 whenlist.append({
                     'command': ' '.join(args),
                     'tid': when_thread,
                     'stop': whenbot_stop
                 })
+                when_thread.start()
         except Exception as e:
             traceback.print_exc()
             print "An error occurred."
@@ -798,13 +802,20 @@ class Shell(cmd.Cmd):
                         result = mtgox.cancel_one(order['oid'])
                         if result:
                             numcancelled += 1
+                            for wid,when in enumerate(whenlist):
+                                if 'oid' in when and when['oid'] == order['oid']:
+                                    when['stop'].set()
+                                    print 'Removed dependent when command'
         except Exception as e:
             print e
 
     def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
         mtgox.cancel_all()
-
+        for wid,when in enumerate(whenlist):
+            if 'oid' in when:
+                print 'Removed dependent when command'
+                when['stop'].set()
 
     def do_depth(self,args):
         """Shortcut for the 2 depth functions in common.py\n""" \
