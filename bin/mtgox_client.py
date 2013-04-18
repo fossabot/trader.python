@@ -643,7 +643,6 @@ class Shell(cmd.Cmd):
             global when_stop
             args = stripoffensive(args)
             args = args.split()
-            newargs = tuple(decimalify(args))
             if len(args) == 0:
                 for wid,when in enumerate(whenlist):
                     print '%d: %s' % (wid, when['command'])
@@ -660,7 +659,7 @@ class Shell(cmd.Cmd):
                 whenbot_stop = threading.Event()
                 threadlist["whenbot"] = whenbot_stop
                 wid = len(whenlist)
-                targs = (None,wid,whenbot_stop) + newargs
+                targs = (None,wid,whenbot_stop) + tuple(args)
                 when_thread = threading.Thread(target = when_bot, args=targs)
                 when_thread.daemon = True
                 when_thread.start()
