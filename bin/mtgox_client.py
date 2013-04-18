@@ -5,6 +5,7 @@
 # A complete command line Client with a menu
 # Functionality _should_ be listed in README (functions in alpahabetical order)
 
+import sys
 import cmd
 import time
 import json
@@ -866,7 +867,7 @@ class Shell(cmd.Cmd):
         try:
             print "High Bid is: $", socketbook.bid/1E5
             print "Low ask is: $", socketbook.ask/1E5
-            print "The spread is: $%f" % socketbook.ask/1E5 - socketbook.bid/1E5
+            print "The spread is: $ %s" % (D(socketbook.ask)/D(1E5) - D(socketbook.bid)/D(1E5))
         except:
             self.onecmd('help spread')
 

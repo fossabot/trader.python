@@ -285,7 +285,6 @@ class Shell(cmd.Cmd):
                             print "Order not found!!"      
         except Exception as e:
             print e
-            return
 
     def do_cancelall(self,arg):
         """Cancel every single order you have on the books"""
