@@ -606,7 +606,6 @@ class Shell(cmd.Cmd):
                     orders = mtgox.get_orders()['orders']
                     orders = sorted(orders, key=lambda x: float(x['price']))
                     for order in orders:
-                        print 'assessing ' + order['oid'] + ' against ' + oid
                         if oid == order['oid']:
                             breach = False
                     command = ' '.join(args)
