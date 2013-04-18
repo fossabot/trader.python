@@ -592,7 +592,6 @@ class Shell(cmd.Cmd):
                     elif askbidlast == 'bid': 
                         key = 'buy'
                     value = float(ticker[key]['value'])
-                    print "Testing %s current value %s against %s %s" % (askbidlast,value,oper,usd)
                     if oper == '<' and value < usd: 
                         breach = True
                     elif oper == '>' and value > usd: 
@@ -606,12 +605,13 @@ class Shell(cmd.Cmd):
                     breach = True
                     orders = mtgox.get_orders()['orders']
                     orders = sorted(orders, key=lambda x: float(x['price']))
-                    print 'looking for ' + oid
                     for order in orders:
                         print 'assessing ' + order['oid'] + ' against ' + oid
                         if oid == order['oid']:
                             breach = False
                     command = ' '.join(args)
+                    if breach:
+                      print "Dependendent action: Order fulfilled: %s: Executing %s" % (oid,command)
                     return (breach,command)
 
                 cmd = args[0]
