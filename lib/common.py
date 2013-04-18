@@ -275,7 +275,7 @@ def ppdict(d):
     print "-"*40
     try:
         for key in d.keys():
-            print key,':',d[key]			
+            print key,':',d[key]      
     except:
         print d
     return d
@@ -339,3 +339,33 @@ def prompt(prompt,default):
         return True
     elif a.lower() in n:
         return False
+
+class onlyevery(object):
+    ''' Usage (decorator): @onlyevery(delay=2,block=False)
+        if block=False, will return cached values if called again within delay seconds.
+        if block=True, if called again within delay seconds, will delay for delay-last seconds '''
+    def __init__(self, delay=2, block=False):
+        self.delay = delay
+        self.block = block
+        self.cachedValue = None
+        self.cachedAt = None
+    def __call__(self, f, *args, **kwargs):
+        def wrapper(*fargs,**kw):
+            t = time.time()
+            calledTooSoon = False
+            if self.cachedAt and t - self.cachedAt < self.delay:
+                calledTooSoon = True
+            if calledTooSoon and self.block:
+                tts = self.delay
+                if self.cachedAt: tts = tts - (t - self.cachedAt)
+                time.sleep(self.delay)
+            elif calledTooSoon and self.cachedValue:
+                return self.cachedValue
+            self.cachedValue = f(*fargs, **kw)
+            self.cachedAt = time.time()
+            return self.cachedValue
+        wrapper.__name__ = f.__name__
+        wrapper.__dict__.update(f.__dict__)
+        wrapper.__doc__ = f.__doc__
+        return wrapper
+
