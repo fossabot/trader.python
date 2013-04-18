@@ -320,7 +320,7 @@ def validateboth(strng):
     return not bool(search(strng))
 
 def stripoffensive(strng,additional=""):
-    pattern = r'[^a-zA-Z0-9. <>\-]'
+    pattern = r'[^a-zA-Z0-9. ]'
     if additional:
         pattern = pattern[:-1] + additional + ']'
     new = re.sub(pattern, '', strng)

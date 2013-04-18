@@ -575,107 +575,6 @@ class Shell(cmd.Cmd):
         print "Sum of all usd earned is: $ %s USD." % amtusdin
         print "Sum of all usd spent  is: $ %s USD." % amtusdout
 
-    def do_when(self, args):
-        """(exec command with dependency on ticker): when (ask|bid|last) (<|>) (#USD) command (e.g. buy <#BTC> <price> - any command can be used)\n""" \
-        """(exec command with dependency on order fulfilment): when fulfil (#OID) command (command as above)\n""" \
-        """(cancel a dependent command): when cancel (#DEP)\n""" \
-        """(cancel all dependent commands): when cancel\n""" \
-        """(list dependent commands): when"""
-        def when_bot(firstarg,wid,stop_event,*args):
-            try:
-                def test_askbidlast(askbidlast,oper,usd,*args):
-                    breach = False
-                    value = None
-                    ticker = mtgox.get_tickerfast()
-                    key = askbidlast
-                    if askbidlast == 'ask': 
-                        key = 'sell'
-                    elif askbidlast == 'bid': 
-                        key = 'buy'
-                    value = float(ticker[key]['value'])
-                    if oper == '<' and value < usd: 
-                        breach = True
-                    elif oper == '>' and value > usd: 
-                        breach = True
-                    command = ' '.join(args)
-                    if breach:
-                      print "Dependendent action: Ticker breach: %s %s (threshold %s %s): Executing %s" % (askbidlast,value,oper,usd,command)
-                    return (breach,command)
-
-                def test_fulfil(fulfil,oid,*args):
-                    breach = True
-                    whenlist[wid]['oid'] = oid
-                    orders = mtgox.get_orders()['orders']
-                    orders = sorted(orders, key=lambda x: float(x['price']))
-                    for order in orders:
-                        if oid == order['oid']:
-                            breach = False
-                    command = ' '.join(args)
-                    if breach:
-                      print "Dependendent action: Order fulfilled: %s: Executing %s" % (oid,command)
-                    return (breach,command)
-
-                cmd = args[0]
-                test = None
-                delay = None
-
-                if cmd == 'ask' or cmd == 'bid' or cmd == 'last':
-                  test = test_askbidlast
-                  delay = 2
-                elif cmd == 'fulfil':
-                  test = test_fulfil
-                  delay = 30
-
-                (breach, command) = test(*args)
-                if not breach:
-                    while not stop_event.is_set():
-                        (breach, command) = test(*args)
-                        if breach:
-                            self.onecmd(command)
-                            stop_event.set()
-                        if not stop_event.is_set():
-                            stop_event.wait(delay)
-                else:
-                    print 'Error: Dependency is already in breach (threshold or order missing)'
-            except Exception as e:
-                traceback.print_exc()
-                print "An error occurred."
-                self.onecmd('help when')
-            del whenlist[wid]
-
-        try:
-            global when_stop
-            args = stripoffensive(args)
-            args = args.split()
-            if len(args) == 0:
-                for wid,when in enumerate(whenlist):
-                    print '%d: %s' % (wid, when['command'])
-            elif 'exit' in args[0] or 'cancel' in args[0] and len(args) == 1:
-                for wid,when in enumerate(whenlist):
-                    print 'Cancelled: %d: %s' % (wid, when['command'])
-                    when['stop'].set()
-            elif 'cancel' in args[0] and len(args) == 2:
-                cwid = int(args[1])
-                when = whenlist[cwid]
-                print 'Cancelled: %d: %s' % (cwid, when['command'])
-                when['stop'].set()
-            else:
-                whenbot_stop = threading.Event()
-                threadlist["whenbot"] = whenbot_stop
-                wid = len(whenlist)
-                targs = (None,wid,whenbot_stop) + tuple(args)
-                when_thread = threading.Thread(target = when_bot, args=targs)
-                when_thread.daemon = True
-                whenlist.append({
-                    'command': ' '.join(args),
-                    'tid': when_thread,
-                    'stop': whenbot_stop
-                })
-                when_thread.start()
-        except Exception as e:
-            traceback.print_exc()
-            print "An error occurred."
-            self.onecmd('help when')
 
     def do_buy(self, args):
         """(market order): buy <#BTC> \n""" \
@@ -1207,10 +1106,10 @@ class Shell(cmd.Cmd):
 
                 def test_fulfil(fulfil,oid,*args):
                     breach = True
+                    whenlist[wid]['oid'] = oid
                     orders = mtgox.get_orders()['orders']
                     orders = sorted(orders, key=lambda x: float(x['price']))
                     for order in orders:
-                        print 'assessing ' + order['oid'] + ' against ' + oid
                         if oid == order['oid']:
                             breach = False
                     command = ' '.join(args)
@@ -1229,14 +1128,17 @@ class Shell(cmd.Cmd):
                   test = test_fulfil
                   delay = 30
 
-                while not stop_event.is_set():
-                    last = D(socketbook.ask/1E5)
-                    (breach, command) = test(*args)
-                    if breach:
-                        self.onecmd(command)
-                        stop_event.set()
-                    if not stop_event.is_set():
-                        stop_event.wait(delay)
+                (breach, command) = test(*args)
+                if not breach:
+                    while not stop_event.is_set():
+                        (breach, command) = test(*args)
+                        if breach:
+                            self.onecmd(command)
+                            stop_event.set()
+                        if not stop_event.is_set():
+                            stop_event.wait(delay)
+                else:
+                    print 'Error: Dependency is already in breach (threshold or order missing)'
             except Exception as e:
                 traceback.print_exc()
                 print "An error occurred."
@@ -1266,12 +1168,12 @@ class Shell(cmd.Cmd):
                 targs = (None,wid,whenbot_stop) + tuple(args)
                 when_thread = threading.Thread(target = when_bot, args=targs)
                 when_thread.daemon = True
-                when_thread.start()
                 whenlist.append({
                     'command': ' '.join(args),
                     'tid': when_thread,
                     'stop': whenbot_stop
                 })
+                when_thread.start()
         except Exception as e:
             traceback.print_exc()
             print "An error occurred."
