@@ -575,8 +575,8 @@ class Shell(cmd.Cmd):
         print "Sum of all usd spent  is: $ %s USD." % amtusdout
 
     def do_when(self, args):
-        """(exec command with dependency on ticker): when (ask|bid|last) (<|>) (#USD) buy <#BTC> <price> (any command accepted)\n""" \
-        """(exec command with dependency on order fulfilment): when fulfil (#OID) buy <#BTC> <price> (and command accepted)\n""" \
+        """(exec command with dependency on ticker): when (ask|bid|last) (<|>) (#USD) command (e.g. buy <#BTC> <price> - any command can be used)\n""" \
+        """(exec command with dependency on order fulfilment): when fulfil (#OID) command (command as above)\n""" \
         """(cancel a dependent command): when cancel (#DEP)\n""" \
         """(cancel all dependent commands): when cancel\n""" \
         """(list dependent commands): when"""
