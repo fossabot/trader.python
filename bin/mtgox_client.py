@@ -16,6 +16,7 @@ import os
 import logging
 import csv
 import os
+import sys
 if os.name == 'nt':
     import winsound         #plays beeps for alerts 
     import pyreadline
