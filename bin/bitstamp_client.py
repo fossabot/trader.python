@@ -16,7 +16,8 @@ import traceback
 import logging
 import sys
 import socket
-import winsound
+if os.name == 'nt':
+  import winsound
 
 #################################
 
@@ -182,8 +183,11 @@ class Shell(cmd.Cmd):
                     last = D(bitstamp.ticker()['last'])
                     print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
                     for x in xrange(0,3):
-                        winsound.Beep(1200,1000)
-                        winsound.Beep(1800,1000)
+                        if os.name == 'nt':
+                          winsound.Beep(1200,1000)
+                          winsound.Beep(1800,1000)
+                        else:
+                          print '\a\a'
                     btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
 

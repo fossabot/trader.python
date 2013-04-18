@@ -5,16 +5,16 @@ import json
 import hashlib
 import hmac
 import time
-import winsound
 import os
-
-
 import unlock_api_key 
-
-
+if os.name == 'nt':
+  import winsound
 
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
+if os.name == 'nt':
+  partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+  partialpath=os.path.join(fullpath + '/../data/')
 BTC_api_key,BTC_api_secret,unused = unlock_api_key.unlock("btc-e") 
 
 #you must have a nonce_state_btce file located in your ..\data\ directory with an integer number inside the file  
@@ -203,8 +203,11 @@ def ac_auto(x):
             print
             if new_tot!=tot:
                 tot=new_tot
-                winsound.Beep(1000,300)
-                winsound.Beep(500,300)
+                if os.name == 'nt':
+                  winsound.Beep(1000,300)
+                  winsound.Beep(500,300)
+                else:
+                  print '\a\a'
             time.sleep(x)               
         except KeyboardInterrupt:
             print 'Canceled by user'

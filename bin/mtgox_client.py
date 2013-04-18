@@ -9,7 +9,6 @@ import cmd
 import time
 import json
 import traceback
-import winsound         #plays beeps for alerts 
 import threading        #for subthreads
 import datetime
 from decimal import Decimal as D    #renamed to D for simplicity.
@@ -22,6 +21,8 @@ from common import *
 import depthparser
 import mtgox_prof7bitapi
 import mtgoxhmac
+if os.name == 'nt':
+  import winsound       #plays beeps for alerts
 
 mtgox = mtgoxhmac.Client()
 
@@ -73,7 +74,10 @@ print "Finished."
 
 # data partial path directory
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
+if os.name == 'nt':
+  partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+  partialpath=os.path.join(fullpath + '/../data/')
 
 """
 def decideto():
@@ -275,8 +279,11 @@ class Shell(cmd.Cmd):
                     last = D(str(mtgox.get_ticker()['last']))
                     print '\nBalance: %s BTC + $%s USD = $%.5f @ $%.5f (Last)' % (btcnew,usdnew,(btcnew*last)+usdnew,last)
                     for x in xrange(0,3):
-                        winsound.Beep(1200,1000)
-                        winsound.Beep(1800,1000)
+                        if os.name == 'nt':
+                          winsound.Beep(1200,1000)
+                          winsound.Beep(1800,1000)
+                        else:
+                          print '\a\a'
                     btc,usd = btcnew,usdnew
                 notifier_stop.wait(30)
 
@@ -866,7 +873,10 @@ class Shell(cmd.Cmd):
                     elif last >= high:
                         print "ALERT!! Ticker has risen above range %s-%s. Price is now: %s" % (low,high,last)
                         for x in range(2,25):
-                            winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                            if os.name == 'nt':
+                              winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
+                            else:
+                              print '\a'
                         low = high - 0.5
                         high = low + 3
                         #decideto()
@@ -878,7 +888,10 @@ class Shell(cmd.Cmd):
                     else:
                         print "ALERT!! Ticker has fallen below range %s-%s. Price is now: %s" % (low,high,last)
                         for x in range(25,2,-1):
-                            winsound.Beep(x*100,90)
+                            if os.name == 'nt':
+                              winsound.Beep(x*100,90)
+                            else:
+                              print '\a'
                         high = low + 1
                         low = high -3
                         #decideto()

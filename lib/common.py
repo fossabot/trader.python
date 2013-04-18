@@ -29,7 +29,10 @@ class ServerError(Exception):
 
         
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
+if os.path == 'nt':
+  partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+  partialpath=os.path.join(fullpath + '/../data/')
 
 #write the FULL depth to a log file
 def writedepth(mtgox):

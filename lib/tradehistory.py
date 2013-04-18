@@ -12,7 +12,10 @@ import datetime
 import math
 
 fullpath = os.path.dirname(os.path.realpath(__file__))
-partialpath=os.path.join(fullpath + '\\..\\data\\')
+if os.name == 'nt':
+  partialpath=os.path.join(fullpath + '\\..\\data\\')
+else:
+  partialpath=os.path.join(fullpath + '/../data/')
 
 #all it does is a simple "mean" calculation
 def movavg(trades):
