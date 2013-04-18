@@ -536,7 +536,6 @@ class Shell(cmd.Cmd):
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
         except Exception as e:
             print e
-            return
 
 ######################################
 #coded for but not tested on bitstamp.
