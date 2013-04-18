@@ -17,6 +17,7 @@ import os
 import logging
 import csv
 import os
+import sys
 if os.name == 'nt':
     import winsound         #plays beeps for alerts 
     import pyreadline
@@ -135,7 +136,7 @@ class Feesubroutine(cmd.Cmd):
     def __init__(self):
         cmd.Cmd.__init__(self)
         # The prompt for a new user input command
-        self.prompt = 'Fees CMD>'
+        self.prompt = 'Fees> '
         self.doc_header = "Type back to go back."
         self.onecmd('help')
         self.feerate = get_tradefee()
@@ -198,7 +199,7 @@ class Shell(cmd.Cmd):
         #pass                   #don't re-execute the last command
     def __init__(self):
         cmd.Cmd.__init__(self)
-        self.prompt = 'MtGox CMD>'      # The prompt for a new user input commands
+        self.prompt = 'MtGox> '      # The prompt for a new user input commands
         self.onecmd('help')             #print out the possible commands (help) on first run
         
     #Shut down all threads cleanly.
@@ -574,6 +575,108 @@ class Shell(cmd.Cmd):
         print "Sum of all usd earned is: $ %s USD." % amtusdin
         print "Sum of all usd spent  is: $ %s USD." % amtusdout
 
+    def do_when(self, args):
+        """(exec command with dependency on ticker): when (ask|bid|last) (<|>) (#USD) command (e.g. buy <#BTC> <price> - any command can be used)\n""" \
+        """(exec command with dependency on order fulfilment): when fulfil (#OID) command (command as above)\n""" \
+        """(cancel a dependent command): when cancel (#DEP)\n""" \
+        """(cancel all dependent commands): when cancel\n""" \
+        """(list dependent commands): when"""
+        def when_bot(firstarg,wid,stop_event,*args):
+            try:
+                def test_askbidlast(askbidlast,oper,usd,*args):
+                    breach = False
+                    value = None
+                    ticker = mtgox.get_tickerfast()
+                    key = askbidlast
+                    if askbidlast == 'ask': 
+                        key = 'sell'
+                    elif askbidlast == 'bid': 
+                        key = 'buy'
+                    value = float(ticker[key]['value'])
+                    if oper == '<' and value < usd: 
+                        breach = True
+                    elif oper == '>' and value > usd: 
+                        breach = True
+                    command = ' '.join(args)
+                    if breach:
+                      print "Dependendent action: Ticker breach: %s %s (threshold %s %s): Executing %s" % (askbidlast,value,oper,usd,command)
+                    return (breach,command)
+
+                def test_fulfil(fulfil,oid,*args):
+                    breach = True
+                    whenlist[wid]['oid'] = oid
+                    orders = mtgox.get_orders()['orders']
+                    orders = sorted(orders, key=lambda x: float(x['price']))
+                    for order in orders:
+                        if oid == order['oid']:
+                            breach = False
+                    command = ' '.join(args)
+                    if breach:
+                      print "Dependendent action: Order fulfilled: %s: Executing %s" % (oid,command)
+                    return (breach,command)
+
+                cmd = args[0]
+                test = None
+                delay = None
+
+                if cmd == 'ask' or cmd == 'bid' or cmd == 'last':
+                  test = test_askbidlast
+                  delay = 2
+                elif cmd == 'fulfil':
+                  test = test_fulfil
+                  delay = 30
+
+                (breach, command) = test(*args)
+                if not breach:
+                    while not stop_event.is_set():
+                        (breach, command) = test(*args)
+                        if breach:
+                            self.onecmd(command)
+                            stop_event.set()
+                        if not stop_event.is_set():
+                            stop_event.wait(delay)
+                else:
+                    print 'Error: Dependency is already in breach (threshold or order missing)'
+            except Exception as e:
+                traceback.print_exc()
+                print "An error occurred."
+                self.onecmd('help when')
+            del whenlist[wid]
+
+        try:
+            global when_stop
+            args = stripoffensive(args)
+            args = args.split()
+            if len(args) == 0:
+                for wid,when in enumerate(whenlist):
+                    print '%d: %s' % (wid, when['command'])
+            elif 'exit' in args[0] or 'cancel' in args[0] and len(args) == 1:
+                for wid,when in enumerate(whenlist):
+                    print 'Cancelled: %d: %s' % (wid, when['command'])
+                    when['stop'].set()
+            elif 'cancel' in args[0] and len(args) == 2:
+                cwid = int(args[1])
+                when = whenlist[cwid]
+                print 'Cancelled: %d: %s' % (cwid, when['command'])
+                when['stop'].set()
+            else:
+                whenbot_stop = threading.Event()
+                threadlist["whenbot"] = whenbot_stop
+                wid = len(whenlist)
+                targs = (None,wid,whenbot_stop) + tuple(args)
+                when_thread = threading.Thread(target = when_bot, args=targs)
+                when_thread.daemon = True
+                whenlist.append({
+                    'command': ' '.join(args),
+                    'tid': when_thread,
+                    'stop': whenbot_stop
+                })
+                when_thread.start()
+        except Exception as e:
+            traceback.print_exc()
+            print "An error occurred."
+            self.onecmd('help when')
+
     def do_buy(self, args):
         """(market order): buy <#BTC> \n""" \
         """(limit  order): buy <#BTC> <price> \n""" \
@@ -700,13 +803,20 @@ class Shell(cmd.Cmd):
                         result = mtgox.cancel_one(order['oid'])
                         if result:
                             numcancelled += 1
+                            for wid,when in enumerate(whenlist):
+                                if 'oid' in when and when['oid'] == order['oid']:
+                                    when['stop'].set()
+                                    print 'Removed dependent when command'
         except Exception as e:
             print e
 
     def do_cancelall(self,args):
         """Cancel every single order you have on the books"""
         mtgox.cancel_all()
-
+        for wid,when in enumerate(whenlist):
+            if 'oid' in when:
+                print 'Removed dependent when command'
+                when['stop'].set()
 
     def do_depth(self,args):
         """Shortcut for the 2 depth functions in common.py\n""" \
