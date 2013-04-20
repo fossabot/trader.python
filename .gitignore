@@ -8,7 +8,7 @@ pyinstaller.bat
 bin/*.xml
 bin/*.ini
 bin/*.txt
-bin/*.log
+*.log
 bin/test/*
 _build/*
 _static/*

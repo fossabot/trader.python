@@ -27,7 +27,10 @@ class Client:
     #must already have this nonce file in ..\data\
     def nonce_generator(self):
         fullpath = os.path.dirname(os.path.realpath(__file__))
-        partialpath=os.path.join(fullpath + '\\..\\data\\')
+        if os.name == 'nt':
+          partialpath=os.path.join(fullpath + '\\..\\data\\')
+        else:
+          partialpath=os.path.join(fullpath + '/../data/')
 
         fd = open(os.path.join(partialpath + 'nonce_state_btce'),'r')
         nonce = int(fd.read())

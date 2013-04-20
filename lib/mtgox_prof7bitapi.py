@@ -522,7 +522,7 @@ class BaseClient(BaseObject):
     def get_nonce(self):
         """produce a unique nonce that is guaranteed to be ever increasing"""
         with self._nonce_lock:
-            nonce = int(time.time()*1000)
+            nonce = int(time.time()*1E6)
             if nonce <= self._last_nonce:
                 nonce = self._last_nonce + 1
             self._last_nonce = nonce
@@ -663,6 +663,8 @@ class BaseClient(BaseObject):
             if not(self.gox._idkey):
                 if FORCE_HTTP_API or self.config.get_bool("gox", "use_http_api"):
                     self.enqueue_http_request("money/idkey", {}, "idkey")
+                else:
+                    self.send_signed_call("private/idkey", {}, "idkey")
             else:
                 self.debug("### already have idkey, subscribing to account messages:")
                 self.gox.client.send(json.dumps({"op":"mtgox.subscribe", "key":self.gox._idkey}))
@@ -1071,15 +1073,15 @@ class Gox(BaseObject):
                 self.stop()
                 time.sleep(2)
                 self.start()
-                if self.client_backup._terminate.isSet() and not self.client_backup.connected:
-                    self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
-                    self.client_backup.start()
+#                if self.client_backup._terminate.isSet() and not self.client_backup.connected:
+#                    self.debug("SocketIO is NOT sending data. Starting WebSocket client.")
+#                    self.client_backup.start()
             if time.time() - self.orderbook.fulldepth_time > 20 and not(self.client_backup.connected):
                 self.client.request_fetchdepth()
                
-        elif silent <= 60 and not(self.client_backup._terminate.isSet()):
-            self.debug("SocketIO is actively sending data. Stopping WebSocket client.")
-            self.client_backup.stop()
+#        elif silent <= 60 and not(self.client_backup._terminate.isSet()):
+#            self.debug("SocketIO is actively sending data. Stopping WebSocket client.")
+#            self.client_backup.stop()
 
 
     def start(self):
