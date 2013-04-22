@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Created by genBTC 3/10/2013 Updated 4/13/2013 
+# Created by genBTC 3/10/2013 Updated 4/20/2013 
 # mtgox_client.py
 # Universal Client for all things mtgox
 # A complete command line Client with a menu
@@ -16,7 +16,6 @@ from decimal import Decimal as D    #renamed to D for simplicity.
 import os
 import logging
 import csv
-import os
 import sys
 if os.name == 'nt':
     import winsound         #plays beeps for alerts 
@@ -41,7 +40,7 @@ class LogWriter():
     """connects to gox.signal_debug and logs it all to the logfile"""
     def __init__(self, gox):
         self.gox = gox
-        logging.basicConfig(filename='goxtool.log'
+        logging.basicConfig(filename='goxclient.log'
                            ,filemode='a'
                            ,format='%(asctime)s:%(levelname)s %(message)s'
                            ,level=logging.DEBUG
@@ -379,48 +378,61 @@ class Shell(cmd.Cmd):
             grouping = D(raw_input("Price Grouping: "))
         askcumu = 0 ; bidcumu = 0
         totalaskcumu = 0; totalbidcumu = 0
-
+        curprice = D(socketbook.ask / (1/cPrec))
+        curprice = curprice + (grouping - curprice % grouping)
         print "-"*20,"ASKS:","-"*20
         print "Price(USD)\t  Amount(BTC)\t\tSum(Total)"
         print "-"*45
-        reachedlastask = False ; lastprice = None
+        first = True
         for ask in socketbook.asks:
-            askcumu += D(ask.volume / (1/bPrec))
-            price = D(ask.price / (1/cPrec))
-            if price > minprice and price < maxprice:
-                if price % grouping == 0:
+            price = D(ask.price / (1/cPrec))                
+            volume = D(ask.volume / (1/bPrec))
+            if first == True:
+                print "%10s\t%14s\t    (Current Ask)\n" % (price,volume)
+                first = False
+        
+            if price <= maxprice + grouping:
+                if price >= curprice:
                     totalaskcumu += askcumu
-                    print "%10s\t%14s\t%16s" % (price,askcumu,totalaskcumu)
+                    print "%10s\t%14s\t%16s" % (curprice-grouping,askcumu,totalaskcumu)
+                    curprice += grouping
                     askcumu = 0
-            else:
-                reachedlastask = True
-            if reachedlastask == True:
-                if not lastprice:
-                    lastprice = price
-                    askcumu = 0
-                totalaskcumu += askcumu         
-        print "%10s+\t%14s\t%16s" % (lastprice,askcumu,totalaskcumu) 
+        
+            askcumu += volume
+        totalaskcumu += askcumu
+        if len(str(askcumu)) >= 14:
+            askcumu = askcumu.quantize(D('0.001'))
+        if len(str(totalaskcumu)) >= 14:
+            totalaskcumu = totalaskcumu.quantize(D('0.001'))
+        print "%10s+\t%14s\t%16s" % (curprice-grouping,askcumu,totalaskcumu) 
 
+        curprice = D(socketbook.bid / (1/cPrec))
+        curprice = curprice - (curprice % grouping)
         print "-"*20,"BIDS:","-"*20
         print "Price(USD)\t  Amount(BTC)\t\tSum(Total)"
         print "-"*45
-        reachedlastbid = False ; lastprice = None
+        first = True
         for bid in socketbook.bids:
-            bidcumu += D(bid.volume / (1/bPrec))
-            price = D(bid.price / (1/cPrec))
-            if price > minprice and price < maxprice:
-                if price % grouping == 0:
+            price = D(bid.price / (1/cPrec))                
+            volume = D(bid.volume / (1/bPrec))
+            if first == True:
+                print "%10s\t%14s\t    (Current Bid)\n" % (price,volume)
+                first = False
+        
+            if price >= minprice - grouping:
+                if price < curprice:
                     totalbidcumu += bidcumu
-                    print "%10s\t%14s\t%16s" % (price,bidcumu,totalbidcumu)
+                    print "%10s\t%14s\t%16s" % (curprice,bidcumu,totalbidcumu)
+                    curprice -= grouping
                     bidcumu = 0
-            else:
-                reachedlastbid = True
-            if reachedlastbid == True:
-                if not lastprice:
-                    lastprice = price
-                    bidcumu = 0
-                totalbidcumu += bidcumu  
-        print "%10s-\t%14s  %16s" % (lastprice,bidcumu,totalbidcumu)
+        
+            bidcumu += volume
+        totalbidcumu += bidcumu
+        if len(str(bidcumu)) > 14:
+            bidcumu = bidcumu.quantize(D('0.001'))
+        if len(str(totalbidcumu)) > 14:
+            totalbidcumu = totalbidcumu.quantize(D('0.001'))        
+        print "%10s-\t%14s\t%16s" % (curprice,bidcumu,totalbidcumu) 
 
 
 

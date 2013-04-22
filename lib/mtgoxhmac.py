@@ -1,5 +1,5 @@
 """
-MtGoxHMAC v0.32
+MtGoxHMAC v0.33
 
 Copyright 2011 Brian Monkaba
 Modified 4/13/2013 by genBTC 
@@ -70,7 +70,6 @@ class Client:
         self.order_time_slice = 6
         self.order_timeout = 0.1
         self.order_ban = 0
-        #self.throttled = False
 
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')

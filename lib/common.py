@@ -226,7 +226,7 @@ def printOrderBooks(asks,bids,howmany=15):
 
 
 # spread trade function including Chunk Trade spread logic & Confirmation
-def spread(exchangename,exchangeobject, side, volume, price_lower, price_upper=100000,chunks=1,dorandom='',silent=False):
+def spread(exchangename,exchangeobject, side, volume, price_lower, price_upper=100000,chunks=1,dorandom='',silent=False,useSocket=False):
     """Sell some BTC between price A and price B of equal volumed chunks"""
     """Format is sell amount(BTC) price_lower price_upper chunks(#)"""
     """ie:   sell 6.4 40 41 128 = buys 6.4 BTC between $40 to $41 using 128 chunks"""
@@ -254,20 +254,28 @@ def spread(exchangename,exchangeobject, side, volume, price_lower, price_upper=1
                     randomchunk += randomness
         if silent == False:
             print '%sing... Chunk #%s = %s BTC @ $%s' % (sidedict[side],x+1,randomchunk,loop_price)
-        result = exchangeobject.order_new(side, randomchunk, loop_price)  
-        if result:
-            if not("error" in result):
-                orderids.append(result[mapdict[exchangename]])
-        else:
-            return
-        if silent == False:
+        if useSocket == False:
+            result = exchangeobject.order_new(side, randomchunk, loop_price)  
             if result:
                 if not("error" in result):
-                    print "Order submitted. orderID is: %s" % result[mapdict[exchangename]]
-                elif "error" in result:
-                    print "Order was submitted but failed because: %s" % result["error"]
+                    orderids.append(result[mapdict[exchangename]])
             else:
-                print "Order failed."
+                return
+            if silent == False:
+                if result:
+                    if not("error" in result):
+                        print "Order submitted. orderID is: %s" % result[mapdict[exchangename]]
+                    elif "error" in result:
+                        print "Order was submitted but failed because: %s" % result["error"]
+                else:
+                    print "Order failed."                
+        elif useSocket == True:
+            api = "order/add"
+            price = int(loop_price*(1/cPrec))
+            volume = int(randomchunk*(1/bPrec))
+            params = {"type": side, "price_int": price,"amount_int": volume}
+            reqid = "order_add:%s:%d:%d" % (side, price, volume)
+            exchangeobject.client.send_signed_call(api, params, reqid)
 
         loop_price += price_chunk
 

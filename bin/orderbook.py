@@ -1,27 +1,14 @@
 #!/usr/bin/env python
-# Created by genBTC 3/10/2013 Updated 4/4/2013 
-# mtgox_client.py
-# Universal Client for all things mtgox
-# A complete command line Client with a menu
-# Functionality _should_ be listed in README (functions in alpahabetical order)
+# Created by genBTC 3/10/2013 Updated 4/21/2013 
+#Just prints out the orderbook over and over.
+#makes a seperate connection to the socket to do this.
 
-import cmd
 import time
-import json
 import traceback
-import threading        #for subthreads
-import datetime
-from decimal import Decimal as D    #renamed to D for simplicity.
 import os
 import logging
-import csv
-import os
-if os.name == 'nt':
-    import winsound         #plays beeps for alerts 
 
-from book import *
 from common import *
-import depthparser
 import mtgox_prof7bitapi
 
 class LogWriter():
@@ -39,11 +26,6 @@ class LogWriter():
         console_logger.addHandler(console)        
         self.gox.signal_debug.connect(self.slot_debug)
 
-    def close(self):
-        """stop logging"""
-        #not needed
-        pass
-
     # pylint: disable=R0201
     def slot_debug(self, sender, (msg)):
         """handler for signal_debug signals"""
@@ -55,7 +37,6 @@ class LogWriter():
 
 config = mtgox_prof7bitapi.GoxConfig()
 secret = mtgox_prof7bitapi.Secret()
-#secret.decrypt(mtgox.enc_password)
 gox = mtgox_prof7bitapi.Gox(secret, config)
 logwriter = LogWriter(gox)
 gox.start()
@@ -66,7 +47,7 @@ while socketbook.fulldepth_downloaded == False:
 print "Finished."
 
 
-while True:
+while True:                                            #infinite loop
     try:
         vintage = (time.time() - socketbook.fulldepth_time)
         if vintage > 240:
@@ -77,10 +58,11 @@ while True:
             print "Finished."
         elif vintage > 60:
             gox.client.request_smalldepth()
+        os.system(['clear','cls'][os.name == 'nt'])     #stop screen from flashing
         print ""
         printOrderBooks(socketbook.asks,socketbook.bids,20)
-        time.sleep(1)
-    except KeyboardInterrupt as e:
+        time.sleep(1)                                   #refresh every 1 second
+    except KeyboardInterrupt as e:                      #catch ctrl+c to exit
         print "got Ctrl+C, trying to shut down cleanly."
         gox.stop()
         break
