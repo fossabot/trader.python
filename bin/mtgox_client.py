@@ -1135,14 +1135,16 @@ class Shell(cmd.Cmd):
                         stop_event.set()
                     if not stop_event.is_set():
                         stop_event.wait(delay)
-                    except Exception as e:
-                        traceback.print_exc()
-                        print "An error occurred in the thread."
-                        self.onecmd('help when')
-                        for cwid,whenit in enumerate(whenlist):
-                            if stop_event == whenit['stop']:
-                                print 'Deleting whenlist %d, old wid %d' % (cwid, wid);
-                                del whenlist[cwid]
+
+            except Exception as e:
+                traceback.print_exc()
+                print "An error occurred in the thread."
+                self.onecmd('help when')
+
+            for cwid,whenit in enumerate(whenlist):
+                if stop_event == whenit['stop']:
+                    print 'Deleting whenlist %d, old wid %d' % (cwid, wid);
+                    del whenlist[cwid]
 
         #main function body
         try:
