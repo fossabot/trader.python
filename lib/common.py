@@ -13,6 +13,7 @@ import decimal
 from decimal import Decimal as D
 import random
 import re
+from functools import wraps
 
 
 class UserError(Exception):
@@ -351,7 +352,7 @@ def prompt(prompt,default):
     elif a.lower() in n:
         return False
 
-class onlyevery(object):
+class onlyevery(object):    
     ''' Usage (decorator): @onlyevery(delay=2,block=False)
         if block=False, will return cached values if called again within delay seconds.
         if block=True, if called again within delay seconds, will delay for delay-last seconds '''
@@ -361,6 +362,7 @@ class onlyevery(object):
         self.cachedValue = None
         self.cachedAt = None
     def __call__(self, f, *args, **kwargs):
+        @wraps(f)
         def wrapper(*fargs,**kw):
             t = time.time()
             calledTooSoon = False
@@ -375,8 +377,5 @@ class onlyevery(object):
             self.cachedValue = f(*fargs, **kw)
             self.cachedAt = time.time()
             return self.cachedValue
-        wrapper.__name__ = f.__name__
-        wrapper.__dict__.update(f.__dict__)
-        wrapper.__doc__ = f.__doc__
         return wrapper
 
