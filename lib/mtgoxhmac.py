@@ -66,7 +66,7 @@ class Client:
         self.order_now = time.time()
         self.order_last = time.time()
         self.order_count = 0
-        self.order_limit_per_time_slice = 6
+        self.order_limit_per_time_slice = 5
         self.order_time_slice = 6
         self.order_timeout = 0.1
         self.order_ban = 0
@@ -92,7 +92,7 @@ class Client:
             if not self.order_first:
                 self.order_first = time.time()
             self.order_now = time.time()
-            print "Unix time is: ", self.order_now,
+            print("Unix time is: %.3f" % self.order_now),
             tdelta = self.order_now - self.order_last
             if tdelta > self.order_time_slice:
                 self.order_count = 0
@@ -343,8 +343,9 @@ class Client:
         return self.orders
 
     def cancel_all(self):
-        orders = self.get_orders()
-        for order in orders['orders']:
+        orders = self.get_orders()['orders']
+        orders = sorted(orders, key=lambda x: float(x['price']))
+        for order in orders:
             typ = order['type']
             ordertype="Sell" if typ == 1 else "Buy"
             oid = order['oid']

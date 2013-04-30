@@ -139,6 +139,7 @@ class Feesubroutine(cmd.Cmd):
         self.doc_header = "Type back to go back."
         self.onecmd('help')
         self.feerate = get_tradefee()
+        self.onecmd('getfee')
         
     def do_getfee(self,args):
         """Print out the current trade fee"""
@@ -452,22 +453,7 @@ class Shell(cmd.Cmd):
         except:
             printorderbookapi0(length=15)
 
-
-    def do_btchistory(self,args):
-        """Prints out your entire history of BTC transactions.\n""" \
-        """This wil have problems if history has anything other than USD/EUR"""
-        filename = os.path.join(partialpath + 'mtgox_btchistory.csv')
-        f = open(filename,'r+')
-        download = prompt("Download a new history?",False)
-        if download:
-            btchistory=mtgox.get_history_btc()
-            f.write(btchistory)
-            print "Finished writing file."
-        else:
-            btchistory = f.read()
-        f.close()
-        print "%s" % btchistory
-        csvfile = open(filename, 'rb')
+    def readcsv(self,csvfile):
         spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
         fulllist = []
         firstrow = True
@@ -484,7 +470,25 @@ class Shell(cmd.Cmd):
                 listoflist.append(onelist)
                 fulldict = {x[0]:x[1] for x in listoflist}
             fulllist.append(fulldict)
-        #print fulllist
+        return fulllist
+
+    def do_btchistory(self,args):
+        """Prints out your entire history of BTC transactions.\n""" \
+        """This wil have problems if history has anything other than USD/EUR"""
+        filename = os.path.join(partialpath + 'mtgox_btchistory.csv')
+        f = open(filename,'r+')
+        download = prompt("Download a new history?",False)
+        if download:
+            btchistory=mtgox.get_history_btc()
+            f.write(btchistory)
+            print "Finished writing file."
+        else:
+            btchistory = f.read()
+        f.close()
+        print "%s" % btchistory
+        csvfile = open(filename, 'rb')
+        fulllist = self.readcsv(csvfile)
+
         allfees = D('0');  amtbtcin = D('0');  valuein = D('0');  amtbtcout = D('0'); valueout = D('0')
         for item in fulllist:
             if item["Type"] == "fee":
@@ -554,26 +558,9 @@ class Shell(cmd.Cmd):
         f.close()
         print "%s" % usdhistory
         csvfile = open(filename, 'rb')
-        spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
-        fulllist = []
-        firstrow = True
-        for row in spamreader:
-            if firstrow == True:
-                keys = row
-                firstrow = False
-                continue
-            eachlist = []
-            itemdict = []
-            listoflist = []
-            for x in xrange(len(row)):
-                onelist = [keys[x],row[x]]
-                listoflist.append(onelist)
-                fulldict = {x[0]:x[1] for x in listoflist}
-            fulllist.append(fulldict)
-        #print fulllist
-        allfees = D('0')
-        amtusdin = D('0')
-        amtusdout = D('0')
+        fulllist = self.readcsv(csvfile)
+
+        allfees = D('0');        amtusdin = D('0');        amtusdout = D('0')
         for item in fulllist:
             if item["Type"] == "fee":
                 onefee = D(item["Value"])
@@ -697,7 +684,7 @@ class Shell(cmd.Cmd):
                 orderlist = stripoffensive(orderlist,',-')
                 if "," in orderlist:
                     orderlist = orderlist.split(',')
-                if '-' in orderlist:
+                elif '-' in orderlist:
                     userange = True
                     orderlist = orderlist.split('-')
                 else:

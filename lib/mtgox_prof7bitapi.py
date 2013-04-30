@@ -42,13 +42,12 @@ import io
 import json
 import logging
 import Queue
-import socket
-import ssl
 import time
 import traceback
 import threading
-import urllib
-import urllib2
+from urllib2 import Request as URLRequest
+from urllib2 import urlopen, HTTPError
+from urllib import urlencode
 import weakref
 import websocket
 
@@ -99,51 +98,39 @@ def float2int(value_float, currency):
     else:
         return int(value_float * 1E5)
 
-def http_request(url):
+def http_request(url, post=None, headers=None):
     """request data from the HTTP API, returns a string"""
-    request = urllib2.Request(url)
+
+    def read_gzipped(response):
+        """read data from the response object,
+        unzip if necessary, return text string"""
+        if response.info().get('Content-Encoding') == 'gzip':
+            with io.BytesIO(response.read()) as buf:
+                with gzip.GzipFile(fileobj=buf) as unzipped:
+                    data = unzipped.read()
+        else:
+            data = response.read()
+        return data
+
+    if not headers:
+        headers = {}
+    request = URLRequest(url, post, headers)
     request.add_header('Accept-encoding', 'gzip')
+    request.add_header('User-Agent:', USER_AGENT)
     data = ""
     try:
-        with contextlib.closing(urllib2.urlopen(request)) as response:
-            if response.info().get('Content-Encoding') == 'gzip':
-                with io.BytesIO(response.read()) as buf:
-                    with gzip.GzipFile(fileobj=buf) as unzipped:
-                        data = unzipped.read()
-            else:
-                data = response.read()
-        return data
-    #Try to catch a number of possible errors. 
-    except urllib2.HTTPError as e:
-        #HTTP Error ie: 500/502/503 etc
-        logging.debug('HTTP Error %s: %s' % (e.code, e.msg))
-        logging.debug("URL: %s" % (e.filename))
-        if e.fp:
-            datastring = e.fp.read()
-            if "error" in datastring:
-                if "<!DOCTYPE HTML>" in datastring:
-                    logging.debug("Error: Cloudflare - Website Currently Unavailable.")
-                elif "Order not found" in datastring:
-                    return json.loads(datastring)
-                else:
-                    logging.debug("Error: %s" % datastring)
-    except urllib2.URLError as e:
-        logging.debug("URL Error:", e)
-    except ssl.SSLError as e:
-        logging.debug("SSL Error: %s." % e)  #Read error timeout. (Removed timeout variable)
-    except Exception as e:
-        logging.debug("General Error: %s" % e)
+        with contextlib.closing(urlopen(request, post)) as res:
+            data = read_gzipped(res)
+    except HTTPError as err:
+        data = read_gzipped(err)
 
+    return data
 
-def start_thread(thread_func,args=None):
+def start_thread(thread_func):
     """start a new thread to execute the supplied function"""
-    if not args:
-        thread = threading.Thread(target=thread_func)
-    else:
-        thread = threading.Thread(target=thread_func,args=(args))
+    thread = threading.Thread(None, thread_func)
     thread.daemon = True
     thread.start()
-    logging.debug("Thread %s started" % thread)
     return thread
 
 def pretty_format(something):
@@ -339,7 +326,7 @@ class Timer(Signal):
 
 class Secret:
     """Manage the MtGox API secret. This class has methods to decrypt the
-    entries in the file and it also provides a method to create these
+    entries in the ini file and it also provides a method to create these
     entries. The methods encrypt() and decrypt() will block and ask
     questions on the command line, they are called outside the curses
     environment (yes, its a quick and dirty hack but it works for now)."""
@@ -483,13 +470,8 @@ class History(BaseObject):
         return len(self.candles)
 
 
-
 class BaseClient(BaseObject):
     """abstract base class for SocketIOClient and WebsocketClient"""
-
-    SOCKETIO_HOST = "socketio.mtgox.com"
-    WEBSOCKET_HOST = "websocket.mtgox.com"
-    HTTP_HOST = "data.mtgox.com"
 
     _last_nonce = 0
     _nonce_lock = threading.Lock()
@@ -587,7 +569,7 @@ class BaseClient(BaseObject):
             try:
                 fdtdelta = time.time() - self.gox.orderbook.fulldepth_time
                 self.debug("### Requesting /api/2/BTC" + self.currency + "/money/depth/full. Updated %.3f ago" % fdtdelta)
-                url = self.proto + "://" +  self.HTTP_HOST + "/api/2/BTC" + self.currency + "/money/depth/full"
+                url = self.proto + "://" +  HTTP_HOST + "/api/2/BTC" + self.currency + "/money/depth/full"
                 self.httpqueues[0].put(url)
                 self.starthttp.put("go")                
                 result = self.resultqueues[0].get(True)
@@ -601,7 +583,7 @@ class BaseClient(BaseObject):
             try:
                 fdtdelta = time.time() - self.gox.orderbook.fulldepth_time
                 self.debug("### Requesting /api/2/BTC" + self.currency + "/money/depth/fetch. Updated %.3f ago" % fdtdelta)
-                url = self.proto + "://" + self.HTTP_HOST + "/api/2/BTC" + self.currency + "/money/depth/fetch"
+                url = self.proto + "://" + HTTP_HOST + "/api/2/BTC" + self.currency + "/money/depth/fetch"
                 self.httpqueues[1].put(url)
                 self.starthttp.put("go")                
                 result = self.resultqueues[1].get(True)
@@ -617,7 +599,7 @@ class BaseClient(BaseObject):
                 else:
                     querystring = ""
                 self.debug("Requesting /api/2/BTC" + self.currency + "/money/trades")
-                url = self.proto + "://" + self.HTTP_HOST + "/api/2/BTC" + self.currency + "/money/trades" + querystring
+                url = self.proto + "://" + HTTP_HOST + "/api/2/BTC" + self.currency + "/money/trades" + querystring
                 self.httpqueues[2].put(url)
                 self.starthttp.put("go")
                 result = self.resultqueues[2].get(True)
@@ -630,7 +612,7 @@ class BaseClient(BaseObject):
             """request ticker using API 2 - most accurate."""
             try:
                 self.debug("Requesting /api/2/" + self.currency + "/money/ticker_fast")
-                url = self.proto + "://" + self.HTTP_HOST + "/api/2/BTC" + self.currency + "/money/ticker_fast"
+                url = self.proto + "://" + HTTP_HOST + "/api/2/BTC" + self.currency + "/money/ticker_fast"
                 self.httpqueues[3].put(url)
                 self.starthttp.put("go")
                 result = self.resultqueues[3].get(True)
@@ -644,7 +626,7 @@ class BaseClient(BaseObject):
             """request getDepth using API 0 - fastest"""
             try:
                 self.debug("Requesting /api/0/getDepth.php")
-                url = self.proto + "://" + self.HTTP_HOST + "/api/0/data/getDepth.php?Currency=" + self.currency
+                url = self.proto + "://" + HTTP_HOST + "/api/0/data/getDepth.php?Currency=" + self.currency
                 starthttp.put("go")
                 httpqueues[4].put(url)
                 result = resultqueues[4].get(True)
@@ -999,14 +981,13 @@ class SocketIO(websocket.WebSocket):
         self._handshake(hostname, port, resource, **options)
 
 
-
 class SocketIOClient(BaseClient):
     """this implements a connection to MtGox using the new socketIO protocol.
     This should replace the older plain websocket API"""
 
     def __init__(self, gox, secret, config):
         BaseClient.__init__(self, gox, secret, config)
-        self.hostname = self.SOCKETIO_HOST
+        self.hostname = SOCKETIO_HOST
         self._keepalive_timer.connect(self.slot_keepalive_timer)
 
 
@@ -1017,11 +998,8 @@ class SocketIOClient(BaseClient):
         and all received json strings are dispathed with signal_recv."""
         use_ssl = self.config.get_bool("gox", "use_ssl")
         wsp = {True: "wss://", False: "ws://"}[use_ssl]
-        reconnect_time = 0
         while not(self._terminate_recv_thread.is_set()): #loop 0 (connect, reconnect)
             try:
-                self._terminate_recv_thread.wait(reconnect_time)
-                reconnect_time = 1
                 ws_url = wsp + self.hostname + "/socket.io/1"
 
                 self.debug("trying Socket.IO: %s" % ws_url)
@@ -1034,9 +1012,6 @@ class SocketIOClient(BaseClient):
                     self.created = time.time()
                 
                 self.socket.send("1::/mtgox")
-                #self.send(json.dumps({"op":"unsubscribe", "channel":"24e67e0d-1cad-4cc0-9e7a-f8523ef460fe"}))
-                #self.send(json.dumps({"op":"unsubscribe", "channel":"d5f06780-30a8-4a48-a2f8-7ed181b4a13f"}))
-
                 self.debug(self.socket.recv())
                 self.debug(self.socket.recv())
                 self.channel_subscribe()
@@ -1044,7 +1019,8 @@ class SocketIOClient(BaseClient):
                 while not self._terminate_recv_thread.is_set(): #loop1 (read messages)
                     msg = self.socket.recv()
                     if msg == "2::":
-                        self.socket.send("2::")
+#                        self.debug("### ping -> pong")
+#                        self.socket.send("2::")
                         continue
                     prefix = msg[:10]
                     if prefix == "4::/mtgox:":
@@ -1052,11 +1028,11 @@ class SocketIOClient(BaseClient):
                         if str_json[0] == "{":
                             self._time_last_received = time.time()
                             self.signal_recv(self, (str_json))
-
             except Exception as exc:
                 self.connected = False
-                self.debug(exc.__class__.__name__, exc, "reconnecting to SocketIO...")
-
+                self.debug(exc.__class__.__name__, exc, "reconnecting in 1 seconds...")
+                self.socket.close()
+                self._terminate_recv_thread.wait(1)
     def send(self, json_str):
         """send a string to the websocket. This method will prepend it
         with the 1::/mtgox: that is needed for the socket.io protocol
@@ -1068,14 +1044,6 @@ class SocketIOClient(BaseClient):
         """send a keepalive, just to make sure our socket is not dead"""
         self._try_send_raw("2::")
         self.request_order_lag()
-
-
-
-class SocketIOBetaClient(SocketIOClient):
-    """experimental client for the beta websocket"""
-    def __init__(self, currency, secret, config):
-        SocketIOClient.__init__(self, currency, secret, config)
-        self.hostname = self.SOCKETIO_HOST_BETA
 
 
 # pylint: disable=R0902
@@ -1111,7 +1079,8 @@ class Gox(BaseObject):
 #added 
         self.cPrec = D('0.00001')
         self.bPrec = D('0.00000001')
-
+        self.last_tid = 0
+        self.count_submitted = 0  # number of submitted orders not yet acked
         self._time_last_received = 0
         self.LASTTICKER = time.time() - 20
         self.LASTLAG = time.time() - 20  
@@ -1126,7 +1095,7 @@ class Gox(BaseObject):
             timeframe = 60 * 15
         self.history = History(self, timeframe)
         self.history.signal_debug.connect(self.signal_debug)
-
+        self.history.signal_changed.connect(self.slot_history_changed)
         self.orderbook = OrderBook(self)
         self.orderbook.signal_debug.connect(self.signal_debug)
 
@@ -1139,7 +1108,6 @@ class Gox(BaseObject):
             self.client = WebsocketClient(self, secret, config)
         else:
             self.client = SocketIOClient(self, secret, config)
-
         self.client.signal_debug.connect(self.signal_debug)
         self.client.signal_recv.connect(self.slot_recv)
         self.client.signal_fulldepth.connect(self.signal_fulldepth)
@@ -1147,9 +1115,7 @@ class Gox(BaseObject):
 ##New
         self._switchclient = Timer(15)
         self._switchclient.connect(self.slot_switchclient)
-
         self.signal_backupticker.connect(self.orderbook.slot_ticker)
-
 ##Code to switch between SocketIO/websocket/HTTP ticker
     def slot_switchclient(self, _sender, _data):
         """find out if the socket is blank in regular intervals, and if it is, request new HTTP depth"""
@@ -1254,16 +1220,8 @@ class Gox(BaseObject):
 
         elif reqid == "orders":
             self.debug("### got own order list")
-            self.orderbook.reset_own()
-            for order in result:
-                if order["currency"] == self.currency:
-                    self.orderbook.add_own(Order(
-                        int(order["price"]["value_int"]),
-                        int(order["amount"]["value_int"]),
-                        order["type"],
-                        order["oid"],
-                        order["status"]
-                    ))
+            self.count_submitted = 0
+            self.orderbook.init_own(result)
             self.debug("### have %d own orders for BTC/%s" %
                 (len(self.orderbook.owns), self.currency))
 
@@ -1295,7 +1253,7 @@ class Gox(BaseObject):
             oid = result
             self.debug("### got ack for order/add:", typ, price, volume, oid)
             self.orderbook.add_own(Order(price, volume, typ, oid, "pending"))
-
+            self.count_submitted -= 1
         elif "order_cancel:" in reqid:
             # cancel request has been acked but we won't remove it from our
             # own list now because it is still active on the server.
@@ -1317,15 +1275,8 @@ class Gox(BaseObject):
             handler = getattr(self, "_on_op_private_" + private)
         except AttributeError:
             self.debug("_on_op_private() ignoring: private=%s" % private)
-
         if handler:
             handler(msg)
-
-    def _on_op_private_lag(self,msg):
-        """handle incoming ticker message (op=private, private=lag)"""
-        msg = msg["lag"]
-        lag = str(float(msg["age"] / 1E6))
-        self.debug(" lag: ",lag, "s")
 
     def _on_op_private_ticker(self, msg):
         """handle incoming ticker message (op=private, private=ticker)"""
@@ -1372,8 +1323,12 @@ class Gox(BaseObject):
         volume = int(msg["trade"]["amount_int"])
         typ = msg["trade"]["trade_type"]
 
-        self.debug("TRADE: ", typ+":", int2str(price, self.currency),"\tvol:", int2str(volume, "BTC"))
-
+#         self.debug(
+#             "trade:      ", int2str(price, self.currency),
+#             "vol:", int2str(volume, "BTC"),
+#             "type:", typ
+#         )
+        self.debug("trade: ", typ+":", int2str(price, self.currency),"\tvol:", int2str(volume, "BTC"))
         self.signal_trade(self, (date, price, volume, typ, own))
 
     def _on_op_private_user_order(self, msg):
@@ -1398,7 +1353,16 @@ class Gox(BaseObject):
         currency = balance["currency"]
         total = int(balance["value_int"])
         self.wallet[currency] = total
-        self.signal_wallet(self, ())
+        self.signal_wallet(self, None)
+
+    def _on_op_private_lag(self, msg):
+        """handle the lag message"""
+        self.order_lag = int(msg["lag"]["age"])
+        if self.order_lag < 60000000:
+            text = "%0.3f s" % (int(self.order_lag / 1000) / 1000.0)
+        else:
+            text = "%d s" % (int(self.order_lag / 1000000))
+        self.signal_orderlag(self, (self.order_lag, text))
 
     def _on_op_remark(self, msg):
         """handler for op=remark messages"""
@@ -1407,6 +1371,9 @@ class Gox(BaseObject):
             if msg["message"] == "Invalid call":
                 self._on_invalid_call(msg)
                 return
+            if msg["message"] == "Order not found":
+                self._on_order_not_found(msg)
+                return
 
         # we should log this, helps with debugging
         self.debug(msg)
@@ -1414,7 +1381,7 @@ class Gox(BaseObject):
     def _on_invalid_call(self, msg):
         """this comes as an op=remark message and is a strange mystery"""
         # Workaround: Maybe a bug in their server software,
-        # I don't know whats missing. Its all poorly documented :-(
+        # I don't know what's missing. Its all poorly documented :-(
         # Sometimes some API calls fail the first time for no reason,
         # if this happens just send them again. This happens only
         # somtimes (10%) and sending them again will eventually succeed.
@@ -1452,6 +1419,17 @@ class Gox(BaseObject):
         else:
             self.debug("_on_invalid_call() ignoring:", msg)
 
+    def _on_order_not_found(self, msg):
+        """this means we have sent order/cancel with non-existing oid"""
+        parts = msg["id"].split(":")
+        oid = parts[1]
+        self.debug("### got 'Order not found' for", oid)
+        # we are now going to fake a user_order message (the one we
+        # obviously missed earlier) that will have the effect of
+        # removing the order cleanly.
+        fakemsg = {"user_order": {"oid": oid}}
+        self._on_op_private_user_order(fakemsg)
+
 
 class Order:
     """represents an order in the orderbook"""
@@ -1477,6 +1455,7 @@ class OrderBook(BaseObject):
         self.gox = gox
 
         self.signal_changed = Signal()
+        self.signal_owns_changed = Signal()
 #added to delay startup of main program until its downloaded and this variable is True.
         self.fulldepth_downloaded = False
         self.fulldepth_time = 0
@@ -1503,16 +1482,19 @@ class OrderBook(BaseObject):
         self.ask = ask
         self._repair_crossed_asks(ask)
         self._repair_crossed_bids(bid)
-        self.signal_changed(self, ())
+        self.signal_changed(self, None)
 
     def slot_depth(self, dummy_sender, data):
         """Slot for signal_depth, process incoming depth message"""
         (typ, price, _voldiff, total_vol) = data
+        toa, tob = self.total_ask, self.total_bid
         if typ == "ask":
             self._update_asks(price, total_vol)
         if typ == "bid":
             self._update_bids(price, total_vol)
-        self.signal_changed(self, ())
+
+        if (toa, tob) != (self.total_ask, self.total_bid):
+            self.signal_changed(self, None)          
 
     def slot_trade(self, dummy_sender, data):
         """Slot for signal_trade event, process incoming trade messages.
@@ -1552,7 +1534,7 @@ class OrderBook(BaseObject):
                 if len(self.bids):
                     self.bid = self.bids[0].price
 
-        self.signal_changed(self, ())
+        self.signal_changed(self, None)
 
     def slot_user_order(self, dummy_sender, data):
         """Slot for signal_userorder, process incoming user_order mesage"""
@@ -1594,7 +1576,8 @@ class OrderBook(BaseObject):
                     "status:", status)
                 self.owns.append(Order(price, volume, typ, oid, status))
 
-        self.signal_changed(self, ())
+        self.signal_changed(self, None)
+        self.signal_owns_changed(self, None)
 
     def slot_fulldepth(self, dummy_sender, data):
         """Slot for signal_fulldepth, process received fulldepth data.
@@ -1624,7 +1607,7 @@ class OrderBook(BaseObject):
 #added this        
         self.fulldepth_downloaded = True
         self.fulldepth_time = time.time()
-        self.signal_changed(self, ())
+        self.signal_changed(self, None)
         time.sleep(0.2)
         self.fulldepth_downloaded = False
 
@@ -1717,7 +1700,6 @@ class OrderBook(BaseObject):
         """returns the sum of the volume of own orders at a given price"""
         volume = 0
         for order in self.owns:
-            print "order price is %s, price we are checking is %s" % (order.price,price)
             if order.price == price:
                 volume += order.volume
         return volume
@@ -1729,16 +1711,40 @@ class OrderBook(BaseObject):
                 return True
         return False
 
-    def reset_own(self):
-        """clear all own orders"""
+    def init_own(self, own_orders):
+        """called by gox when the initial order list is downloaded,
+        this will happen after connect or reconnect"""
         self.owns = []
-        self.signal_changed(self, ())
+        if own_orders:
+            for order in own_orders:
+                if order["currency"] == self.gox.currency:
+                    self._add_own(Order(
+                        int(order["price"]["value_int"]),
+                        int(order["amount"]["value_int"]),
+                        order["type"],
+                        order["oid"],
+                        order["status"]
+                    ))
+
+        self.signal_changed(self, None)
+        self.signal_owns_changed(self, None)
 
     def add_own(self, order):
+        """called by gox when a new order has been acked
+        after it has been submitted. This is a separate method because
+        we need to fire the *_changed signals when this happens"""
+        self._add_own(order)
+        self.signal_changed(self, None)
+        self.signal_owns_changed(self, None)
+
+    def _add_own(self, order):
         """add order to the list of own orders. This method is used
-        by the Gox object only during initial download of complete
-        order list, all subsequent updates will then be done through
-        the event methods slot_user_order and slot_trade"""
+        only during initial download of complete order list. This will also
+        add dummy levels in the bids and asks list to make them visible in the
+        UI even if they are not yet officially "open" on the server and
+        therefore not yet in the official orderbook. All subsequent updates
+        of the owns list will be done through the event method slot_user_order
+        """
 
         def insert_dummy(lst, is_ask):
             """insert an empty (volume=0) dummy order into the bids or asks
@@ -1769,5 +1775,3 @@ class OrderBook(BaseObject):
                 insert_dummy(self.asks, True)
             if order.typ == "bid":
                 insert_dummy(self.bids, False)
-
-            self.signal_changed(self, ())
