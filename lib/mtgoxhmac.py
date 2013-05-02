@@ -352,7 +352,7 @@ class Client:
             params = {"oid":str(oid)}
             result = self.request(PAIR + "/money/order/cancel", params, API_VERSION=2)
             print '%s OID: %s Successfully Cancelled!' % (ordertype,oid)
-        if orders['orders']:
+        if orders:
             print "All Orders have been Cancelled!!!!!"
             self.orders = result
         else:

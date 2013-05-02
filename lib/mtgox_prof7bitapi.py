@@ -1472,6 +1472,7 @@ class OrderBook(BaseObject):
 
         self.bid = 0
         self.ask = 0
+        self.last_trade = Order(0,0,"","","")
         self.total_bid = 0
         self.total_ask = 0
 
@@ -1533,7 +1534,7 @@ class OrderBook(BaseObject):
                             self._update_total_bid(voldiff, price)
                 if len(self.bids):
                     self.bid = self.bids[0].price
-
+        self.last_trade = Order(price,volume,typ,dummy_date,"last_trade")
         self.signal_changed(self, None)
 
     def slot_user_order(self, dummy_sender, data):

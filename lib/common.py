@@ -265,7 +265,7 @@ def spread(exchangename,exchangeobject, side, volume, price_lower, price_upper=1
             if silent == False:
                 if result:
                     if not("error" in result):
-                        print "Order submitted. orderID is: %s" % result[mapdict[exchangename]]
+                        print "Order ID is : %s" % result[mapdict[exchangename]]
                     elif "error" in result:
                         print "Order was submitted but failed because: %s" % result["error"]
                 else:

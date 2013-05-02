@@ -31,7 +31,9 @@ import mtgoxhmac
 mtgox = mtgoxhmac.Client()
 
 bPrec = mtgox.bPrec
+ibPrec = 1 / bPrec
 cPrec = mtgox.cPrec
+icPreac = 1 / cPrec
 
 threadlist = {}
 whenlist = []
@@ -254,16 +256,16 @@ class Shell(cmd.Cmd):
             except:
                 self.onecmd('help asks')
         if response == 'over':
-            f = lambda price,targetprice: price >= targetprice*1E5
+            f = lambda price,targetprice: price >= targetprice*icPrec
         else:
-            f = lambda price,targetprice: price <= targetprice*1E5
+            f = lambda price,targetprice: price <= targetprice*icPrec
         n_coins = 0.0
         total = 0.0
 
         for ask in reversed(socketbook.asks):
             if f(ask.price, targetprice):
-                n_coins += ask.volume/1E8
-                total += (ask.volume/1E8 * ask.price/1E5)
+                n_coins += ask.volume/ibPrec
+                total += (ask.volume/ibPrec * ask.price/icPrec)
         print "There are %.11g BTC offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, targetprice, total)
 
     def do_bids(self,args):
@@ -283,16 +285,16 @@ class Shell(cmd.Cmd):
             except:
                 self.onecmd('help bids')
         if response == 'under':
-            f = lambda price,targetprice: price <= targetprice*1E5
+            f = lambda price,targetprice: price <= targetprice*icPrec
         else:
-            f = lambda price,targetprice: price >= targetprice*1E5
+            f = lambda price,targetprice: price >= targetprice*icPrec
         n_coins = 0.0
         total = 0.0
 
         for bid in socketbook.bids:
             if f(bid.price, targetprice):
-                n_coins += bid.volume/1E8
-                total += (bid.volume/1E8 * bid.price/1E5)
+                n_coins += bid.volume/ibPrec
+                total += (bid.volume/ibPrec * bid.price/icPrec)
         print "There are %.11g BTC demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,targetprice, total)
 
 
@@ -471,6 +473,11 @@ class Shell(cmd.Cmd):
                 fulldict = {x[0]:x[1] for x in listoflist}
             fulllist.append(fulldict)
         return fulllist
+    def printbtc(self,amtbtcin,amtbtcout,valuein,valueout):
+        print "Sum of all BTC bought is: %s BTC." % amtbtcin
+        print "Sum of all BTC  sold  is: %s BTC." % amtbtcout
+        print "Value of all BTC bought is: $ %s" % valuein
+        print "Value of all BTC  sold  is: $ %s" % valueout
 
     def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions.\n""" \
@@ -508,10 +515,7 @@ class Shell(cmd.Cmd):
                 amtbtcout += amount
                 valueout += D(price*amount).quantize(D('0.00001'))
         print "Sum of all fees charged as BTC is: %s BTC." % allfees
-        print "Sum of all BTC bought is: %s BTC." % amtbtcin
-        print "Sum of all BTC  sold  is: %s BTC." % amtbtcout
-        print "Value of all BTC bought is: $ %s" % valuein
-        print "Value of all BTC  sold  is: $ %s" % valueout
+        printbtc(amtbtcin,amtbtcout,valuein,valueout)
         rerun = False
         rerun = prompt("Re-run again with a certain range?",False)
         while rerun:
@@ -535,9 +539,7 @@ class Shell(cmd.Cmd):
                         amtbtcout += amount
                         valueout += D(price*amount).quantize(D('0.00001'))
             print "Sum of all BTC bought is: %s BTC." % amtbtcin
-            print "Sum of all BTC  sold  is: %s BTC." % amtbtcout
-            print "Value of all BTC bought is: $ %s" % valuein
-            print "Value of all BTC  sold  is: $ %s" % valueout
+            printbtc(amtbtcin,amtbtcout,valuein,valueout)
             vwapin = valuein / amtbtcin
             vwapout = valueout / amtbtcout
             print "Avg(VWAP) price of buys = $ %.5f & sells = $ %.5f" % (vwapin,vwapout)
@@ -648,6 +650,9 @@ class Shell(cmd.Cmd):
         try:
             orders = mtgox.get_orders()['orders']
             orders = sorted(orders, key=lambda x: float(x['price']))
+            if not orders:
+                print "No Orders found!!"
+                return
             numorder = 0
             numcancelled = 0            
             useargs = False
@@ -704,7 +709,8 @@ class Shell(cmd.Cmd):
                             for wid,when in enumerate(whenlist):
                                 if 'oid' in when and when['oid'] == order['oid']:
                                     when['stop'].set()
-                                    print 'Removed dependent when command'
+                                    print 'Removed order fulfill when command'
+                                    del whenlist[wid]
         except Exception as e:
             print e
 
@@ -713,8 +719,9 @@ class Shell(cmd.Cmd):
         mtgox.cancel_all()
         for wid,when in enumerate(whenlist):
             if 'oid' in when:
-                print 'Removed dependent when command'
+                print 'Removed order fulfill when command'
                 when['stop'].set()
+                del whenlist[wid]
 
     def do_depth(self,args):
         """Shortcut for the 2 depth functions in common.py\n""" \
@@ -768,21 +775,21 @@ class Shell(cmd.Cmd):
                 if isBTCUSD.upper()=='BTC':
                     for x in l:
                         if totalBTC < amount:
-                            totalBTC+=(x.volume/1E8)
-                            totalprice+=(x.price/1E5) * (x.volume/1E8)
+                            totalBTC+=(x.volume/ibPrec)
+                            totalprice+=(x.price/icPrec) * (x.volume/ibPrec)
                             if totalBTC >= amount:
-                                totalprice-=(totalBTC-amount) * (x.price/1E5)
+                                totalprice-=(totalBTC-amount) * (x.price/icPrec)
                                 totalBTC=amount
                                 obip=(totalprice/totalBTC)
                 else:
                     for x in l:
                         if totalprice < amount:
-                            totalBTC+=(x.volume/1E8)
-                            totalprice+=(x.price/1E5) * (x.volume/1E8)
+                            totalBTC+=(x.volume/ibPrec)
+                            totalprice+=(x.price/icPrec) * (x.volume/ibPrec)
                             if totalprice >= amount:
-                                overBTC = (totalprice-amount) / (x.price/1E5)
+                                overBTC = (totalprice-amount) / (x.price/icPrec)
                                 totalBTC -= overBTC
-                                totalprice -= (x.price/1E5) * overBTC
+                                totalprice -= (x.price/icPrec) * overBTC
                                 obip=(totalprice/totalBTC)
                 return obip,totalBTC
 
@@ -837,6 +844,7 @@ class Shell(cmd.Cmd):
                 sellavg = D(selltotal/amtsells).quantize(cPrec)
             print "There are %s Buys. There are %s Sells" % (numbuys,numsells)
             print "Avg Buy Price: $%s. Avg Sell Price: $%s" % (buyavg,sellavg)
+            print "%s BTC in all Buys. %s BTC in all Sells." % (amtbuys,amtsells)
         except Exception as e:
             print e
 
@@ -873,9 +881,9 @@ class Shell(cmd.Cmd):
     def do_spread(self,args):
         """Print out the bid/ask spread"""
         try:
-            print "High Bid is: $", socketbook.bid/1E5
-            print "Low ask is: $", socketbook.ask/1E5
-            print "The spread is: $ %s" % (D(socketbook.ask)/D(1E5) - D(socketbook.bid)/D(1E5))
+            print "High Bid is: $", socketbook.bid/icPrec
+            print "Low ask is: $", socketbook.ask/icPrec
+            print "The spread is: $ %s" % (D(socketbook.ask)/D(icPrec) - D(socketbook.bid)/D(icPrec))
         except:
             self.onecmd('help spread')
 
@@ -889,10 +897,10 @@ class Shell(cmd.Cmd):
                 found = False
                 percent = percent / D('100')
                 while(not stop_event.is_set()):
-                    last = D(socketbook.ask)/D(1E5)
+                    last = D(socketbook.ask)/D(icPrec)
                     if last < price*percent:
                         order = mtgox.order_new('ask',amount,protection=False)
-                        lag = mtgox.lag()['lag_secs']
+                        lag = gox.order_lag/1E6
                         while found == False:
                             stop_event.wait(lag)
                             response = mtgox.get_ask_history(order['data'])
@@ -1035,7 +1043,7 @@ class Shell(cmd.Cmd):
                             if os.name == 'nt':
                                 winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
                             else:
-                                print '\a\a\a\a\a\a'
+                                print '\a\a\a\a\a\a'     #ascii beeps
                         low = high - 0.5
                         high = low + 3
                         #decideto()
@@ -1050,7 +1058,7 @@ class Shell(cmd.Cmd):
                             if os.name == 'nt':
                                 winsound.Beep(x*100,90)  #frequency(Hz),duration(ms)
                             else:
-                                print '\a\a\a\a\a\a'
+                                print '\a\a\a\a\a\a'    #ascii beeps
                         high = low + 1
                         low = high -3
                         #decideto()
@@ -1077,26 +1085,23 @@ class Shell(cmd.Cmd):
 
 
     def do_when(self, args):
-        """(exec command with dependency on ticker): when (ask|bid|last) (<|>) (#USD) command (e.g. buy <#BTC> <price> - any command can be used)\n""" \
-        """(exec command with dependency on order fulfillment): when fulfill (#OID) command (command as above)\n""" \
-        """(cancel a dependent command): when cancel (#DEP)\n""" \
-        """(cancel all dependent commands): when cancel\n""" \
-        """(list dependent commands): when"""
+        """when <ask|bid|last> (<|>) (#USD) <command> (any command can be used e.g. buy <#BTC> <price>)\n""" \
+        """when fulfill <#OID> <command> (command as above)\n""" \
+        """when cancel (#WhenID) - cancel one, or without WhenID, cancel all. \n"""
+    
         #dependent test function 1 
         def test_askbidlast(askbidlast,oper,usd,*args):
             breach = False; value = None; message = ""
-            ticker = mtgox.get_tickerfast()
-            key={"ask":"sell","bid":"buy","last":"last"}
+            ticker = {"ask":socketbook.ask/(1/cPrec),"bid":socketbook.bid/(1/cPrec),"last":socketbook.last_trade.price/(1/cPrec)}
             usd = D(usd)
-            value = D(ticker[key[askbidlast]]['value'])
-            if oper == '<' and value < usd: 
-                breach = True
-            elif oper == '>' and value > usd: 
+            value = D(ticker[askbidlast])
+            if (oper == '<' and value < usd) or (oper == '>' and value > usd): 
                 breach = True
             command = ' '.join(args)
             if breach:
-                message = "Dependent action: Ticker breach: %s %s (threshold %s %s): Executing %s" % (askbidlast,value,oper,usd,command)
+                message = "Ticker breach: %s %s %s %s, Dependent action Executing %s" % (askbidlast,value,oper,usd,command)
             return (breach,command,message)
+
         #dependent test function 2
         def test_fulfill(fulfill,oid,*args):
             breach = True; message = ""
@@ -1108,8 +1113,16 @@ class Shell(cmd.Cmd):
                     breach = False
             command = ' '.join(args)
             if breach:
-                message = "Dependent action: Order fulfilled: %s: Executing %s" % (oid,command)
+                message = "Order fulfilled: %s, Dependent action Executing %s" % (oid,command)
             return (breach,command,message)
+
+        #cancel one or all "when"s
+        def when_cancel(whenlist,wid=None):
+            for cwid,when in enumerate(whenlist):
+                if cwid == wid or wid == None:
+                    print 'Cancelled: %d: %s' % (cwid, when['command'])
+                    when['stop'].set()
+                    del whenlist[cwid]
 
         #thread function
         def when_bot(firstarg,wid,stop_event,test,delay,*args):
@@ -1124,63 +1137,76 @@ class Shell(cmd.Cmd):
                         stop_event.wait(delay)
 
             except Exception as e:
+                #Should not happen.
                 traceback.print_exc()
                 print "An error occurred in the thread."
                 self.onecmd('help when')
 
-            for cwid,whenit in enumerate(whenlist):
-                if stop_event == whenit['stop']:
-                    print 'Deleting whenlist %d, old wid %d' % (cwid, wid);
-                    del whenlist[cwid]
+            #once it completes, delete itself.
+            when_cancel(whenlist,wid)
+
 
         #main function body
         try:
+            added = False
             global when_stop
-            args = stripoffensive(args,"<>\-")
+            args = stripoffensive(args,"<>\-")      #clean input
             args = args.split()
             if len(args) == 0:
+                #List any existing "when"s
                 for wid,when in enumerate(whenlist):
                     print '%d: %s' % (wid, when['command'])
             elif 'exit' in args[0] or 'cancel' in args[0] and len(args) == 1:
-                for wid,when in enumerate(whenlist):
-                    print 'Cancelled: %d: %s' % (wid, when['command'])
-                    when['stop'].set()
+                #Cancel ALL "when"s
+                when_cancel(whenlist)
             elif 'cancel' in args[0] and len(args) == 2:
-                cwid = int(args[1])
-                when = whenlist[cwid]
-                print 'Cancelled: %d: %s' % (cwid, when['command'])
-                when['stop'].set()
+                #Cancel ONE "when"
+                when_cancel(whenlist,int(args[1]))
             else:
+                #OK, add new "when"
                 if args[0] in ('ask','bid','last'):
                     test = test_askbidlast
                     delay = 2
                 elif args[0] in ('fulfil','fulfill'): 
                     test = test_fulfill
                     delay = 30
-
+                else:
+                    print "Error: Invalid when command."
+                    return
+                # prepare thread
+                whenbot_stop = threading.Event()
+                threadlist["whenbot"] = whenbot_stop
+                wid = len(whenlist)
+                targs = (None,wid,whenbot_stop,test,delay) + tuple(args)
+                when_thread = threading.Thread(target = when_bot, args=targs)
+                when_thread.daemon = True
+                #add command to whenlist
+                whenlist.append({
+                    'command': ' '.join(args),
+                    'tid': when_thread,
+                    'stop': whenbot_stop
+                })
+                added = True
+                #run command one time to check if already breached
                 (breach,command,message) = test(*args)
                 if breach:
                     print 'Error: Dependency is already breached! (or order not found)' 
                     anyway = prompt("Execute command anyway?",False)
                     if anyway:
                         self.onecmd(command)
+                    else:
+                        when_cancel(whenlist,len(whenlist)-1)   #remove last when item
                 else:
-                    whenbot_stop = threading.Event()
-                    threadlist["whenbot"] = whenbot_stop
-                    wid = len(whenlist)
-                    targs = (None,wid,whenbot_stop,test,delay) + tuple(args)
-                    when_thread = threading.Thread(target = when_bot, args=targs)
-                    when_thread.daemon = True
+                    #OK, start the new thread, for the new "when"
                     when_thread.start()
-                    whenlist.append({
-                        'command': ' '.join(args),
-                        'tid': when_thread,
-                        'stop': whenbot_stop
-                    })
+                added = False
 
         except Exception as e:
+            if added == True:
+                when_cancel(whenlist,len(whenlist)-1)     #remove last when item
+            #Shouldn't happen. Safety net.
             traceback.print_exc()
-            print "An error occurred."
+            print "An unknown error occurred."
             self.onecmd('help when')
 
     def do_withdraw(self,args):
@@ -1196,7 +1222,7 @@ class Shell(cmd.Cmd):
             amount = D(raw_input("Enter the amount of BTC to withdraw: "))
         else:
             amount,_ = bal()
-        mtgox.bitcoin_withdraw(address,amount*D(1E8),fee*D(1E8))
+        mtgox.bitcoin_withdraw(address,amount*D(ibPrec),fee*D(ibPrec))
 
 
     def do_EOF(self,args):        #exit out if Ctrl+Z is pressed
