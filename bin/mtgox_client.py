@@ -713,7 +713,7 @@ class Shell(cmd.Cmd):
                                     del whenlist[wid]
         except Exception as e:
             print e
-            
+
     def remove_orderfulfillwhen(self):
         for wid,when in enumerate(whenlist):
             if 'oid' in when:
@@ -724,28 +724,26 @@ class Shell(cmd.Cmd):
     def do_cancelall(self,args):
         """Cancel every single order you have on the books (uses HTTP)"""
         mtgox.cancel_all()
-        remove_orderfulfillwhen()
+        self.remove_orderfulfillwhen()
 
     def do_cancelsells(self,args):
         """Cancel any/all Sell orders (uses the websocket)"""
         yes = gox.cancel_by_type("ask")
         if yes:
             print "Any Sell Orders Have Been Cancelled!"
-            remove_orderfulfillwhen()
 
     def do_cancelbuys(self,args):
         """Cancel any/all Buy orders (uses the websocket)""" 
         yes = gox.cancel_by_type("bid")
         if yes:
             print "Any Buy Orders Have Been Cancelled!"
-            remove_orderfulfillwhen()
 
     def do_cancelboth(self,args):
         """Cancel every order. (uses the websocket)""" 
         yes = gox.cancel_by_type()
         if yes:
             "Any Buy OR Sell Orders Have Been Cancelled"
-            remove_orderfulfillwhen()
+            self.remove_orderfulfillwhen()
 
     def do_cancelunfunded(self,args):
         """Removes any orders that are completely unfunded."""
