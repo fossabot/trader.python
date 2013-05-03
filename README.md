@@ -1,10 +1,13 @@
 #trader.python customized by genBTC 
-(trades on Mt. Gox, Bitfloor,BTC-E & Bitstamp). (hard coded for USD)
+(trades on Mt. Gox, Bitfloor,BTC-E & Bitstamp).(Bitfloor has shut down) (hard coded for USD)
 
+Please read this README, don't skim it.
 Most instructions are included in the source code(as docstrings) or by typing "help command" . Python Instructions (and Windows instructions) are located at the bottom of this README
+Another project of mine: GoxGUI: https://github.com/genbtc/goxgui
 
 ------------------------------------------
 ## Includes frameworks (libs) for Mt.Gox, Bitfloor, BTC-E, Bitstamp
+## Individual clients for each exchange (not possible for universal client at this time)
 ## All scripts located in bin\
 ## API Framework located in lib\
 ## Simple Example files in example\
@@ -37,6 +40,14 @@ Just omit a price to place a market order.
 - [x] **"Cancel"** - Cancel a single order (or a range (ie order #1-#20)) - sorted by price and numbered for convenience. no need to use the order_id UUID.
 
 - [x] **"Cancelall"** - Cancel ALL orders at once.
+
+CancelUnFunded
+
+CancelHalfFunded
+
+CancelBuys
+
+CancelSells
 
 - [x] **"Balance"** - Display account balance (of BTC and USD) and USD value of BTC+USD
 
@@ -89,13 +100,13 @@ Just omit a price to place a market order.
 ###Fee Submenu ("Fees")
 - [x] **"Getfee"** - Find out your current fee rate (Mt.Gox's commission)
 
+- [x] **"Fee"** (On Bitstamp) - Calculate your current trade fee based on past 30 day history and find out how far you are to your next fee tier
+
 - [x] **"Amount"** - Calculate how much fees will cost on X amount
 
 - [x] **"Price"** - Calculate the price you need to break even on a buy or sell
 
 - [x] **"Balance"** - Calculate how much fees will cost if you sold off your entire BTC Balance
-
-- [x] **"Fee"** (On Bitstamp) - Calculate your current trade fee based on past 30 day history and find out how far you are to your next fee tier
 
 
 ###History 
@@ -107,6 +118,11 @@ Just omit a price to place a market order.
 
 
 ###Automatic Bot Functions
+- [x] **"When"** - 1) When ask/bid/last price is < or > a set price, execute a command of your choosing
+
+        2) When an Order ID is fulfilled, execute any command (maybe another order for example, for linked Orders)
+
+
 - [x] **"Balancenotifier"** - check balance every 30 seconds and beeps everytime your balance is added to (fully functional, and nice for day trading)
 
 - [x] **"Stopbot"** = a stop loss bot! Finally, you can set your position price, position amount, and % willing to accept on your position. ie: 5 BTC @ $149 * 98% and the bot will put a market order in IMMEDIATELY (every 2 seconds it checks if the lowest seller is below your target percentage price, and if it is, sends the order immediately)

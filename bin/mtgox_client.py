@@ -683,7 +683,7 @@ class Shell(cmd.Cmd):
                     orderlist = ""
                     orderlist = raw_input("Which order numbers would you like to cancel?: [ENTER] quits.\n")
                 if orderlist == "":
-                    if numcancelled > 1:
+                    if numcancelled >= 1:
                         print "%s Orders have been Cancelled!!!!!" % numcancelled
                     break
                 orderlist = stripoffensive(orderlist,',-')
@@ -713,15 +713,101 @@ class Shell(cmd.Cmd):
                                     del whenlist[wid]
         except Exception as e:
             print e
-
-    def do_cancelall(self,args):
-        """Cancel every single order you have on the books"""
-        mtgox.cancel_all()
+            
+    def remove_orderfulfillwhen(self):
         for wid,when in enumerate(whenlist):
             if 'oid' in when:
                 print 'Removed order fulfill when command'
                 when['stop'].set()
                 del whenlist[wid]
+
+    def do_cancelall(self,args):
+        """Cancel every single order you have on the books (uses HTTP)"""
+        mtgox.cancel_all()
+        remove_orderfulfillwhen()
+
+    def do_cancelsells(self,args):
+        """Cancel any/all Sell orders (uses the websocket)"""
+        yes = gox.cancel_by_type("ask")
+        if yes:
+            print "Any Sell Orders Have Been Cancelled!"
+            remove_orderfulfillwhen()
+
+    def do_cancelbuys(self,args):
+        """Cancel any/all Buy orders (uses the websocket)""" 
+        yes = gox.cancel_by_type("bid")
+        if yes:
+            print "Any Buy Orders Have Been Cancelled!"
+            remove_orderfulfillwhen()
+
+    def do_cancelboth(self,args):
+        """Cancel every order. (uses the websocket)""" 
+        yes = gox.cancel_by_type()
+        if yes:
+            "Any Buy OR Sell Orders Have Been Cancelled"
+            remove_orderfulfillwhen()
+
+    def do_cancelunfunded(self,args):
+        """Removes any orders that are completely unfunded."""
+        try:
+            orders = mtgox.get_orders()['orders']
+            orders = sorted(orders, key=lambda x: float(x['price']))
+            if not orders:
+                print "No Orders found!!"
+                return
+            numcancelled = 0
+            for order in orders:
+                if order['status'] == 0 and order['oid'][0] != 'X':         #if un-funded:
+                    numcancelled += 1
+                    cancelresult = mtgox.cancel_one(order['oid'])
+                    if cancelresult.get("error"):
+                        print "Cancelling Order Failed for some reason!"
+            if numcancelled >= 1:
+                print "%s Orders have been Cancelled!!!!!" % numcancelled
+    
+        except Exception as e:
+            print e        
+
+    def do_cancelhalffunded(self,args):
+        """Fixes half-funded orders by removing the unfunded part and re-ordering the funded part"""
+        try:
+            orders = mtgox.get_orders()['orders']
+            orders = sorted(orders, key=lambda x: float(x['price']))
+            if not orders:
+                print "No Orders found!!"
+                return
+            replaceorders = []
+            numcancelled = 0
+            everythingDone = False
+            while everythingDone == False:
+                for numorder,order in enumerate(orders):
+                    if order['status'] == 0 and order['oid'][0] == 'X':        #if half-funded:
+                        numcancelled += 1
+                        ordertype="ask" if order['type'] == 1 else "bid"
+                        canceloid = order['oid'][1:]
+                        cancelresult = mtgox.cancel_one(canceloid)
+                        if cancelresult.get("error"):
+                            print "Cancelling Order Failed for some reason!"
+                        else:
+                            index = numorder+1 if ordertype == "ask" else numorder-1
+                            replaceorders.append((ordertype,
+                                orders[index]['amount'],orders[index]['price']))
+                    else:
+                        everythingDone = True
+                for order in replaceorders:
+                    orderresult = mtgox.order_new(order[0], D(order[1]), D(order[2]))
+                    if orderresult:
+                        if not("error" in orderresult):
+                            print "Order ID is : %s" % orderresult["data"]
+                        else:
+                            print "Order was submitted but failed because: %s" % orderresult["error"]
+                    else:
+                        print "Order failed."
+            if numcancelled >= 1:
+                print "%s Orders have been Cancelled!!!!!" % numcancelled
+    
+        except Exception as e:
+            print e        
 
     def do_depth(self,args):
         """Shortcut for the 2 depth functions in common.py\n""" \

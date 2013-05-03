@@ -69,9 +69,9 @@ def readhist24():
         loopcount = 2
         condition = ("bid","ask")
     else:
-        word = ("ALL:")
+        word = ["ALL:"]
         loopcount = 1
-        condition = ("bidask")
+        condition = ["bidask"]
     for count in xrange(0,loopcount):
         print "-"*40
         print word[count]

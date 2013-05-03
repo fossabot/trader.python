@@ -19,3 +19,4 @@ index.rst
 make.bat
 Makefile
 bin/mtgox_client.spec
+bot/*
