@@ -33,7 +33,7 @@ mtgox = mtgoxhmac.Client()
 bPrec = mtgox.bPrec
 ibPrec = 1 / bPrec
 cPrec = mtgox.cPrec
-icPreac = 1 / cPrec
+icPrec = 1 / cPrec
 
 threadlist = {}
 whenlist = []
@@ -438,7 +438,6 @@ class Shell(cmd.Cmd):
         print "%10s-\t%14s\t%16s" % (curprice,bidcumu,totalbidcumu) 
 
 
-
     def do_bookrefresh(self,length):
         """Refresh a new copy of the entire order book and then run the 'book' command to print it."""
         gox.client.request_fulldepth()
@@ -478,6 +477,19 @@ class Shell(cmd.Cmd):
         print "Sum of all BTC  sold  is: %s BTC." % amtbtcout
         print "Value of all BTC bought is: $ %s" % valuein
         print "Value of all BTC  sold  is: $ %s" % valueout
+        #the follow doesn't print anything if amounts are 0 thus causing a divide by 0 exception
+        try:
+            vwapin = valuein / amtbtcin
+            print "Avg(VWAP) price of Buys = ",
+            print "$ %f." % vwapin
+        except:
+            pass
+        try:
+            vwapout = valueout / amtbtcout
+            print "Avg(VWAP) price of Sells = ",
+            print "$ %f" % vwapout
+        except:
+            pass
 
     def do_btchistory(self,args):
         """Prints out your entire history of BTC transactions.\n""" \
@@ -515,10 +527,9 @@ class Shell(cmd.Cmd):
                 amtbtcout += amount
                 valueout += D(price*amount).quantize(D('0.00001'))
         print "Sum of all fees charged as BTC is: %s BTC." % allfees
-        printbtc(amtbtcin,amtbtcout,valuein,valueout)
-        rerun = False
-        rerun = prompt("Re-run again with a certain range?",False)
-        while rerun:
+        self.printbtc(amtbtcin,amtbtcout,valuein,valueout)
+        rerun = True
+        while prompt("Re-run again with a certain range?",False):
             allfees = D('0');  amtbtcin = D('0');  valuein = D('0');  amtbtcout = D('0'); valueout = D('0')
             therange = raw_input("Enter the numbers of the range, (ie 1571-1589) : ")
             therange = stripoffensive(therange,',-')
@@ -538,13 +549,7 @@ class Shell(cmd.Cmd):
                     if item["Type"] == "out":
                         amtbtcout += amount
                         valueout += D(price*amount).quantize(D('0.00001'))
-            print "Sum of all BTC bought is: %s BTC." % amtbtcin
-            printbtc(amtbtcin,amtbtcout,valuein,valueout)
-            vwapin = valuein / amtbtcin
-            vwapout = valueout / amtbtcout
-            print "Avg(VWAP) price of buys = $ %.5f & sells = $ %.5f" % (vwapin,vwapout)
-            rerun = prompt("Re-run again with a certain range?",False)
-
+            self.printbtc(amtbtcin,amtbtcout,valuein,valueout)
 
     def do_usdhistory(self,args):
         """Prints out your entire trading history of USD transactions"""
