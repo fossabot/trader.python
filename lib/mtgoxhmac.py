@@ -340,7 +340,6 @@ class Client:
             print 'OID: %s Successfully Cancelled!' % (oid)
         else:
             print "Order not found!!"
-        return self.orders
 
     def cancel_all(self):
         orders = self.get_orders()['orders']
@@ -350,14 +349,16 @@ class Client:
             ordertype="Sell" if typ == 1 else "Buy"
             oid = order['oid']
             params = {"oid":str(oid)}
-            result = self.request(PAIR + "/money/order/cancel", params, API_VERSION=2)
-            print '%s OID: %s Successfully Cancelled!' % (ordertype,oid)
+            if oid[0] != 'X':
+                result = self.request(PAIR + "/money/order/cancel", params, API_VERSION=2)
+                if result.get("result") == 'success':
+                    print '%s OID: %s Successfully Cancelled!' % (ordertype,oid)
+                else:
+                    print "Cancelling Order Failed for some reason!"
         if orders:
             print "All Orders have been Cancelled!!!!!"
-            self.orders = result
         else:
             print "No Orders found!!"
-        return self.orders
 
 #EXPERIMENTAL API
 

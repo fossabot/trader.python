@@ -708,14 +708,14 @@ class Shell(cmd.Cmd):
                     elif str(numorder) in orderlist:
                         cancel = True
                     if cancel == True:
+                        for wid,when in enumerate(whenlist):
+                            if 'oid' in when and when['oid'] == order['oid']:
+                                when['stop'].set()
+                                print 'Removed related order fulfill when command'
+                                del whenlist[wid]
                         result = mtgox.cancel_one(order['oid'])
                         if result:
-                            numcancelled += 1
-                            for wid,when in enumerate(whenlist):
-                                if 'oid' in when and when['oid'] == order['oid']:
-                                    when['stop'].set()
-                                    print 'Removed order fulfill when command'
-                                    del whenlist[wid]
+                            numcancelled += 1                        
         except Exception as e:
             print e
 
@@ -728,8 +728,8 @@ class Shell(cmd.Cmd):
 
     def do_cancelall(self,args):
         """Cancel every single order you have on the books (uses HTTP)"""
-        mtgox.cancel_all()
         self.remove_orderfulfillwhen()
+        mtgox.cancel_all()
 
     def do_cancelsells(self,args):
         """Cancel any/all Sell orders (uses the websocket)"""
