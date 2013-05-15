@@ -31,9 +31,7 @@ import mtgoxhmac
 mtgox = mtgoxhmac.Client()
 
 bPrec = mtgox.bPrec
-ibPrec = 1 / bPrec
 cPrec = mtgox.cPrec
-icPrec = 1 / cPrec
 
 threadlist = {}
 whenlist = []
@@ -256,16 +254,16 @@ class Shell(cmd.Cmd):
             except:
                 self.onecmd('help asks')
         if response == 'over':
-            f = lambda price,targetprice: price >= targetprice*icPrec
+            f = lambda price,targetprice: price*cPrec >= targetprice
         else:
-            f = lambda price,targetprice: price <= targetprice*icPrec
-        n_coins = 0.0
-        total = 0.0
+            f = lambda price,targetprice: price*cPrec <= targetprice
+        n_coins = D('0')
+        total = D('0')
 
         for ask in reversed(socketbook.asks):
             if f(ask.price, targetprice):
-                n_coins += ask.volume/ibPrec
-                total += (ask.volume/ibPrec * ask.price/icPrec)
+                n_coins += ask.volume*bPrec
+                total += (ask.volume*bPrec * ask.price*cPrec)
         print "There are %.11g BTC offered at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response, targetprice, total)
 
     def do_bids(self,args):
@@ -285,16 +283,16 @@ class Shell(cmd.Cmd):
             except:
                 self.onecmd('help bids')
         if response == 'under':
-            f = lambda price,targetprice: price <= targetprice*icPrec
+            f = lambda price,targetprice: price*cPrec <= targetprice
         else:
-            f = lambda price,targetprice: price >= targetprice*icPrec
-        n_coins = 0.0
-        total = 0.0
+            f = lambda price,targetprice: price*cPrec >= targetprice
+        n_coins = D('0')
+        total = D('0')
 
         for bid in socketbook.bids:
             if f(bid.price, targetprice):
-                n_coins += bid.volume/ibPrec
-                total += (bid.volume/ibPrec * bid.price/icPrec)
+                n_coins += bid.volume*bPrec
+                total += (bid.volume*bPrec * bid.price*cPrec)
         print "There are %.11g BTC demanded at or %s %s USD, worth $%.2f USD in total."  % (n_coins,response,targetprice, total)
 
 
@@ -381,15 +379,15 @@ class Shell(cmd.Cmd):
             grouping = D(raw_input("Price Grouping: "))
         askcumu = 0 ; bidcumu = 0
         totalaskcumu = 0; totalbidcumu = 0
-        curprice = D(socketbook.ask / (1/cPrec))
+        curprice = D(socketbook.ask*cPrec)
         curprice = curprice + (grouping - curprice % grouping)
         print "-"*20,"ASKS:","-"*20
         print "Price(USD)\t  Amount(BTC)\t\tSum(Total)"
         print "-"*45
         first = True
         for ask in socketbook.asks:
-            price = D(ask.price / (1/cPrec))                
-            volume = D(ask.volume / (1/bPrec))
+            price = D(ask.price*cPrec)
+            volume = D(ask.volume*bPrec)
             if first == True:
                 print "%10s\t%14s\t    (Current Ask)\n" % (price,volume)
                 first = False
@@ -409,15 +407,15 @@ class Shell(cmd.Cmd):
             totalaskcumu = totalaskcumu.quantize(D('0.001'))
         print "%10s+\t%14s\t%16s" % (curprice-grouping,askcumu,totalaskcumu) 
 
-        curprice = D(socketbook.bid / (1/cPrec))
+        curprice = D(socketbook.bid*cPrec)
         curprice = curprice - (curprice % grouping)
         print "-"*20,"BIDS:","-"*20
         print "Price(USD)\t  Amount(BTC)\t\tSum(Total)"
         print "-"*45
         first = True
         for bid in socketbook.bids:
-            price = D(bid.price / (1/cPrec))                
-            volume = D(bid.volume / (1/bPrec))
+            price = D(bid.price*cPrec)
+            volume = D(bid.volume*bPrec)
             if first == True:
                 print "%10s\t%14s\t    (Current Bid)\n" % (price,volume)
                 first = False
@@ -512,7 +510,7 @@ class Shell(cmd.Cmd):
         for item in fulllist:
             if item["Type"] == "fee":
                 onefee = D(item["Value"])
-                allfees += onefee.quantize(D('0.00000001'))
+                allfees += onefee.quantize(bPrec)
             if item["Type"] == "in" or item["Type"] == "out":
                 info = item["Info"]
                 try:
@@ -522,10 +520,10 @@ class Shell(cmd.Cmd):
                 amount=D(item["Value"])
             if item["Type"] == "in":
                 amtbtcin += amount
-                valuein += D(price*amount).quantize(D('0.00001'))
+                valuein += D(price*amount).quantize(cPrec)
             if item["Type"] == "out":
                 amtbtcout += amount
-                valueout += D(price*amount).quantize(D('0.00001'))
+                valueout += D(price*amount).quantize(cPrec)
         print "Sum of all fees charged as BTC is: %s BTC." % allfees
         self.printbtc(amtbtcin,amtbtcout,valuein,valueout)
         rerun = True
@@ -545,10 +543,10 @@ class Shell(cmd.Cmd):
                         amount=D(item["Value"])
                     if item["Type"] == "in":
                         amtbtcin += amount
-                        valuein += D(price*amount).quantize(D('0.00001'))
+                        valuein += D(price*amount).quantize(cPrec)
                     if item["Type"] == "out":
                         amtbtcout += amount
-                        valueout += D(price*amount).quantize(D('0.00001'))
+                        valueout += D(price*amount).quantize(cPrec)
             self.printbtc(amtbtcin,amtbtcout,valuein,valueout)
 
     def do_usdhistory(self,args):
@@ -571,7 +569,7 @@ class Shell(cmd.Cmd):
         for item in fulllist:
             if item["Type"] == "fee":
                 onefee = D(item["Value"])
-                allfees += onefee.quantize(D('0.00001'))
+                allfees += onefee.quantize(cPrec)
             amount=D(item["Value"])
             if item["Type"] == "earned":
                 amtusdin+=amount
@@ -858,29 +856,29 @@ class Shell(cmd.Cmd):
         """Usage: obip <width> [BTC/USD] \n""" \
 
         def obip(amount,isBTCUSD="BTC"):
-            amount = float(amount)
+            amount = D(amount)
             def calc_obip(l,amount,isBTCUSD="BTC"):
-                totalBTC, totalprice = 0,0
+                totalBTC = 0;  totalprice = 0
                 if isBTCUSD.upper()=='BTC':
                     for x in l:
                         if totalBTC < amount:
-                            totalBTC+=(x.volume/ibPrec)
-                            totalprice+=(x.price/icPrec) * (x.volume/ibPrec)
+                            totalBTC+=(x.volume*bPrec)
+                            totalprice+=(x.price * x.volume) * (cPrec*bPrec)
                             if totalBTC >= amount:
-                                totalprice-=(totalBTC-amount) * (x.price/icPrec)
+                                totalprice-=(totalBTC-amount) * (x.price*cPrec)
                                 totalBTC=amount
                                 obip=(totalprice/totalBTC)
                 else:
                     for x in l:
                         if totalprice < amount:
-                            totalBTC+=(x.volume/ibPrec)
-                            totalprice+=(x.price/icPrec) * (x.volume/ibPrec)
+                            totalBTC+=(x.volume*bPrec)
+                            totalprice+=(x.price * x.volume) * (cPrec*bPrec)
                             if totalprice >= amount:
-                                overBTC = (totalprice-amount) / (x.price/icPrec)
+                                overBTC = (totalprice-amount) / (x.price*cPrec)
                                 totalBTC -= overBTC
-                                totalprice -= (x.price/icPrec) * overBTC
+                                totalprice -= (x.price*cPrec) * overBTC
                                 obip=(totalprice/totalBTC)
-                return obip,totalBTC
+                return float(obip),float(totalBTC)
 
             obips,sbtc = calc_obip(socketbook.asks,amount,isBTCUSD)
             obipb,bbtc = calc_obip(socketbook.bids,amount,isBTCUSD)
@@ -970,9 +968,9 @@ class Shell(cmd.Cmd):
     def do_spread(self,args):
         """Print out the bid/ask spread"""
         try:
-            print "High Bid is: $", socketbook.bid/icPrec
-            print "Low ask is: $", socketbook.ask/icPrec
-            print "The spread is: $ %s" % (D(socketbook.ask)/D(icPrec) - D(socketbook.bid)/D(icPrec))
+            print "High Bid is: $", socketbook.bid*cPrec
+            print "Low ask is: $", socketbook.ask*cPrec
+            print "The spread is: $", (socketbook.ask - socketbook.bid)*cPrec
         except:
             self.onecmd('help spread')
 
@@ -986,7 +984,7 @@ class Shell(cmd.Cmd):
                 found = False
                 percent = percent / D('100')
                 while(not stop_event.is_set()):
-                    last = D(socketbook.ask)/D(icPrec)
+                    last = D(socketbook.ask)*cPrec
                     if last < price*percent:
                         order = mtgox.order_new('ask',amount,protection=False)
                         lag = gox.order_lag/1E6
@@ -1181,7 +1179,7 @@ class Shell(cmd.Cmd):
         #dependent test function 1 
         def test_askbidlast(askbidlast,oper,usd,*args):
             breach = False; value = None; message = ""
-            ticker = {"ask":socketbook.ask/(1/cPrec),"bid":socketbook.bid/(1/cPrec),"last":socketbook.last_trade.price/(1/cPrec)}
+            ticker = {"ask":socketbook.ask*cPrec,"bid":socketbook.bid*cPrec,"last":socketbook.last_trade.price*cPrec}
             usd = D(usd)
             value = D(ticker[askbidlast])
             if (oper == '<' and value < usd) or (oper == '>' and value > usd): 
