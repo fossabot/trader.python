@@ -328,7 +328,7 @@ class Client:
             price_int = int(D(price) * (1/self.cPrec))
             params["price_int"] = price_int
         response = self.request(PAIR + "/money/order/add", params, API_VERSION=2)
-        if response["result"] == "success":
+        if response.get("result") == "success":
             return response
         else:
             return None
@@ -336,10 +336,11 @@ class Client:
     def cancel_one(self,oid):
         params = {"oid":str(oid)}
         result = self.request(PAIR + "/money/order/cancel", params, API_VERSION=2)
-        if result["result"] == "success":
+        if result.get("result") == "success":
             print 'OID: %s Successfully Cancelled!' % (oid)
         else:
             print "Order not found!!"
+        return result
 
     def cancel_all(self):
         orders = self.get_orders()['orders']

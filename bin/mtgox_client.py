@@ -607,7 +607,8 @@ class Shell(cmd.Cmd):
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'bid', *newargs)               #use spread logic
             else:
-                raise UserError
+                raise UserError("Invalid args given!!! Proper use is:")
+                self.onecmd('help buy')
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
@@ -640,7 +641,8 @@ class Shell(cmd.Cmd):
             elif len(newargs) >= 4:
                 spread('mtgox',mtgox,'ask', *newargs)               #use spread logic
             else:
-                raise UserError
+                raise UserError("Invalid args given!!! Proper use is:")
+                self.onecmd('help sell')
         except Exception as e:
             traceback.print_exc()
             print "Invalid args given!!! Proper use is:"
@@ -748,26 +750,26 @@ class Shell(cmd.Cmd):
             "Any Buy OR Sell Orders Have Been Cancelled"
             self.remove_orderfulfillwhen()
 
-    def do_cancelunfunded(self,args):
-        """Removes any orders that are completely unfunded."""
-        try:
-            orders = mtgox.get_orders()['orders']
-            orders = sorted(orders, key=lambda x: float(x['price']))
-            if not orders:
-                print "No Orders found!!"
-                return
-            numcancelled = 0
-            for order in orders:
-                if order['status'] == 0 and order['oid'][0] != 'X':         #if un-funded:
-                    numcancelled += 1
-                    cancelresult = mtgox.cancel_one(order['oid'])
-                    if cancelresult.get("error"):
-                        print "Cancelling Order Failed for some reason!"
-            if numcancelled >= 1:
-                print "%s Orders have been Cancelled!!!!!" % numcancelled
+    # def do_cancelunfunded(self,args):
+    #     """Removes any orders that are completely unfunded."""
+    #     try:
+    #         orders = mtgox.get_orders()['orders']
+    #         orders = sorted(orders, key=lambda x: float(x['price']))
+    #         if not orders:
+    #             print "No Orders found!!"
+    #             return
+    #         numcancelled = 0
+    #         for order in orders:
+    #             if order['status'] == 0 and order['oid'][0] != 'X':         #if un-funded:
+    #                 numcancelled += 1
+    #                 cancelresult = mtgox.cancel_one(order['oid'])
+    #                 if cancelresult.get("error"):
+    #                     print "Cancelling Order Failed for some reason!"
+    #         if numcancelled >= 1:
+    #             print "%s Orders have been Cancelled!!!!!" % numcancelled
     
-        except Exception as e:
-            print e        
+    #     except Exception as e:
+    #         print e        
 
     def do_cancelhalffunded(self,args):
         """Fixes half-funded orders by removing the unfunded part and re-ordering the funded part"""
@@ -798,7 +800,7 @@ class Shell(cmd.Cmd):
                 for order in replaceorders:
                     orderresult = mtgox.order_new(order[0], D(order[1]), D(order[2]))
                     if orderresult:
-                        if not("error" in orderresult):
+                        if not(orderresult.get("error")):
                             print "Order ID is : %s" % orderresult["data"]
                         else:
                             print "Order was submitted but failed because: %s" % orderresult["error"]
@@ -853,23 +855,21 @@ class Shell(cmd.Cmd):
         """Calculate the "order book implied price", by finding the weighted\n""" \
         """average price of coins <width> BTC up and down from the spread.\n""" \
         """Order book implied price. Weighted avg price of BTC <width> up and down from the spread.\n""" \
-        """Usage: obip <width> [BTC/USD] \n""" \
-
+        """Usage: obip <width> [BTC/USD] \n"""
         def obip(amount,isBTCUSD="BTC"):
-            amount = D(amount)
-            def calc_obip(l,amount,isBTCUSD="BTC"):
+            def calc_obip(depth,amount,isBTCUSD="BTC"):
                 totalBTC = 0;  totalprice = 0
-                if isBTCUSD.upper()=='BTC':
-                    for x in l:
+                if isBTCUSD.upper()=="BTC":
+                    for x in depth:
                         if totalBTC < amount:
                             totalBTC+=(x.volume*bPrec)
                             totalprice+=(x.price * x.volume) * (cPrec*bPrec)
                             if totalBTC >= amount:
                                 totalprice-=(totalBTC-amount) * (x.price*cPrec)
                                 totalBTC=amount
-                                obip=(totalprice/totalBTC)
+                                break
                 else:
-                    for x in l:
+                    for x in depth:
                         if totalprice < amount:
                             totalBTC+=(x.volume*bPrec)
                             totalprice+=(x.price * x.volume) * (cPrec*bPrec)
@@ -877,9 +877,10 @@ class Shell(cmd.Cmd):
                                 overBTC = (totalprice-amount) / (x.price*cPrec)
                                 totalBTC -= overBTC
                                 totalprice -= (x.price*cPrec) * overBTC
-                                obip=(totalprice/totalBTC)
+                                break
+                obip=(totalprice/totalBTC)
                 return float(obip),float(totalBTC)
-
+            amount = D(amount)
             obips,sbtc = calc_obip(socketbook.asks,amount,isBTCUSD)
             obipb,bbtc = calc_obip(socketbook.bids,amount,isBTCUSD)
             obip = (obips+obipb)/2.0

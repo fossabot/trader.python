@@ -100,11 +100,11 @@ def readhist24():
             howbig = raw_input("Enter how many BTC above which you want to search for: ")
             print "  List of Whale Transactions (bigger than %s BTC): " % howbig
             print "  ","-"*35
-        for x in newnew:
-            if x["trade_type"] in loopcondition:
-                if x['amount'] >= int(howbig):
-                    time = datetime.datetime.fromtimestamp(x['tid']/1E6).strftime("%H:%M:%S")
-                    print "%f BTC @ $%f, %s, %s" % (x['amount'],x['price'],x['properties'],time)
+            for x in newnew:
+                if x["trade_type"] in loopcondition:
+                    if x['amount'] >= int(howbig):
+                        time = datetime.datetime.fromtimestamp(x['tid']/1E6).strftime("%H:%M:%S")
+                        print "%f BTC @ $%f, %s, %s" % (x['amount'],x['price'],x['properties'],time)
 
 
 #vari = common.variance((x['price'] for x in newnew),avgprice)
@@ -116,7 +116,7 @@ def readdepth():
     with open(os.path.join(partialpath + filetoopen),'r') as f:
         everything = f.readlines()
 
-    everything[0],everything[1] = everything[1],everything[0]
+    #everything[0],everything[1] = everything[1],everything[0]
 
     new = json.loads(everything[0])
     newnew = common.floatify(new["data"])

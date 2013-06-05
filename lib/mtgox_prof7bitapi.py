@@ -703,13 +703,13 @@ class BaseClient(BaseObject):
             if not(self.gox._idkey):
                 if FORCE_HTTP_API or self.config.get_bool("gox", "prefer_http_api"):
                     self.enqueue_http_to_socket("money/idkey", {}, "idkey")
-                    self.enqueue_http_to_socket("money/orders", {}, "orders")
                 else:
                     self.send_signed_call("private/idkey", {}, "idkey")
-                    self.send_signed_call("private/orders", {}, "orders")
             else:
                 self.debug("### already have idkey, subscribing to account messages:")
                 self.gox.client.send(json.dumps({"op":"mtgox.subscribe", "key":self.gox._idkey}))
+            self.enqueue_http_to_socket("money/orders", {}, "orders")
+            self.send_signed_call("private/orders", {}, "orders")
                     #self.debug("Calling HTTP API's for: orders/idkey/info")
                      #self.enqueue_http_to_socket("money/info", {}, "info")
                 #else:
