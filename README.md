@@ -1,4 +1,6 @@
 #trader.python customized by genBTC 
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fgenbtc%2Ftrader.python.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fgenbtc%2Ftrader.python?ref=badge_shield)
+
 (trades on Mt. Gox, Bitfloor,BTC-E & Bitstamp).(Bitfloor has shut down) (hard coded for USD)
 
 Please read this README, don't skim it.
@@ -430,3 +432,6 @@ To keep the program up to date, GIT is recommended. Once you have the repo set u
     git pull
     git apply pop
 ```
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fgenbtc%2Ftrader.python.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fgenbtc%2Ftrader.python?ref=badge_large)
